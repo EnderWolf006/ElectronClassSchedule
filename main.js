@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, ipcMain, dialog, screen, Tray } = require('electron')
+const { app, BrowserWindow, Menu, ipcMain, dialog, screen, Tray, shell } = require('electron')
 let tray = undefined;
 let form = undefined;
 let basePath = app.isPackaged ? './resources/app/' : './'
@@ -67,6 +67,13 @@ ipcMain.on('getWeekIndex', (e, arg) => {
             label: '配置课表',
             click: () => {
                 win.webContents.send('openSettingDialog')
+            }
+        },
+        {
+            icon: basePath + 'image/github.png',
+            label: '源码仓库',
+            click: () => {
+                shell.openExternal('https://github.com/EnderWolf006/ElectronClassSchedule');
             }
         },
         {
