@@ -2,11 +2,12 @@
 
 ## 食用说明
 
-1. git clone 本仓库
-2. 配置  [scheduleConfig.js](./js/scheduleConfig.js)
-3. 根目录cmd运行 ```npm install```
-4. 根目录cmd运行 ```npm run build```
-5. 在out文件夹中找到构建好的程序即可使用
+1. 下载并安装 `node.js(LTS)` [node-v18.19.0-x64.msi【点我下载】](https://cdn.npmmirror.com/binaries/node/v18.19.0/node-v18.19.0-x64.msi)
+2. 点击页面右上角绿色按钮 `< > code` -> `Download ZIP` 下载并解压源码
+3. 根据你自己的课表配置 `js/scheduleConfig.js` 文件
+4. 根目录cmd运行 `npm install`
+5. 根目录cmd运行 `npm run build`
+6. 在out文件夹中找到构建好的程序即可使用
 
 ## 声明
 
@@ -17,5 +18,3 @@
 * 可以用来盈利 你可以在分发软件的时候收费，但你必须在收费前向你的客户提供该软件的 GNU GPL 许可协议，以便让他们知道，他们可以从别的渠道免费得到这份软件，以及你收费的理由。
 * 可自由修改 如果你想添加或删除某个功能，没问题，如果你想在别的项目中使用部分代码，也没问题，唯一的要求是，使用了这段代码的项目也必须使用 GPL 协议。
 * 如果有人和接收者签了合同性质的东西，并提供责任承诺，则授权人和作者不受此责任连带。
-
-
