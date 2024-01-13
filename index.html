@@ -52,6 +52,7 @@
     },
     scheduleArray: [null, null, null]
   }
+  
   function setScheduleClass() {
     let classHtml = '';
     for (let i = 0; i < scheduleData.scheduleArray.length; i++) {
@@ -70,11 +71,13 @@
     }
     classContainer.innerHTML = classHtml
   }
+
   function setCountdownerContent() {
     currentFullName.innerText = scheduleData.currentHighlight.fullName;
     currentFullName.style.color = scheduleData.currentHighlight.type === 'current' ? 'rgba(0, 255, 10, 1)' : 'rgba(255, 255, 5, 1)'
     countdownText.innerText = scheduleData.currentHighlight.countdownText;
   }
+
   function setCountdownerPosition() {
     let highlightElement = document.getElementById('highlighted')
     let offset = {}
@@ -121,10 +124,14 @@
     }
     lastScheduleData = $.extend(true, {}, scheduleData)
   }
+
   setInterval(() => {
     tick()
   }, 1000);
+
+
   const { ipcRenderer } = require('electron');
+  
   window.addEventListener("mousemove", event => {
     if (event.target.className.indexOf('notIgnoreClick') == -1) {
       ipcRenderer.send('setIgnore', true)
