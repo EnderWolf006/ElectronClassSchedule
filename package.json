@@ -1,0 +1,16 @@
+{
+  "name": "electron_class_schedule",
+  "version": "1.0.0",
+  "description": "classSchedule",
+  "main": "main.js",
+  "author": "lsl",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-packager . classSchedule --platform=win32 --arch=x64 --out=./out --app-version=0.0.1 --overwrite --ignore=node_modules"
+  },
+  "devDependencies": {
+    "electron": "^28.1.1",
+    "electron-packager": "^17.1.2"
+  }
+}

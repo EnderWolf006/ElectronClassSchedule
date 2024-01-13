@@ -1,0 +1,153 @@
+@font-face {
+    font-family: PingFang;
+    src: url("../font/PINGFANG.TTF");
+}
+
+@font-face {
+    font-family: JetB;
+    src: url("../font/JETBRAINSMONO-BOLD.TTF");
+}
+
+@font-face {
+    font-family: YouYuan;
+    src: url("../font/SIMYOU.TTF");
+}
+
+
+@font-face {
+    font-family: Ali;
+    src: url("../font/AlimamaDongFangDaKai.TTF");
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    overflow: visible;
+    white-space: nowrap;
+    -webkit-user-select: none;
+    user-select: none;
+    line-height: 1.2;
+}
+
+.background {
+    border-radius: 16px;
+    background-color: rgba(0, 0, 0, .5);
+    padding: 8px 14px;
+    font-size: 50px;
+    font-weight: 600;
+}
+
+.classContainer {
+    font-family: YouYuan;
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+    width: auto;
+}
+
+.globalContainer {
+    position: fixed;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.class {
+    color: rgba(255, 255, 255, 1);
+    margin: 0 8px;
+}
+
+.current {
+    color: rgba(0, 255, 10, 1);
+}
+
+.upcoming {
+    color: rgba(0, 255, 10, 1);
+    animation: highlightUpcoming 1.5s linear;
+    animation-iteration-count: infinite;
+}
+
+@keyframes highlightUpcoming {
+    0% {
+        color: rgba(255, 255, 255, 1)
+    }
+
+    40% {
+        color: rgba(0, 255, 10, 1);
+    }
+
+    60% {
+        color: rgba(0, 255, 10, 1);
+    }
+
+    100% {
+        color: rgba(255, 255, 255, 1)
+    }
+
+}
+
+.sidebar {
+    /* height: 100%; */
+    position: absolute;
+    top: 0;
+    font-family: Ali;
+}
+
+.rightSidebar {
+    right: 0;
+    color: #FF3a3a;
+    transform: translateX(calc(100% + 16px));
+}
+
+.leftSidebar {
+    left: 0;
+    color: rgb(0, 238, 255);
+    transform: translateX(calc(-100% - 16px));
+}
+
+.corner {
+    display: inline;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 1);
+    font-family: PingFang;
+}
+
+.countdownContainer {
+    position: absolute;
+    transition: all 2s;
+}
+
+.triangle {
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 16px 16px;
+    border-color: transparent transparent rgba(0, 0, 0, 0.5);
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.countdowner {
+    background-color: rgba(0, 0, 0, .5);
+    border-radius: 16px;
+    padding: 5px 12px;
+    font-size: 28px;
+}
+
+.currentClass {
+    color: rgba(0, 255, 10, 1);
+    display: inline;
+    font-family: PingFang;
+    transition: all 1s;
+    font-weight: bold;
+}
+
+.countdown {
+    color: rgba(255, 255, 255, 1);
+    display: inline;
+    font-family: JetB;
+}
+
