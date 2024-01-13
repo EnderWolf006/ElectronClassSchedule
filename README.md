@@ -15,6 +15,8 @@
 
 ## 食用说明(Windows)
 
+右侧Releases中下载Latest版本解压即可使用，配置文件在`resources/app/js/scheduleConfig.js`中。你也可以通过源码构建本软件使用，方式如下：
+
 1. 下载并安装 `node.js(LTS)` [node-v18.19.0-x64.msi【点我下载】](https://cdn.npmmirror.com/binaries/node/v18.19.0/node-v18.19.0-x64.msi)
 2. 点击页面右上角绿色按钮 `< > code` -> `Download ZIP` 下载并解压源码
 3. 根据你自己的课表配置 `js/scheduleConfig.js` 文件
