@@ -1,9 +1,4 @@
 @font-face {
-    font-family: PingFang;
-    src: url("../font/PINGFANG.TTF");
-}
-
-@font-face {
     font-family: JetB;
     src: url("../font/JETBRAINSMONO-BOLD.TTF");
 }
@@ -17,6 +12,11 @@
 @font-face {
     font-family: Ali;
     src: url("../font/AlimamaDongFangDaKai.TTF");
+}
+
+@font-face {
+    font-family: SourceHanSansCN-Bold;
+    src: url("../font/SourceHanSansCN-Bold.otf");
 }
 
 * {
@@ -107,7 +107,7 @@
     display: inline;
     font-size: 14px;
     color: rgba(255, 255, 255, 1);
-    font-family: PingFang;
+    font-family: SourceHanSansCN-Bold;
 }
 
 .countdownContainer {
@@ -137,8 +137,8 @@
 .currentClass {
     color: rgba(0, 255, 10, 1);
     display: inline;
-    font-family: PingFang;
-    transition: all 1s;
+    font-family: SourceHanSansCN-Bold;
+    transition: all 2s;
     font-weight: bold;
 }
 

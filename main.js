@@ -95,7 +95,7 @@ ipcMain.on('getWeekIndex', (e, arg) => {
     ]
     template[arg].checked = true
     form = Menu.buildFromTemplate(template)
-    tray.setToolTip('灵动课表 - by lsl')
+    tray.setToolTip('电子课表 - by lsl')
     function trayClicked() {
         tray.popUpContextMenu(form)
     }
