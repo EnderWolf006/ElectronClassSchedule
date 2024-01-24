@@ -65,7 +65,7 @@
 
 .upcoming {
     color: rgba(0, 255, 10, 1);
-    animation: highlightUpcoming 1.5s linear;
+    animation: highlightUpcoming 1.5s;
     animation-iteration-count: infinite;
 }
 
@@ -74,11 +74,7 @@
         color: rgba(255, 255, 255, 1)
     }
 
-    40% {
-        color: rgba(0, 255, 10, 1);
-    }
-
-    60% {
+    50% {
         color: rgba(0, 255, 10, 1);
     }
 
@@ -135,6 +131,7 @@
     border-radius: 16px;
     padding: 5px 12px;
     font-size: 28px;
+    transition: all 2s;
 }
 
 .currentClass {
