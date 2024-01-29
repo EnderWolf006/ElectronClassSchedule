@@ -52,7 +52,7 @@
     },
     scheduleArray: [null, null, null]
   }
-  
+
   function setScheduleClass() {
     let classHtml = '';
     for (let i = 0; i < scheduleData.scheduleArray.length; i++) {
@@ -102,8 +102,8 @@
     countdownContainer.style.top = offset.y + 'px'
   }
 
-  function setSidebar(){
-    let date = new Date()
+  function setSidebar() {
+    let date = getCurrentEditedDate()
     let week = date.getDay()
     let data = scheduleConfig.daily_class[week]
     weekCH.innerText = data.Chinese
@@ -131,7 +131,7 @@
 
 
   const { ipcRenderer } = require('electron');
-  
+
   window.addEventListener("mousemove", event => {
     if (event.target.className.indexOf('notIgnoreClick') == -1) {
       ipcRenderer.send('setIgnore', true)
@@ -175,7 +175,7 @@
     if (arg.index == -1) return
     let index = arg.arg.index;
     let selectedClass = arg.arg.classes[arg.index];
-    const date = new Date();
+    const date = getCurrentEditedDate();
     const dayOfWeek = date.getDay();
     scheduleConfig.daily_class[dayOfWeek].classList[index] = selectedClass;
   })
@@ -199,6 +199,16 @@
   ipcRenderer.on('getWeekIndex', (e, arg) => {
     let index = localStorage.getItem('weekIndex');
     ipcRenderer.send('getWeekIndex', index === null ? 0 : Number(index))
+  })
+
+  ipcRenderer.on('getTimeOffset', (e, arg) => {
+    let offset = localStorage.getItem('timeOffset');
+    ipcRenderer.send('getTimeOffset', offset === null ? 0 : Number(offset))
+  })
+
+  ipcRenderer.on('setTimeOffset', (e, arg) => {
+    timeOffset = arg
+    localStorage.setItem('timeOffset', arg.toString())
   })
 </script>
 

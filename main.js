@@ -1,4 +1,5 @@
 const { app, BrowserWindow, Menu, ipcMain, dialog, screen, Tray, shell } = require('electron')
+const prompt = require('electron-prompt');
 let tray = undefined;
 let form = undefined;
 let basePath = app.isPackaged ? './resources/app/' : './'
@@ -70,6 +71,13 @@ ipcMain.on('getWeekIndex', (e, arg) => {
             }
         },
         {
+            icon: basePath + 'image/clock.png',
+            label: '矫正计时',
+            click: () => {
+                win.webContents.send('getTimeOffset')
+            }
+        },
+        {
             icon: basePath + 'image/github.png',
             label: '源码仓库',
             click: () => {
@@ -123,4 +131,25 @@ ipcMain.on('dialog', (e, arg) => {
 
 ipcMain.on('pop', (e, arg) => {
     tray.popUpContextMenu(form)
+})
+
+ipcMain.on('getTimeOffset', (e, arg) => {
+    prompt({
+        title: '计时矫正',
+        label: '请设置课表计时与系统时间的偏移秒数:',
+        value: arg.toString(),
+        inputAttrs: {
+            type: 'number'
+        },
+        type: 'input',
+        height: 180,
+        width: 400,
+        icon: basePath + 'image/clock.png',
+    }).then((r) => {
+        if (r === null) {
+            console.log('[getTimeOffset] User cancelled');
+        } else {
+            win.webContents.send('setTimeOffset', Number(r) % 10000000000000)
+        }
+    })
 })
