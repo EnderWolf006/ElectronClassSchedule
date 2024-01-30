@@ -21,6 +21,6 @@ jobs:
           tag_name: ${{ github.ref }}
           release_name: Release ${{ github.ref }}
           body: 点击下方文件下载
-          body_path: ./out/classSchedule-win32-x64
+          # body_path: ./out/classSchedule-win32-x64
           draft: false
           prerelease: false
