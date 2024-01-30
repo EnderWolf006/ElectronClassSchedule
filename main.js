@@ -149,7 +149,7 @@ ipcMain.on('getTimeOffset', (e, arg) => {
         if (r === null) {
             console.log('[getTimeOffset] User cancelled');
         } else {
-            win.webContents.send('setTimeOffset', Number(r) % 1000000000000)
+            win.webContents.send('setTimeOffset', Number(r) % 10000000000000)
         }
     })
 })
