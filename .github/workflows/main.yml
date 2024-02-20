@@ -45,7 +45,11 @@ jobs:
           prerelease: false
 
       - name: Pack folder to zip
-        run: zip -r ./ElectronClassSchedule.zip ./out/classSchedule-win32-x64
+        uses: thedoctor0/zip-release@0.7.5
+        with:
+          type: 'zip'
+          filename: 'release.zip'
+          folder: './out/classSchedule-win32-x64'
 
       - name: Upload release asset
         id: upload-release-asset
@@ -54,6 +58,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./ElectronClassSchedule.zip
+          asset_path: ./release.zip
           asset_name: ElectronClassSchedule.zip
           asset_content_type: application/zip
