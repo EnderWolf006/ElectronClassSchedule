@@ -49,7 +49,7 @@ jobs:
         with:
           type: 'zip'
           filename: 'release.zip'
-          folder: './out/classSchedule-win32-x64'
+          directory: './out/classSchedule-win32-x64'
 
       - name: Upload release asset
         id: upload-release-asset
@@ -58,6 +58,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./release.zip
+          asset_path: ./out/release.zip
           asset_name: ElectronClassSchedule.zip
           asset_content_type: application/zip
