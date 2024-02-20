@@ -7,7 +7,7 @@
   "license": "GPLv3",
   "scripts": {
     "start": "electron .",
-    "build": "electron-packager . classSchedule --platform=win32 --arch=x64 --out=./out --app-version=0.0.1 --overwrite --ignore=node_modules"
+    "build": "electron-packager . classSchedule --platform=win32 --arch=x64 --out=./out --app-version=0.0.1 --overwrite"
   },
   "devDependencies": {
     "electron": "^28.1.1",
