@@ -28,8 +28,9 @@ jobs:
         uses: cb80/delrel@latest
         with:
           tag: 'latest'
-          token: ${{ secrets.MY_TOKEN }}
-
+          token: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
       - name: Create release
         id: create_release
         uses: actions/create-release@v1
