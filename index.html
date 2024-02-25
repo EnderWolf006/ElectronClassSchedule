@@ -218,6 +218,7 @@
 
   ipcRenderer.on('ClassCountdown', (e, arg) => {
     isClassCountdown = arg
+    tick(reset=true)
   })
 </script>
 

@@ -7,7 +7,6 @@
   "license": "GPLv3",
   "scripts": {
     "start": "electron .",
-    "install": "start node_modules/.bin/electron-rebuild",
     "build": "electron-packager . classSchedule --platform=win32 --arch=x64 --out=./out --app-version=0.0.1 --overwrite"
   },
   "devDependencies": {
