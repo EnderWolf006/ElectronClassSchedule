@@ -7,13 +7,18 @@
   "license": "GPLv3",
   "scripts": {
     "start": "electron .",
+    "install": "./node_modules/.bin/electron-rebuild",
     "build": "electron-packager . classSchedule --platform=win32 --arch=x64 --out=./out --app-version=0.0.1 --overwrite"
   },
   "devDependencies": {
+    "@electron/rebuild": "^3.6.0",
     "electron": "^28.1.1",
     "electron-packager": "^17.1.2"
   },
   "dependencies": {
-    "electron-prompt": "^1.7.0"
+    "electron-disable-minimize": "^2.1.0",
+    "electron-prompt": "^1.7.0",
+    "electron-store": "^8.1.0",
+    "node-gyp": "^10.0.1"
   }
 }

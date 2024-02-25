@@ -42,6 +42,7 @@
   let weekEN = document.getElementById('weekEN')
   let weekCH = document.getElementById('weekCH')
   let countdownDays = document.getElementById('countdownDays')
+  let isClassCountdown = true
   let lastScheduleData = {
     currentHighlight: {
       index: null,
@@ -76,6 +77,10 @@
     currentFullName.innerText = scheduleData.currentHighlight.fullName;
     currentFullName.style.color = scheduleData.currentHighlight.type === 'current' ? 'rgba(0, 255, 10, 1)' : 'rgba(255, 255, 5, 1)'
     countdownText.innerText = scheduleData.currentHighlight.countdownText;
+    if(scheduleData.currentHighlight.type  === 'current')
+      countdownContainer.style.display = isClassCountdown ? 'block' : 'none';
+    else
+      countdownContainer.style.display = 'block';
   }
 
   function setCountdownerPosition() {
@@ -209,6 +214,10 @@
   ipcRenderer.on('setTimeOffset', (e, arg) => {
     timeOffset = arg
     localStorage.setItem('timeOffset', arg.toString())
+  })
+
+  ipcRenderer.on('ClassCountdown', (e, arg) => {
+    isClassCountdown = arg
   })
 </script>
 
