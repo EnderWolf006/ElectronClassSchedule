@@ -16,7 +16,7 @@ jobs:
       - name: Set up VS
         uses: seanmiddleditch/gha-setup-vsdevenv@master
         with:
-          toolset_version: '2017'
+          toolset_version: '14.37.32822'
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -32,6 +32,7 @@ jobs:
           node-version: '14'
 
       - name: Install dependencies
+        run: npm config set msvs_version 2017
         run: npm install
 
       - name: Build application
