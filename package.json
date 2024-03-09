@@ -7,8 +7,7 @@
   "license": "GPLv3",
   "scripts": {
     "start": "electron .",
-    "build": "electron-packager . classSchedule --platform=win32 --arch=x64 --out=./out --app-version=0.0.1 --overwrite",
-    "build_x86": "electron-packager . classSchedule --platform=win32 --arch=x86 --out=./out_x86 --app-version=0.0.1 --overwrite"
+    "build": "electron-packager . classSchedule --platform=win32 --arch=x64 --out=./out --app-version=0.0.1 --overwrite"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.6.0",

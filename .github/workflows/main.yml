@@ -55,6 +55,7 @@ jobs:
           body: |
             点击下方 ElectronClassSchedule.zip 即可下载，下载完成后请先解压再运行
             2024/2/24: 已更新窗口置顶选项与上课时间倒计时隐藏
+            2024/3/09: 已支持课表样式修改，包括字体、透明度、间距等属性修改
             喜欢本项目的话, 点击右上角的Star支持一下作者吧😘
           draft: false
           prerelease: false

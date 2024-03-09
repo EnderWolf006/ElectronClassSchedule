@@ -11,7 +11,7 @@ let basePath = app.isPackaged ? './resources/app/' : './'
 const createWindow = () => {
     win = new BrowserWindow({
         x: 0,
-        y: 16,
+        y: 0,
         width: screen.getPrimaryDisplay().workAreaSize.width,
         height: 200,
         frame: false,

@@ -134,7 +134,11 @@
     tick()
   }, 1000);
 
-
+  const root = document.querySelector(':root');
+  for (key in scheduleConfig.css_style) {
+    root.style.setProperty(key, scheduleConfig.css_style[key])
+  }
+  
   const { ipcRenderer } = require('electron');
 
   window.addEventListener("mousemove", event => {

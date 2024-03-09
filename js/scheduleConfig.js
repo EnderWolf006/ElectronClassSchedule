@@ -120,7 +120,23 @@ const _scheduleConfig = {
             classList: [['物', '化', '英'], ['语', '数', '走'], ['化', '英', '物'], ['数', '走', '语'], ['英', '物', '化'], ['走', '语', '数'], '自', ['走', '物', '化']],
             timetable: 'weekend'
         }
-    ]
+    ],
+
+
+    // 课表样式: 配置课表样式CSS变量, 包括字体大小，透明度等属性
+    // 请不要更改冒号前半部分文字, 请更改冒号后单引号中的数字(切勿删除引号与数字后的单位), 如果你对CSS有所了解你也可以更改CSS单位
+    css_style: {
+        '--center-font-size': '50px', // 中间课表中的课程简写单字的字体大小
+        '--corner-font-size': '14px', // 左侧的星期中文角标与右侧的"天"字的字体大小
+        '--countdown-font-size': '28px', // 课程或课间全称与倒计时的字体大小
+        '--global-border-radius': '16px', // 所有背景框的圆角大小
+        '--global-bg-opacity': '0.5', // 所有背景框的不透明度, 范围: [0, 1]
+        '--container-bg-padding': '8px 14px', // 上面三个框各自的背景内边距, 前面的数字表示纵向边距，后面的数字表示横向边距
+        '--countdown-bg-padding': '5px 12px', // 倒计时框的背景内边距, 前面的数字表示纵向边距，后面的数字表示横向边距
+        '--container-space': '16px', // 上面三个框中间的间隔长度
+        '--top-space': '16px', // 课表主体最顶端与电脑屏幕上边框的间隔长度
+        '--main-horizontal-space': '8px', // 中间课表中的课程简写单字之间的间隔长度
+    }
 }
 
 var scheduleConfig = JSON.parse(JSON.stringify(_scheduleConfig))
