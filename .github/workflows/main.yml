@@ -37,6 +37,7 @@ jobs:
 
       - name: Build application
         run: npm run build
+        run: npm run build_x86
 
       - name: Delete release
         uses: cb80/delrel@latest
@@ -55,16 +56,24 @@ jobs:
           body: |
             点击下方 ElectronClassSchedule.zip 即可下载，下载完成后请先解压再运行
             2024/2/24: 已更新窗口置顶选项与上课时间倒计时隐藏
+            2024/3/09: 已更新支持x86 Win7 32位系统，如有需求请在下方下载x86版本
             喜欢本项目的话, 点击右上角的Star支持一下作者吧😘
           draft: false
           prerelease: false
 
-      - name: Pack folder to zip
+      - name: Pack folder to zip (x64)
         uses: thedoctor0/zip-release@0.7.5
         with:
           type: 'zip'
-          filename: 'release.zip'
+          filename: 'release_x64.zip'
           directory: './out/classSchedule-win32-x64'
+      
+      - name: Pack folder to zip (x86)
+        uses: thedoctor0/zip-release@0.7.5
+        with:
+          type: 'zip'
+          filename: 'release_x86.zip'
+          directory: './out/classSchedule-win32-x86'
 
       - name: Upload release asset
         id: upload-release-asset
@@ -73,6 +82,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./out/classSchedule-win32-x64/release.zip
-          asset_name: ElectronClassSchedule.zip
+          asset_path: ./out/classSchedule-win32-x64/release_x64.zip
+          asset_name: ElectronClassSchedule_x64.zip
+          asset_content_type: application/zip
+          asset_path: ./out/classSchedule-win32-x64/release_x86.zip
+          asset_name: ElectronClassSchedule_x86.zip
           asset_content_type: application/zip
