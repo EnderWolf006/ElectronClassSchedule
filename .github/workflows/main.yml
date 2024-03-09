@@ -85,6 +85,7 @@ jobs:
           asset_path: ./out/classSchedule-win32-x64/release_x64.zip
           asset_name: ElectronClassSchedule_x64.zip
           asset_content_type: application/zip
+        with:
           asset_path: ./out/classSchedule-win32-x64/release_x86.zip
           asset_name: ElectronClassSchedule_x86.zip
           asset_content_type: application/zip
