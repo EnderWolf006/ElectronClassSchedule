@@ -35,8 +35,10 @@ jobs:
       - name: Rebuild dependencies
         run: node_modules/.bin/electron-rebuild
 
-      - name: Build application
+      - name: Build application (x64)
         run: npm run build
+      
+      - name: Build application (x86)
         run: npm run build_x86
 
       - name: Delete release
