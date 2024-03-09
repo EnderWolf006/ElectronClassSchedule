@@ -8,6 +8,9 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        architecture: [x86, x64]
 
     steps:
       - name: Checkout code
@@ -35,16 +38,13 @@ jobs:
       - name: Rebuild dependencies
         run: node_modules/.bin/electron-rebuild
 
-      - name: Build application (x64)
-        run: npm run build
-      
-      - name: Build application (x86)
-        run: npm run build_x86
+      - name: Build application
+        run: npm run build_${{ matrix.architecture }}
 
       - name: Delete release
         uses: cb80/delrel@latest
         with:
-          tag: 'latest'
+          tag: 'latest-${{ matrix.architecture }}'
           token: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Create release
@@ -53,29 +53,22 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: latest
-          release_name: Latest Release 
+          tag_name: latest-${{ matrix.architecture }}
+          release_name: Latest Release ${{ matrix.architecture }}
           body: |
             点击下方 ElectronClassSchedule.zip 即可下载，下载完成后请先解压再运行
             2024/2/24: 已更新窗口置顶选项与上课时间倒计时隐藏
-            2024/3/09: 已更新支持x86 Win7 32位系统，如有需求请在下方下载x86版本
+            2024/3/09: 已更新支持x86 Win7 32位系统
             喜欢本项目的话, 点击右上角的Star支持一下作者吧😘
           draft: false
           prerelease: false
 
-      - name: Pack folder to zip (x64)
+      - name: Pack folder to zip
         uses: thedoctor0/zip-release@0.7.5
         with:
           type: 'zip'
-          filename: 'release_x64.zip'
-          directory: './out/classSchedule-win32-x64'
-      
-      - name: Pack folder to zip (x86)
-        uses: thedoctor0/zip-release@0.7.5
-        with:
-          type: 'zip'
-          filename: 'release_x86.zip'
-          directory: './out/classSchedule-win32-x86'
+          filename: release-${{ matrix.architecture }}.zip
+          directory: ./out/classSchedule-win32-${{ matrix.architecture }}
 
       - name: Upload release asset
         id: upload-release-asset
@@ -84,17 +77,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./out/classSchedule-win32-x64/release_x64.zip
-          asset_name: ElectronClassSchedule_x64.zip
-          asset_content_type: application/zip
-
-      - name: Upload release asset x86
-        id: upload-release-asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./out/classSchedule-win32-x64/release_x86.zip
-          asset_name: ElectronClassSchedule_x86.zip
+          asset_path: ./out/classSchedule-win32-${{ matrix.architecture }}/release.zip
+          asset_name: ElectronClassSchedule-${{ matrix.architecture }}.zip
           asset_content_type: application/zip
