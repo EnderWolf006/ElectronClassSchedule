@@ -79,6 +79,13 @@ ipcMain.on('getWeekIndex', (e, arg) => {
             }
         },
         {
+            icon: basePath + 'image/table.png',
+            label: '预览课表',
+            click: () => {
+                win.webContents.send('openSettingDialog')
+            }
+        },
+        {
             icon: basePath + 'image/clock.png',
             label: '矫正计时',
             click: () => {

@@ -53,7 +53,9 @@ jobs:
           tag_name: latest
           release_name: Latest Release 
           body: |
-            点击下方 ElectronClassSchedule.zip 即可下载，下载完成后请先解压再运行
+            点击下方 `ElectronClassSchedule.zip` 即可下载，下载完成后请先解压再运行
+            若下载过慢可使用第三方代理下载 [【点我下载】ElectronClassSchedule.zip](https://mirror.ghproxy.com/?q=https%3A%2F%2Fgithub.com%2FEnderWolf006%2FElectronClassSchedule%2Freleases%2Fdownload%2Flatest%2FElectronClassSchedule.zip)
+            推荐使用VSCode编辑配置文件 [【点我下载】Visual Studio Code](https://lsw-fast.lenovo.com.cn/appstore/apps/4970-2024-03-01100059-1709258459745.exe)
             2024/2/24: 已更新窗口置顶选项与上课时间倒计时隐藏
             2024/3/09: 已支持课表样式修改，包括字体、透明度、间距等属性修改
             喜欢本项目的话, 点击右上角的Star支持一下作者吧😘
