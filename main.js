@@ -1,8 +1,8 @@
 const { app, BrowserWindow, Menu, ipcMain, dialog, screen, Tray, shell } = require('electron')
 const prompt = require('electron-prompt');
-const Store = require('electron-store');  
+const Store = require('electron-store');
 const { DisableMinimize } = require('electron-disable-minimize');
-const store = new Store();  
+const store = new Store();
 let tray = undefined;
 let form = undefined;
 var win = undefined;
@@ -30,10 +30,21 @@ const createWindow = () => {
     })
     // win.webContents.openDevTools()
     win.loadFile('index.html')
-    if(store.get('isWindowAlwaysOnTop', true))
+    if (store.get('isWindowAlwaysOnTop', true))
         win.setAlwaysOnTop(true, 'screen-saver', 9999999999999)
 }
-
+function setAutoLaunch() {
+    if (store.get('isAutoLaunch', true))
+        app.setLoginItemSettings({
+            openAtLogin: true,
+            openAsHidden: false
+        })
+    else
+        app.setLoginItemSettings({
+            openAtLogin: false,
+            openAsHidden: false
+        })
+}
 app.whenReady().then(() => {
     createWindow()
     Menu.setApplicationMenu(null)
@@ -42,6 +53,7 @@ app.whenReady().then(() => {
     })
     const handle = win.getNativeWindowHandle();
     DisableMinimize(handle); // Thank to peter's project https://github.com/tbvjaos510/electron-disable-minimize
+    setAutoLaunch()
 })
 
 ipcMain.on('getWeekIndex', (e, arg) => {
@@ -95,9 +107,9 @@ ipcMain.on('getWeekIndex', (e, arg) => {
         {
             type: 'separator'
         },
-        {   
+        {
             id: 'countdown',
-            label: '上课计时',
+            label: '课上计时',
             type: 'checkbox',
             checked: store.get('isDuringClassCountdown', true),
             click: (e) => {
@@ -105,16 +117,34 @@ ipcMain.on('getWeekIndex', (e, arg) => {
                 win.webContents.send('ClassCountdown', e.checked)
             }
         },
-        {   
+        {
             label: '窗口置顶',
             type: 'checkbox',
             checked: store.get('isWindowAlwaysOnTop', true),
             click: (e) => {
                 store.set('isWindowAlwaysOnTop', e.checked)
-                if(store.get('isWindowAlwaysOnTop', true))
+                if (store.get('isWindowAlwaysOnTop', true))
                     win.setAlwaysOnTop(true, 'screen-saver', 9999999999999)
                 else
                     win.setAlwaysOnTop(false)
+            }
+        },
+        {
+            label: '上课隐藏',
+            type: 'checkbox',
+            checked: store.get('isDuringClassHidden', true),
+            click: (e) => {
+                store.set('isDuringClassHidden', e.checked)
+                win.webContents.send('ClassHidden', e.checked)
+            }
+        },
+        {
+            label: '开机启动',
+            type: 'checkbox',
+            checked: store.get('isAutoLaunch', true),
+            click: (e) => {
+                store.set('isAutoLaunch', e.checked)
+                setAutoLaunch()
             }
         },
         {
@@ -144,6 +174,7 @@ ipcMain.on('getWeekIndex', (e, arg) => {
     tray.on('right-click', trayClicked)
     tray.setContextMenu(form)
     win.webContents.send('ClassCountdown', store.get('isDuringClassCountdown', true))
+    win.webContents.send('ClassHidden', store.get('isDuringClassHidden', true))
 })
 
 ipcMain.on('log', (e, arg) => {

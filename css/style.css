@@ -30,6 +30,10 @@
     line-height: 1.2;
 }
 
+:root {
+    transition: opacity .5s .2s;
+}
+
 .background {
     border-radius: var(--global-border-radius);
     background-color: rgba(0, 0, 0, var(--global-bg-opacity));
@@ -146,4 +150,18 @@
     color: rgba(255, 255, 255, 1);
     display: inline;
     font-family: JetB;
+}
+
+.miniCountdown {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    top: var(--top-space);
+    border-radius: var(--global-border-radius);
+    background-color: rgba(0, 0, 0, var(--global-bg-opacity));
+    padding: var(--countdown-bg-padding);
+    font-size: var(--countdown-font-size);
+    font-family: JetB;
+    color: #FFF;
+    display: none;
 }

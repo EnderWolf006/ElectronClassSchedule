@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ch">
+<html lang="ch" id="html">
 
 <head>
   <title>电子课表</title>
@@ -26,12 +26,16 @@
         <div class="countdown" id="countdownText">00:00</div>
       </div>
     </div>
-    <div class="leftSidebar sidebar background"><span id="weekEN">Load</span><div class="corner options notIgnoreClick" id="weekCH">ing</div></div>
-    <div class="rightSidebar sidebar background"><span id="countdownDays">000</span><div class="corner">天</div></div>
+    <div class="leftSidebar sidebar background"><span id="weekEN" class="t">Load</span><div class="corner options notIgnoreClick" id="weekCH">ing</div>
+    </div>
+    <div class="rightSidebar sidebar background"><span id="countdownDays" class="t">000</span><div class="corner">天</div>
+    </div>
   </div>
+  <div class="miniCountdown" id="miniCountdown">00:00</div>
 
 </body>
 <script>
+  const { ipcRenderer } = require('electron');
   let scheduleData = getScheduleData();
   let globalContainer = document.getElementById('globalContainer')
   let classContainer = document.getElementById('classContainer')
@@ -42,7 +46,9 @@
   let weekEN = document.getElementById('weekEN')
   let weekCH = document.getElementById('weekCH')
   let countdownDays = document.getElementById('countdownDays')
+  let miniCountdown = document.getElementById('miniCountdown')
   let isClassCountdown = true
+  let isClassHidden = true
   let lastScheduleData = {
     currentHighlight: {
       index: null,
@@ -73,14 +79,36 @@
     classContainer.innerHTML = classHtml
   }
 
+  function setBackgroundDisplay(){
+    let elements = document.getElementsByClassName('background')
+    for (element of elements){
+      element.style.visibility = (scheduleData.currentHighlight.type === 'current' && isClassHidden) ? 'hidden' : 'visible'
+    }
+  }
+
   function setCountdownerContent() {
     currentFullName.innerText = scheduleData.currentHighlight.fullName;
     currentFullName.style.color = scheduleData.currentHighlight.type === 'current' ? 'rgba(0, 255, 10, 1)' : 'rgba(255, 255, 5, 1)'
     countdownText.innerText = scheduleData.currentHighlight.countdownText;
-    if(scheduleData.currentHighlight.type  === 'current')
-      countdownContainer.style.display = isClassCountdown ? 'block' : 'none';
-    else
+    if (scheduleData.currentHighlight.type === 'current') {
+      if (isClassCountdown) {
+        if (isClassHidden) { // 上课 并且开启了倒计时 并且 隐藏主体 -> 显示小窗口 
+          countdownContainer.style.display = 'none'
+          miniCountdown.style.display = 'block'
+          miniCountdown.innerText = scheduleData.currentHighlight.countdownText
+        } else { // 上课 并且开启了倒计时 并且 不隐藏主体 -> 正常计时
+          countdownContainer.style.display = 'block'
+          miniCountdown.style.display = 'none'
+        }
+      } else { // 上课 并且关闭了倒计时 -> 都不显示
+        countdownContainer.style.display = 'none'
+        miniCountdown.style.display = 'none'
+      }
+    }
+    else { // 下课正常显示
       countdownContainer.style.display = 'block';
+      miniCountdown.style.display = 'none'
+    }
   }
 
   function setCountdownerPosition() {
@@ -126,27 +154,43 @@
       setScheduleClass()
       setCountdownerPosition()
       setSidebar()
+      setBackgroundDisplay()
     }
     lastScheduleData = $.extend(true, {}, scheduleData)
   }
 
+
+  let lastTickTime = new Date().getTime()
   setInterval(() => {
-    tick()
-  }, 1000);
+    if (new Date().getTime() - lastTickTime >= 1000){
+      lastTickTime = new Date().getTime()
+      tick()
+    }
+  }, 20);
 
   const root = document.querySelector(':root');
   for (key in scheduleConfig.css_style) {
     root.style.setProperty(key, scheduleConfig.css_style[key])
   }
-  
-  const { ipcRenderer } = require('electron');
 
+  let timer = undefined
   window.addEventListener("mousemove", event => {
+    if (event.target.className && event.target.className.indexOf('notIgnoreClick') == -1) {
+      root.style.opacity = '0.3'
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        root.style.opacity = '1'
+      }, 5000);
+    }else{
+      clearTimeout(timer)
+      root.style.opacity = '1'
+    } 
     if (event.target.className.indexOf('notIgnoreClick') == -1) {
       ipcRenderer.send('setIgnore', true)
     } else {
       ipcRenderer.send('setIgnore', false)
     }
+    
   });
   ipcRenderer.send('setIgnore', true)
 
@@ -222,7 +266,12 @@
 
   ipcRenderer.on('ClassCountdown', (e, arg) => {
     isClassCountdown = arg
-    tick(reset=true)
+    tick(reset = true)
+  })
+
+  ipcRenderer.on('ClassHidden', (e, arg) => {
+    isClassHidden = arg
+    tick(reset = true)
   })
 </script>
 
