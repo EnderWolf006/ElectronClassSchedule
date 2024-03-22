@@ -95,7 +95,7 @@
         if (isClassHidden) { // 上课 并且开启了倒计时 并且 隐藏主体 -> 显示小窗口 
           countdownContainer.style.display = 'none'
           miniCountdown.style.display = 'block'
-          miniCountdown.innerText = scheduleData.currentHighlight.countdownText
+          miniCountdown.innerHTML = `<div class="currentClass">${currentFullName.innerText = scheduleData.currentHighlight.fullName}</div><div class="countdown" style="margin-left:5px">${scheduleData.currentHighlight.countdownText}</div>`
         } else { // 上课 并且开启了倒计时 并且 不隐藏主体 -> 正常计时
           countdownContainer.style.display = 'block'
           miniCountdown.style.display = 'none'
