@@ -1,4 +1,9 @@
 const { app, BrowserWindow, Menu, ipcMain, dialog, screen, Tray, shell } = require('electron')
+const path = require('path');
+const fs = require('fs')
+const os = require('os')
+const createShortcut = require('windows-shortcuts')
+const startupFolderPath = path.join(os.homedir(), 'AppData', 'Roaming', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup');
 const prompt = require('electron-prompt');
 const Store = require('electron-store');
 const { DisableMinimize } = require('electron-disable-minimize');
@@ -34,16 +39,17 @@ const createWindow = () => {
         win.setAlwaysOnTop(true, 'screen-saver', 9999999999999)
 }
 function setAutoLaunch() {
-    if (store.get('isAutoLaunch', true))
-        app.setLoginItemSettings({
-            openAtLogin: true,
-            openAsHidden: false
-        })
-    else
-        app.setLoginItemSettings({
-            openAtLogin: false,
-            openAsHidden: false
-        })
+    const shortcutName = '电子课表(请勿重命名).lnk'
+    app.setLoginItemSettings({ // backward compatible
+        openAtLogin: false,
+        openAsHidden: false
+    })
+    if (store.get('isAutoLaunch', true)) {
+        createShortcut.create(startupFolderPath + '/' + shortcutName, app.getPath('exe'), (e) => { e && console.log(e); })
+    } else {
+        fs.unlink(startupFolderPath + '/' + shortcutName, () => { })
+    }
+
 }
 app.whenReady().then(() => {
     createWindow()
