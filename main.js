@@ -45,7 +45,11 @@ function setAutoLaunch() {
         openAsHidden: false
     })
     if (store.get('isAutoLaunch', true)) {
-        createShortcut.create(startupFolderPath + '/' + shortcutName, app.getPath('exe'), (e) => { e && console.log(e); })
+        createShortcut.create(startupFolderPath + '/' + shortcutName,
+            {
+                target: app.getPath('exe'),
+                workingDir: app.getPath('exe').split('\\').slice(0, -1).join('\\'),
+            }, (e) => { e && console.log(e); })
     } else {
         fs.unlink(startupFolderPath + '/' + shortcutName, () => { })
     }
