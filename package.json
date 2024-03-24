@@ -11,10 +11,10 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^3.6.0",
-    "electron": "^28.1.1",
     "electron-packager": "^17.1.2"
   },
   "dependencies": {
+    "electron": "^29.1.5",
     "electron-disable-minimize": "^2.1.0",
     "electron-prompt": "^1.7.0",
     "electron-store": "^8.1.0",
