@@ -83,3 +83,29 @@ jobs:
           asset_path: ./out/classSchedule-win32-x64/release.zip
           asset_name: ElectronClassSchedule.zip
           asset_content_type: application/zip
+
+      - name: Install specific Electron version
+        run: npm install electron@22.3.27
+
+      - name: Rebuild dependencies for specific Electron version
+        run: node_modules/.bin/electron-rebuild
+
+      - name: Build application with specific Electron version
+        run: npm run build
+
+      - name: Pack folder to zip for specific Electron version
+        uses: thedoctor0/zip-release@0.7.5
+        with:
+          type: 'zip'
+          filename: 'release-electron-22.3.27.zip'
+          directory: './out/classSchedule-win32-x64'
+
+      - name: Upload release asset for specific Electron version
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./out/classSchedule-win32-x64/release-electron-22.3.27.zip
+          asset_name: 【win7/8】ElectronClassSchedule.zip
+          asset_content_type: application/zip
