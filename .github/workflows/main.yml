@@ -54,14 +54,15 @@ jobs:
           release_name: Latest Release 
           body: |
             点击下方 `ElectronClassSchedule.zip` 即可下载，下载完成后请先解压再运行
-            若下载过慢可使用第三方代理下载 [【点我下载】ElectronClassSchedule.zip](https://mirror.ghproxy.com/?q=https%3A%2F%2Fgithub.com%2FEnderWolf006%2FElectronClassSchedule%2Freleases%2Fdownload%2Flatest%2FElectronClassSchedule.zip)
+            若下载过慢可使用第三方代理下载 [【点我下载】Win7_Win8_ElectronClassSchedule.zip](https://mirror.ghproxy.com/?q=https%3A%2F%2Fgithub.com%2FEnderWolf006%2FElectronClassSchedule%2Freleases%2Fdownload%2Flatest%2FWin7_Win8_ElectronClassSchedule.zip)
+            若下载过慢可使用第三方代理下载 [【点我下载】Win10_Win11_ElectronClassSchedule.zip](https://mirror.ghproxy.com/?q=https%3A%2F%2Fgithub.com%2FEnderWolf006%2FElectronClassSchedule%2Freleases%2Fdownload%2Flatest%2FWin10_Win11_ElectronClassSchedule.zip)
             推荐使用VSCode编辑配置文件 [【点我下载】Visual Studio Code](https://lsw-fast.lenovo.com.cn/appstore/apps/4970-2024-03-01100059-1709258459745.exe)
             2024/2/24: 已更新窗口置顶选项与上课时间倒计时隐藏
             2024/3/09: 已支持课表样式修改，包括字体、透明度、间距等属性修改
             2024/3/17: 已支持课上隐藏课表，课上仅保留小窗倒计时，开机自动启动，鼠标靠近降低透明度
             2024/3/22: ~~已修复开机自动启动报错Bug~~，新增小窗口倒计时课程名称显示
             2024/3/23: 已修复workingDir未配置导致的开机自动启动报错Bug
-            2024/3/29: 已支持配置课程间分隔线，在配置文件中有详细介绍
+            2024/3/29: 已支持配置课间分隔线，适配Windows7/8系统
             喜欢本项目的话, 点击右上角的Star支持一下作者吧😘
           draft: false
           prerelease: false
@@ -81,7 +82,7 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./out/classSchedule-win32-x64/release.zip
-          asset_name: ElectronClassSchedule.zip
+          asset_name: Win10_Win11_ElectronClassSchedule.zip
           asset_content_type: application/zip
 
       - name: Install specific Electron version
@@ -107,5 +108,5 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./out/classSchedule-win32-x64/release-electron-22.3.27.zip
-          asset_name: 【win7/8】ElectronClassSchedule.zip
+          asset_name: Win7_Win8_ElectronClassSchedule.zip
           asset_content_type: application/zip
