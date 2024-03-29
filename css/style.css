@@ -165,3 +165,10 @@
     color: #FFF;
     display: none;
 }
+
+.divider {
+    width: var(--divider-width);
+    background-color: #aaa;
+    border-radius: calc(var(--divider-width) / 2);
+    margin: var(--divider-margin);
+}

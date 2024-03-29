@@ -83,7 +83,9 @@ function getScheduleData() {
     const currentTime = getCurrentTime();
     // let currentTime = '07:10:01';
     const dayOfWeek = getCurrentEditedDate().getDay();
-    const dayTimetable = scheduleConfig.timetable[scheduleConfig.daily_class[dayOfWeek].timetable];
+    const timetable = scheduleConfig.daily_class[dayOfWeek].timetable
+    const dayTimetable = scheduleConfig.timetable[timetable];
+    const divider = scheduleConfig.divider[timetable];
 
     let scheduleArray = [];
     let currentHighlight = { index: null, type: null, fullName: null, countdown: null, countdownText: null };
@@ -136,7 +138,7 @@ function getScheduleData() {
         }
     });
 
-    return { scheduleArray, currentHighlight };
+    return { scheduleArray, currentHighlight, timetable, divider };
 }
 
 

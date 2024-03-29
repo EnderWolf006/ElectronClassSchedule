@@ -47,6 +47,7 @@
   let weekCH = document.getElementById('weekCH')
   let countdownDays = document.getElementById('countdownDays')
   let miniCountdown = document.getElementById('miniCountdown')
+  let root = document.querySelector(':root');
   let isClassCountdown = true
   let isClassHidden = true
   let lastScheduleData = {
@@ -57,7 +58,9 @@
       countdown: null,
       countdownText: null
     },
-    scheduleArray: [null, null, null]
+    scheduleArray: [null, null, null],
+    timetable: null,
+    divider: [null, null]
   }
 
   function setScheduleClass() {
@@ -75,13 +78,15 @@
         else
           classHtml += `<div class="class">${scheduleData.scheduleArray[i]}</div>`
       }
+      if (scheduleData.divider.indexOf(i) != -1)
+        classHtml += '<div class="divider"></div>'
     }
     classContainer.innerHTML = classHtml
   }
 
-  function setBackgroundDisplay(){
+  function setBackgroundDisplay() {
     let elements = document.getElementsByClassName('background')
-    for (element of elements){
+    for (element of elements) {
       element.style.visibility = (scheduleData.currentHighlight.type === 'current' && isClassHidden) ? 'hidden' : 'visible'
     }
   }
@@ -120,9 +125,16 @@
         y: classContainer.offsetHeight
       }
     } else if (scheduleData.currentHighlight.type === 'upcoming') {
-      offset = {
-        x: highlightElement.offsetLeft - countdownContainer.offsetWidth / 2 - Number(getComputedStyle(highlightElement).marginLeft.replace('px', '')),
-        y: classContainer.offsetHeight
+      if (scheduleData.currentHighlight.index != 0 && scheduleData.divider.indexOf((scheduleData.currentHighlight.index - 1)) != -1) {
+        offset = {
+          x: highlightElement.offsetLeft - countdownContainer.offsetWidth / 2 - Number(getComputedStyle(highlightElement).marginLeft.replace('px', '')) - getComputedStyle(root).getPropertyValue('--divider-width').replace('px', '') / 2 - getComputedStyle(root).getPropertyValue('--divider-margin').replace('px', ''),
+          y: classContainer.offsetHeight
+        }
+      } else {
+        offset = {
+          x: highlightElement.offsetLeft - countdownContainer.offsetWidth / 2 - Number(getComputedStyle(highlightElement).marginLeft.replace('px', '')),
+          y: classContainer.offsetHeight
+        }
       }
     }
     if (scheduleData.currentHighlight.isEnd) {
@@ -162,13 +174,12 @@
 
   let lastTickTime = new Date().getTime()
   setInterval(() => {
-    if (new Date().getTime() - lastTickTime >= 1000){
+    if (new Date().getTime() - lastTickTime >= 1000) {
       lastTickTime = new Date().getTime()
       tick()
     }
   }, 20);
 
-  const root = document.querySelector(':root');
   for (key in scheduleConfig.css_style) {
     root.style.setProperty(key, scheduleConfig.css_style[key])
   }
@@ -181,16 +192,16 @@
       timer = setTimeout(() => {
         root.style.opacity = '1'
       }, 5000);
-    }else{
+    } else {
       clearTimeout(timer)
       root.style.opacity = '1'
-    } 
+    }
     if (event.target.className.indexOf('notIgnoreClick') == -1) {
       ipcRenderer.send('setIgnore', true)
     } else {
       ipcRenderer.send('setIgnore', false)
     }
-    
+
   });
   ipcRenderer.send('setIgnore', true)
 
