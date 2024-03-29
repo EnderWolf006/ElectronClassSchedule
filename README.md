@@ -2,6 +2,7 @@
 
 ![view](image/README/view.png)
 
+
 ## 软件介绍
 
 - 本软件具有显示当天课表，当前星期，天数倒计时，下课/上课倒计时等功能。
@@ -10,7 +11,7 @@
 - 软件由一位高三牲制作，含有大量屎山代码，望大家海涵。
 - 在电子白板在学校普及的今天，欢迎大家下载体验与分享，但也请不要用于商业用途。
 - 喜欢本项目的话，点击右上角的Star或发视频宣传一波支持一下作者吧😘
-
+- [【点我加群】电子课程表QQ交流群: 951996041](https://qm.qq.com/cgi-bin/qm/qr?k=uMV5WvO9aeZbg2YcSlVaxLLpjVHV_zHr&jump_from=webapi&authKey=LlCtWhk3XO5EOH5pTzJxfTUH1NxQAYevzi70zXAFESivsQQbzQKSQkbDTud2JOie)
 ## 食用说明
 以下为在Windows系统下的使用方法，其他操作系统请各位大佬自行拉取仓库打包
 
