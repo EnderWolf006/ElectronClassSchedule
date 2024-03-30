@@ -91,6 +91,13 @@ ipcMain.on('getWeekIndex', (e, arg) => {
             }
         },
         {
+            label: '第四周',
+            type: 'radio',
+            click: () => {
+                win.webContents.send('setWeekIndex', 3)
+            }
+        },
+        {
             type: 'separator'
         },
         {

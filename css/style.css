@@ -123,7 +123,7 @@
     width: 0;
     height: 0;
     border-style: solid;
-    border-width: 0 16px 16px;
+    border-width: 0 var(--triangle-size) var(--triangle-size);
     border-color: transparent transparent rgba(0, 0, 0, var(--global-bg-opacity));
     position: relative;
     left: 50%;
