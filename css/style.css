@@ -1,6 +1,6 @@
 @font-face {
-    font-family: JetB;
-    src: url("../font/JETBRAINSMONO-BOLD.TTF");
+    font-family: Rec;
+    src: url("../font/Recursive-Bold.ttf");
 }
 
 @font-face {
@@ -8,14 +8,13 @@
     src: url("../font/SIMYOU.TTF");
 }
 
-
 @font-face {
     font-family: Ali;
     src: url("../font/AlimamaDongFangDaKai.TTF");
 }
 
 @font-face {
-    font-family: SourceHanSansCN-Bold;
+    font-family: Sou;
     src: url("../font/SourceHanSansCN-Bold.otf");
 }
 
@@ -111,7 +110,7 @@
     display: inline;
     font-size: var(--corner-font-size);
     color: rgba(255, 255, 255, 1);
-    font-family: SourceHanSansCN-Bold;
+    font-family: Sou;
 }
 
 .countdownContainer {
@@ -141,7 +140,7 @@
 .currentClass {
     color: rgba(0, 255, 10, 1);
     display: inline;
-    font-family: SourceHanSansCN-Bold;
+    font-family: Sou;
     transition: all 2s;
     font-weight: bold;
 }
@@ -149,7 +148,7 @@
 .countdown {
     color: rgba(255, 255, 255, 1);
     display: inline;
-    font-family: JetB;
+    font-family: Rec;
 }
 
 .miniCountdown {
@@ -161,7 +160,7 @@
     background-color: rgba(0, 0, 0, var(--global-bg-opacity));
     padding: var(--countdown-bg-padding);
     font-size: var(--countdown-font-size);
-    font-family: JetB;
+    font-family: Rec;
     color: #FFF;
     display: none;
 }

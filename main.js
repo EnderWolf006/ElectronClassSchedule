@@ -13,6 +13,9 @@ let form = undefined;
 var win = undefined;
 let template = []
 let basePath = app.isPackaged ? './resources/app/' : './'
+if (!app.requestSingleInstanceLock({ key: 'classSchedule' })) {
+    app.quit();
+}
 const createWindow = () => {
     win = new BrowserWindow({
         x: 0,
