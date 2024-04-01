@@ -1,6 +1,6 @@
 @font-face {
-    font-family: Rec;
-    src: url("../font/Recursive-Bold.ttf");
+    font-family: JETB;
+    src: url("../font/JETBRAINSMONO-BOLD.TTF");
 }
 
 @font-face {
@@ -148,7 +148,7 @@
 .countdown {
     color: rgba(255, 255, 255, 1);
     display: inline;
-    font-family: Rec;
+    font-family: JETB;
 }
 
 .miniCountdown {
@@ -160,7 +160,7 @@
     background-color: rgba(0, 0, 0, var(--global-bg-opacity));
     padding: var(--countdown-bg-padding);
     font-size: var(--countdown-font-size);
-    font-family: Rec;
+    font-family: JETB;
     color: #FFF;
     display: none;
 }
@@ -170,4 +170,9 @@
     background-color: #aaa;
     border-radius: calc(var(--divider-width) / 2);
     margin: var(--divider-margin);
+}
+
+.subClass {
+    display: inline;
+    font-size: var(--sub-font-size);
 }

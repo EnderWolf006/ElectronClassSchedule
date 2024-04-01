@@ -26,9 +26,9 @@
         <div class="countdown" id="countdownText">00:00</div>
       </div>
     </div>
-    <div class="leftSidebar sidebar background"><span id="weekEN" class="t">Load</span><div class="corner options notIgnoreClick" id="weekCH">ing</div>
+    <div class="leftSidebar sidebar background"  id="leftSidebar"><span id="weekEN" class="t">Load</span><div class="corner options notIgnoreClick" id="weekCH">ing</div>
     </div>
-    <div class="rightSidebar sidebar background"><span id="countdownDays" class="t">000</span><div class="corner">天</div>
+    <div class="rightSidebar sidebar background" id="rightSidebar"><span id="countdownDays" class="t">000</span><div class="corner">天</div>
     </div>
   </div>
   <div class="miniCountdown" id="miniCountdown">00:00</div>
@@ -47,6 +47,8 @@
   let weekCH = document.getElementById('weekCH')
   let countdownDays = document.getElementById('countdownDays')
   let miniCountdown = document.getElementById('miniCountdown')
+  let rightSidebar = document.getElementById('rightSidebar')
+  let leftSidebar = document.getElementById('leftSidebar')
   let root = document.querySelector(':root');
   let isClassCountdown = true
   let isClassHidden = true
@@ -66,17 +68,21 @@
   function setScheduleClass() {
     let classHtml = '';
     for (let i = 0; i < scheduleData.scheduleArray.length; i++) {
+      let inner = scheduleData.scheduleArray[i]
+      if(scheduleData.scheduleArray[i].indexOf('@') != -1){
+        inner = `<div><div style="display:inline">${inner.split('@')[0]}</div><div class="subClass">${inner.split('@')[1]}</div></div>`
+      }
       if (scheduleData.currentHighlight.index == i) {
         if (scheduleData.currentHighlight.type === 'current')
-          classHtml += `<div class="class current" id="highlighted">${scheduleData.scheduleArray[i]}</div>`
+          classHtml += `<div class="class current" id="highlighted">${inner}</div>`
         else if (scheduleData.currentHighlight.type === 'upcoming')
-          classHtml += `<div class="class upcoming" id="highlighted">${scheduleData.scheduleArray[i]}</div>`
+          classHtml += `<div class="class upcoming" id="highlighted">${inner}</div>`
       }
       else {
         if (scheduleData.currentHighlight.index > i)
-          classHtml += `<div class="class" style="color:rgba(166,166,166);">${scheduleData.scheduleArray[i]}</div>`
+          classHtml += `<div class="class" style="color:rgba(166,166,166);">${inner}</div>`
         else
-          classHtml += `<div class="class">${scheduleData.scheduleArray[i]}</div>`
+          classHtml += `<div class="class">${inner}</div>`
       }
       if (scheduleData.divider.indexOf(i) != -1)
         classHtml += '<div class="divider"></div>'
@@ -153,7 +159,13 @@
     let data = scheduleConfig.daily_class[week]
     weekCH.innerText = data.Chinese
     weekEN.innerText = data.English
-    countdownDays.innerText = Math.ceil(Math.abs(new Date(scheduleConfig.countdown_target) - date) / (1000 * 60 * 60 * 24))
+    if(scheduleConfig.countdown_target === 'hidden'){
+      rightSidebar.style.display = 'none'
+    }else{
+      rightSidebar.style.display = 'block'
+      countdownDays.innerText = Math.ceil(Math.abs(new Date(scheduleConfig.countdown_target) - date) / (1000 * 60 * 60 * 24))
+    }
+    leftSidebar.style.display = scheduleConfig.week_display ? 'block' : 'none' 
   }
 
   function tick(reset = false) {
