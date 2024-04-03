@@ -62,6 +62,23 @@ app.whenReady().then(() => {
     createWindow()
     Menu.setApplicationMenu(null)
     win.webContents.on('did-finish-load', () => {
+        if(store.get('isUseLocalConfig',false)){
+            dialog.showMessageBox(win,{
+                message: store.get('configPath')
+            })
+            fs.readFileSync(store.get('configPath'), { encoding: "utf8" } ,(err, data) => {
+                if(err) {
+                    store.set('isUseLocalConfig',false)
+                    throw err
+                }
+                if(data){
+                    dialog.showMessageBox(win,{
+                        message: data
+                    })
+                    win.webContents.send('setScheduleConfig',data);
+                }
+            })
+        }
         win.webContents.send('getWeekIndex');
     })
     const handle = win.getNativeWindowHandle();
@@ -168,6 +185,17 @@ ipcMain.on('getWeekIndex', (e, arg) => {
             }
         },
         {
+            label: '使用本地配置文件',
+            type: 'checkbox',
+            checked: store.get('isUseLocalConfig', false),
+            click: (e) => {
+                store.set('isUseLocalConfig', e.checked)
+                if(e.checked){
+                    win.webContents.send('openLoadConfig')
+                }
+            }
+        },
+        {
             type: 'separator'
         },
         {
@@ -211,6 +239,30 @@ ipcMain.on('setIgnore', (e, arg) => {
 ipcMain.on('dialog', (e, arg) => {
     dialog.showMessageBox(win, arg.options).then((data) => {
         e.reply(arg.reply, { 'arg': arg, 'index': data.response })
+    })
+})
+
+ipcMain.on('selectConfig', (e, arg) => {
+    dialog.showOpenDialog(win, arg.options).then((res) => {
+        if(!res.canceled){
+            fs.readFile(res.filePaths[0], { encoding: 'utf8' }, (err, data) => {
+                if(err) {
+                    console.log('[selectFile] Error while reading selected File.Please check if you have access to the file.')
+                    store.set('isUseLocalConfig', false)
+                    store.set('configPath', undefined)
+                    return;
+                }
+                if(data) {
+                    store.set('configPath', res.filePaths[0])
+                    e.sender.send('modifyScheduleConfig', { 'path': res.filePaths[0], 'data': data})
+                    return;
+                }
+            })
+        }
+        else {
+            console.log("[selectFile] user cancelled")
+            store.set('isUseLocalConfig',false)
+        }
     })
 })
 
