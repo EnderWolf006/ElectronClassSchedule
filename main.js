@@ -118,6 +118,13 @@ ipcMain.on('getWeekIndex', (e, arg) => {
             }
         },
         {
+            icon: basePath + 'image/setting.png',
+            label: '调休课表',
+            click: () => {
+                win.webContents.send('openDaySetting');
+            }
+        },
+        {
             icon: basePath + 'image/github.png',
             label: '源码仓库',
             click: () => {

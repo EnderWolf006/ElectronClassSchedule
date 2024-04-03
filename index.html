@@ -230,6 +230,19 @@
     })
   }
 
+  function setDayDialog(){
+    ipcRenderer.send('dialog', {
+      reply: 'getSelectedDayIndex',
+      options: {
+        title: '设置调休',
+        message: `请选择你要切换到星期几的课表:`,
+        buttons: ["日", "一", "二", "三", "四", "五", "六"].map((val) => { return "星期" + val }),
+        cancelId: -1,
+        defaultId: getCurrentEditedDate().getDay()
+      }
+    })
+  }
+
   ipcRenderer.on('getSelectedClassIndex', (e, arg) => {
     if (arg.index == -1) return
     let text = arg.arg.options.buttons[arg.index]
@@ -256,8 +269,20 @@
     scheduleConfig.daily_class[dayOfWeek].classList[index] = selectedClass;
   })
 
+  ipcRenderer.on('getSelectedDayIndex', (e, arg) => {
+      if (arg.index == -1) return
+      let index = arg.index;
+      const date = getCurrentEditedDate();
+      const dayOfWeek = date.getDay();
+      scheduleConfig.daily_class[dayOfWeek] = scheduleConfig.daily_class[index];
+    })
+
   ipcRenderer.on('openSettingDialog', (e, arg) => {
     setScheduleDialog()
+  })
+  
+  ipcRenderer.on('openDaySetting', (e, arg) => {
+      setDayDialog();
   })
 
   document.addEventListener("click", function (event) {
