@@ -274,8 +274,12 @@
       if (arg.index == -1) return
       dayIndex = arg.index;
       const dayOfWeek = getCurrentEditedDate().getDay();
-      scheduleConfig.daily_class[dayOfWeek].classList = scheduleConfig.daily_class[dayIndex].classList;
-      scheduleConfig.daily_class[dayOfWeek].timetable= scheduleConfig.daily_class[dayIndex].timetable;
+      if(dayIndex != dayOfWeek){
+        scheduleConfig.daily_class[dayOfWeek].classList = scheduleConfig.daily_class[dayIndex].classList;
+        scheduleConfig.daily_class[dayOfWeek].timetable= scheduleConfig.daily_class[dayIndex].timetable;
+      } else {
+        scheduleConfig = JSON.parse(JSON.stringify(_scheduleConfig))
+      }
     })
 
   ipcRenderer.on('openSettingDialog', (e, arg) => {
