@@ -52,6 +52,7 @@
   let root = document.querySelector(':root');
   let isClassCountdown = true
   let isClassHidden = true
+  let dayIndex=getCurrentEditedDate().getDay()
   let lastScheduleData = {
     currentHighlight: {
       index: null,
@@ -271,10 +272,10 @@
 
   ipcRenderer.on('getSelectedDayIndex', (e, arg) => {
       if (arg.index == -1) return
-      let index = arg.index;
-      const date = getCurrentEditedDate();
-      const dayOfWeek = date.getDay();
-      scheduleConfig.daily_class[dayOfWeek] = scheduleConfig.daily_class[index];
+      dayIndex = arg.index;
+      const dayOfWeek = getCurrentEditedDate().getDay();
+      scheduleConfig.daily_class[dayOfWeek].classList = scheduleConfig.daily_class[dayIndex].classList;
+      scheduleConfig.daily_class[dayOfWeek].timetable= scheduleConfig.daily_class[dayIndex].timetable;
     })
 
   ipcRenderer.on('openSettingDialog', (e, arg) => {
@@ -293,6 +294,9 @@
 
   ipcRenderer.on('setWeekIndex', (e, arg) => {
     scheduleConfig = JSON.parse(JSON.stringify(_scheduleConfig))
+    const dayOfWeek=getCurrentEditedDate().getDay();
+    scheduleConfig.daily_class[dayOfWeek].classList = scheduleConfig.daily_class[dayIndex].classList;
+    scheduleConfig.daily_class[dayOfWeek].timetable = scheduleConfig.daily_class[dayIndex].timetable;
     weekIndex = arg
     localStorage.setItem('weekIndex', weekIndex.toString())
   })
