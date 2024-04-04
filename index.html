@@ -26,10 +26,8 @@
         <div class="countdown" id="countdownText">00:00</div>
       </div>
     </div>
-    <div class="leftSidebar sidebar background"  id="leftSidebar"><span id="weekEN" class="t">Load</span><div class="corner options notIgnoreClick" id="weekCH">ing</div>
-    </div>
-    <div class="rightSidebar sidebar background" id="rightSidebar"><span id="countdownDays" class="t">000</span><div class="corner">天</div>
-    </div>
+    <div class="leftSidebar sidebar background" id="leftSidebar"><span id="weekEN" class="t">Load</span><div class="corner options notIgnoreClick" id="weekCH">ing</div></div>
+    <div class="rightSidebar sidebar background" id="rightSidebar"><span id="countdownDays" class="t">000</span><div class="corner">天</div></div>
   </div>
   <div class="miniCountdown" id="miniCountdown">00:00</div>
 
@@ -69,7 +67,7 @@
     let classHtml = '';
     for (let i = 0; i < scheduleData.scheduleArray.length; i++) {
       let inner = scheduleData.scheduleArray[i]
-      if(scheduleData.scheduleArray[i].indexOf('@') != -1){
+      if (scheduleData.scheduleArray[i].indexOf('@') != -1) {
         inner = `<div><div style="display:inline">${inner.split('@')[0]}</div><div class="subClass">${inner.split('@')[1]}</div></div>`
       }
       if (scheduleData.currentHighlight.index == i) {
@@ -159,13 +157,13 @@
     let data = scheduleConfig.daily_class[week]
     weekCH.innerText = data.Chinese
     weekEN.innerText = data.English
-    if(scheduleConfig.countdown_target === 'hidden'){
+    if (scheduleConfig.countdown_target === 'hidden') {
       rightSidebar.style.display = 'none'
-    }else{
+    } else {
       rightSidebar.style.display = 'block'
       countdownDays.innerText = Math.ceil(Math.abs(new Date(scheduleConfig.countdown_target) - date) / (1000 * 60 * 60 * 24))
     }
-    leftSidebar.style.display = scheduleConfig.week_display ? 'block' : 'none' 
+    leftSidebar.style.display = scheduleConfig.week_display ? 'block' : 'none'
   }
 
   function tick(reset = false) {
@@ -199,7 +197,7 @@
   let timer = undefined
   window.addEventListener("mousemove", event => {
     if (event.target.className && event.target.className.indexOf('notIgnoreClick') == -1) {
-      root.style.opacity = '0.3'
+      root.style.opacity = '0.2'
       clearTimeout(timer)
       timer = setTimeout(() => {
         root.style.opacity = '1'
@@ -252,7 +250,7 @@
     let index = arg.arg.index;
     let selectedClass = arg.arg.classes[arg.index];
     const date = getCurrentEditedDate();
-    const dayOfWeek = date.getDay();
+    const dayOfWeek = getCurrentEditedDay(date);
     scheduleConfig.daily_class[dayOfWeek].classList[index] = selectedClass;
   })
 
@@ -295,6 +293,33 @@
   ipcRenderer.on('ClassHidden', (e, arg) => {
     isClassHidden = arg
     tick(reset = true)
+  })
+
+  ipcRenderer.on('setDayOffset', (e, arg) => {
+    ipcRenderer.send('dialog', {
+      reply: 'getDayOffset',
+      options: {
+        title: '切换日程',
+        message: `将今日使用课表日程设置为本周的星期几：`,
+        buttons: ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '重置至当前日期'],
+        cancelId: -1,
+      }
+    })
+  })
+
+  ipcRenderer.on('getDayOffset', (e, arg) => {
+    if (arg.index == -1) return
+    if (arg.index <= 6) {
+      localStorage.setItem('dayOffset', arg.index.toString())
+      localStorage.setItem('setDayOffsetLastDay', new Date().getDay().toString())
+      dayOffset = arg.index
+      setDayOffsetLastDay = new Date().getDay()
+      return
+    }
+    localStorage.setItem('dayOffset', '-1')
+    localStorage.setItem('setDayOffsetLastDay', '-1')
+    dayOffset = -1
+    setDayOffsetLastDay = -1
   })
 </script>
 

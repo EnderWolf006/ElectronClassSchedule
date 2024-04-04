@@ -118,6 +118,13 @@ ipcMain.on('getWeekIndex', (e, arg) => {
             }
         },
         {
+            icon: basePath + 'image/toggle.png',
+            label: '切换日程',
+            click: () => {
+                win.webContents.send('setDayOffset')
+            }
+        },
+        {
             icon: basePath + 'image/github.png',
             label: '源码仓库',
             click: () => {
