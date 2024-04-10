@@ -8,7 +8,6 @@ const prompt = require('electron-prompt');
 const Store = require('electron-store');
 const { DisableMinimize } = require('electron-disable-minimize');
 const store = new Store();
-const { dialog } = require('electron');
 let tray = undefined;
 let form = undefined;
 var win = undefined;
