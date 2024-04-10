@@ -8,6 +8,7 @@ const prompt = require('electron-prompt');
 const Store = require('electron-store');
 const { DisableMinimize } = require('electron-disable-minimize');
 const store = new Store();
+const { dialog } = require('electron');
 let tray = undefined;
 let form = undefined;
 var win = undefined;
@@ -245,3 +246,30 @@ ipcMain.on('getTimeOffset', (e, arg) => {
         }
     })
 })
+
+classContainer.addEventListener('click', (event) => {
+  // 判断点击的位置是否在课程区域内
+  const isClassArea = event.target.classList.contains('class');
+  if (!isClassArea) return;
+
+  // 显示所有课程的对话框
+  dialog.showMessageBox(win, {
+    title: '本周课程',
+    message: getFullScheduleHtml(),
+  });
+});
+
+function getFullScheduleHtml() {
+  // 获取本周所有课程数据
+  const scheduleData = getScheduleData();
+  const scheduleArray = scheduleData.scheduleArray;
+
+  // 生成 HTML 代码
+  let html = '<ul>';
+  for (let i = 0; i < scheduleArray.length; i++) {
+    html += `<li>${scheduleArray[i]}</li>`;
+  }
+  html += '</ul>';
+
+  return html;
+}
