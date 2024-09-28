@@ -26,10 +26,16 @@
         <div class="countdown" id="countdownText">00:00</div>
       </div>
     </div>
-    <div class="leftSidebar sidebar background" id="leftSidebar"><span id="weekEN" class="t">Load</span><div class="corner options notIgnoreClick" id="weekCH">ing</div></div>
-    <div class="rightSidebar sidebar background" id="rightSidebar"><span id="countdownDays" class="t">000</span><div class="corner">天</div></div>
+    <div class="leftSidebar sidebar background" id="leftSidebar"><span id="weekEN" class="t">Load</span>
+      <div class="corner options notIgnoreClick" id="weekCH">ing</div>
+    </div>
+    <div class="rightSidebar sidebar background" id="rightSidebar"><span id="countdownDays" class="t">000</span>
+      <div class="corner">天</div>
+    </div>
   </div>
   <div class="miniCountdown" id="miniCountdown">00:00</div>
+  <div class="miniCountdownContainer" id="miniCountdownContainer">
+  </div>
 
 </body>
 <script>
@@ -93,6 +99,8 @@
     for (element of elements) {
       element.style.visibility = (scheduleData.currentHighlight.type === 'current' && isClassHidden) ? 'hidden' : 'visible'
     }
+    // 仅在隐藏模式下且启用课堂倒计时时显示迷你倒计时容器
+    document.getElementById('miniCountdownContainer').style.display = (scheduleData.currentHighlight.type === 'current' && isClassHidden && isClassCountdown) ? 'block' : 'none';
   }
 
   function setCountdownerContent() {
