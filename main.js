@@ -8,6 +8,7 @@ const prompt = require('electron-prompt');
 const Store = require('electron-store');
 const { DisableMinimize } = require('electron-disable-minimize');
 const store = new Store();
+const ext = require("./ext")
 let tray = undefined;
 let form = undefined;
 var win = undefined;
@@ -67,9 +68,13 @@ app.whenReady().then(() => {
     const handle = win.getNativeWindowHandle();
     DisableMinimize(handle); // Thank to peter's project https://github.com/tbvjaos510/electron-disable-minimize
     setAutoLaunch()
+    createTray()
+    ext.pass({"store": store})
+    ext.load()
+    // win.webContents.openDevTools({mode:'detach'})
 })
 
-ipcMain.on('getWeekIndex', (e, arg) => {
+function createTray(){
     tray = new Tray(basePath + 'image/icon.png')
     template = [
         {
@@ -104,6 +109,18 @@ ipcMain.on('getWeekIndex', (e, arg) => {
             type: 'separator'
         },
         {
+            label: '显示计时',
+            click: () => {
+              ext.timer.setVisible(true)
+            }
+        },
+        {
+            label: '通知编辑',
+            click: () => {
+              ext.notice.openEdit()
+            }
+        },
+        {
             icon: basePath + 'image/setting.png',
             label: '配置课表',
             click: () => {
@@ -135,13 +152,12 @@ ipcMain.on('getWeekIndex', (e, arg) => {
             type: 'separator'
         },
         {
-            id: 'countdown',
-            label: '课上计时',
+            label: '计时置顶',
             type: 'checkbox',
-            checked: store.get('isDuringClassCountdown', true),
+            checked: store.get('timer.isWindowAlwaysOnTop', true),
             click: (e) => {
-                store.set('isDuringClassCountdown', e.checked)
-                win.webContents.send('ClassCountdown', e.checked)
+                store.set('timer.isWindowAlwaysOnTop', e.checked)
+                ext.timer.sendSettingsChanged()
             }
         },
         {
@@ -191,7 +207,6 @@ ipcMain.on('getWeekIndex', (e, arg) => {
             }
         }
     ]
-    template[arg].checked = true
     form = Menu.buildFromTemplate(template)
     tray.setToolTip('电子课表 - by lsl')
     function trayClicked() {
@@ -200,7 +215,10 @@ ipcMain.on('getWeekIndex', (e, arg) => {
     tray.on('click', trayClicked)
     tray.on('right-click', trayClicked)
     tray.setContextMenu(form)
-    win.webContents.send('ClassCountdown', store.get('isDuringClassCountdown', true))
+}
+
+ipcMain.on('getWeekIndex', (e, arg) => {
+    template[arg].checked = true
     win.webContents.send('ClassHidden', store.get('isDuringClassHidden', true))
 })
 

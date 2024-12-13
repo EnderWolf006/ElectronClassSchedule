@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ch" id="html">
+
+<head>
+  <title>电子课表</title>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script type="text/javascript" src="../js/jquery.min.js"></script>
+  <script type="text/javascript" src="../js/noticeConfig.js"></script>
+  <script type="text/javascript" src="../js/util.js"></script>
+  <script defer type="text/javascript" src="../js/notice.js"></script>
+  <link rel="stylesheet" type="text/css" href="../css/style.css">
+  <link rel="stylesheet" type="text/css" href="../css/notice.css">
+</head>
+
+<body>
+  <div class="container">
+    <div class="noticeContainer background" id="noticeContainer"></div>
+    <div class="summary background" id="summary">最新: #01 进行中: 1 已更新: 1 已完成: 1</div>
+  </div>
+</body>
+<script>
+  const { ipcRenderer } = require('electron');
+  let root = document.querySelector(':root');
+
+  for (key in noticeConfig.css_style) {
+    root.style.setProperty(key, noticeConfig.css_style[key])
+  }
+
+  initPage(window, root, 'notice.setIgnore')
+
+
+</script>
+
+</html>

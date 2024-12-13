@@ -9,6 +9,7 @@
   <script type="text/javascript" src="js/jquery.min.js"></script>
   <script type="text/javascript" src="js/scheduleConfig.js"></script>
   <script type="text/javascript" src="js/index.js"></script>
+  <script type="text/javascript" src="js/util.js"></script>
   <link rel="stylesheet" type="text/css" href="css/style.css">
 </head>
 
@@ -21,16 +22,10 @@
     </div>
     <div class="countdownContainer" id="countdownContainer">
       <div class="triangle"></div>
-      <div class="countdowner" id="countdowner">
-        <div class="currentClass" id="currentFullName">Loading</div>
-        <div class="countdown" id="countdownText">00:00</div>
-      </div>
     </div>
     <div class="leftSidebar sidebar background" id="leftSidebar"><span id="weekEN" class="t">Load</span><div class="corner options notIgnoreClick" id="weekCH">ing</div></div>
     <div class="rightSidebar sidebar background" id="rightSidebar"><span id="countdownDays" class="t">000</span><div class="corner">天</div></div>
   </div>
-  <div class="miniCountdown" id="miniCountdown">00:00</div>
-
 </body>
 <script>
   const { ipcRenderer } = require('electron');
@@ -38,17 +33,14 @@
   let globalContainer = document.getElementById('globalContainer')
   let classContainer = document.getElementById('classContainer')
   let countdownContainer = document.getElementById('countdownContainer')
-  let countdowner = document.getElementById('countdowner')
   let currentFullName = document.getElementById('currentFullName')
   let countdownText = document.getElementById('countdownText')
   let weekEN = document.getElementById('weekEN')
   let weekCH = document.getElementById('weekCH')
   let countdownDays = document.getElementById('countdownDays')
-  let miniCountdown = document.getElementById('miniCountdown')
   let rightSidebar = document.getElementById('rightSidebar')
   let leftSidebar = document.getElementById('leftSidebar')
   let root = document.querySelector(':root');
-  let isClassCountdown = true
   let isClassHidden = true
   let lastScheduleData = {
     currentHighlight: {
@@ -92,31 +84,6 @@
     let elements = document.getElementsByClassName('background')
     for (element of elements) {
       element.style.visibility = (scheduleData.currentHighlight.type === 'current' && isClassHidden) ? 'hidden' : 'visible'
-    }
-  }
-
-  function setCountdownerContent() {
-    currentFullName.innerText = scheduleData.currentHighlight.fullName;
-    currentFullName.style.color = scheduleData.currentHighlight.type === 'current' ? 'rgba(0, 255, 10, 1)' : 'rgba(255, 255, 5, 1)'
-    countdownText.innerText = scheduleData.currentHighlight.countdownText;
-    if (scheduleData.currentHighlight.type === 'current') {
-      if (isClassCountdown) {
-        if (isClassHidden) { // 上课 并且开启了倒计时 并且 隐藏主体 -> 显示小窗口 
-          countdownContainer.style.display = 'none'
-          miniCountdown.style.display = 'block'
-          miniCountdown.innerHTML = `<div class="currentClass">${currentFullName.innerText = scheduleData.currentHighlight.fullName}</div><div class="countdown" style="margin-left:5px">${scheduleData.currentHighlight.countdownText}</div>`
-        } else { // 上课 并且开启了倒计时 并且 不隐藏主体 -> 正常计时
-          countdownContainer.style.display = 'block'
-          miniCountdown.style.display = 'none'
-        }
-      } else { // 上课 并且关闭了倒计时 -> 都不显示
-        countdownContainer.style.display = 'none'
-        miniCountdown.style.display = 'none'
-      }
-    }
-    else { // 下课正常显示
-      countdownContainer.style.display = 'block';
-      miniCountdown.style.display = 'none'
     }
   }
 
@@ -168,7 +135,7 @@
 
   function tick(reset = false) {
     scheduleData = getScheduleData();
-    setCountdownerContent()
+    ipcRenderer.send("scheduleData.currentHighlight", scheduleData.currentHighlight)
     if (JSON.stringify(scheduleData.scheduleArray) != JSON.stringify(lastScheduleData.scheduleArray) ||
       scheduleData.currentHighlight.index != lastScheduleData.currentHighlight.index ||
       scheduleData.currentHighlight.fullName != lastScheduleData.currentHighlight.fullName ||
@@ -194,26 +161,7 @@
     root.style.setProperty(key, scheduleConfig.css_style[key])
   }
 
-  let timer = undefined
-  window.addEventListener("mousemove", event => {
-    if (event.target.className && event.target.className.indexOf('notIgnoreClick') == -1) {
-      root.style.opacity = '0.2'
-      clearTimeout(timer)
-      timer = setTimeout(() => {
-        root.style.opacity = '1'
-      }, 5000);
-    } else {
-      clearTimeout(timer)
-      root.style.opacity = '1'
-    }
-    if (event.target.className.indexOf('notIgnoreClick') == -1) {
-      ipcRenderer.send('setIgnore', true)
-    } else {
-      ipcRenderer.send('setIgnore', false)
-    }
-
-  });
-  ipcRenderer.send('setIgnore', true)
+  initPage(window, root, 'setIgnore')
 
   function setScheduleDialog() {
     ipcRenderer.send('dialog', {

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ch" id="html">
+
+<head>
+  <title>通知编辑</title>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script type="text/javascript" src="../js/jquery.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="../css/style.css">
+  <link rel="stylesheet" type="text/css" href="../css/noticeEdit.css">
+</head>
+
+<body>
+  <div class="left">
+    <div class="title">通知列表<button id="addNotice">添加</button></div>
+    <div class="lineContainer"></div>
+  </div>
+  <div class="right">
+    <div class="title">通知编辑<button id="deleteNotice">删除</button>
+      <font color="#00000000">padpadpad</font><button id="saveNotice">保存</button></div>
+    <div class="chainContainer"></div>
+    <button id="addChain">添加</button>
+  </div>
+</body>
+<script>
+  const { ipcRenderer } = require('electron');
+  let root = document.querySelector(':root');
+</script>
+
+</html>

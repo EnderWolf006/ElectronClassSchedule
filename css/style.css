@@ -137,34 +137,6 @@
     transition: all 2s;
 }
 
-.currentClass {
-    color: rgba(0, 255, 10, 1);
-    display: inline;
-    font-family: Sou;
-    transition: all 2s;
-    font-weight: bold;
-}
-
-.countdown {
-    color: rgba(255, 255, 255, 1);
-    display: inline;
-    font-family: JETB;
-}
-
-.miniCountdown {
-    position: fixed;
-    left: 50%;
-    transform: translateX(-50%);
-    top: var(--top-space);
-    border-radius: var(--global-border-radius);
-    background-color: rgba(0, 0, 0, var(--global-bg-opacity));
-    padding: var(--countdown-bg-padding);
-    font-size: var(--countdown-font-size);
-    font-family: JETB;
-    color: #FFF;
-    display: none;
-}
-
 .divider {
     width: var(--divider-width);
     background-color: #aaa;

@@ -1,0 +1,53 @@
+@font-face {
+    font-family: YouYuan;
+    src: url("../font/SIMYOU.TTF");
+}
+
+@font-face {
+    font-family: Sou;
+    src: url("../font/SourceHanSansCN-Bold.otf");
+}
+
+.currentClass {
+    color: rgba(0, 255, 10, 1);
+    display: inline;
+    font-family: Sou;
+    transition: all 2s;
+    font-weight: bold;
+}
+
+.countdown {
+    color: rgba(255, 255, 255, 1);
+    display: inline;
+    font-family: JETB;
+}
+
+.miniCountdown {
+    position: fixed;
+    right: 0%;
+    top: var(--top-space);
+    border-radius: var(--global-border-radius);
+    background-color: rgba(0, 0, 0, var(--global-bg-opacity));
+    padding: var(--countdown-bg-padding);
+    font-size: var(--countdown-font-size);
+    font-family: JETB;
+    color: #FFF;
+    display: none;
+}
+
+.closeButton {
+    position: fixed;
+    right: 0%;
+    top: calc(var(--top-space) + var(--countdown-font-size) + 18px);
+    border-radius: var(--global-border-radius);
+    background-color: rgba(0, 0, 0, var(--global-bg-opacity));
+    padding: var(--countdown-bg-padding);
+    font-size: var(--timer-close-font-size);
+    font-family: Sou;
+    color: #FFF;
+    font-weight: 400;
+}
+
+.closeButton:hover {
+    color: rgba(255, 255, 0, 1);
+}

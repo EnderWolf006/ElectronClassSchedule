@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ch" id="html">
+
+<head>
+  <title>电子课表</title>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script type="text/javascript" src="../js/jquery.min.js"></script>
+  <script type="text/javascript" src="../js/scheduleConfig.js"></script>
+  <script type="text/javascript" src="../js/util.js"></script>
+  <link rel="stylesheet" type="text/css" href="../css/style.css">
+  <link rel="stylesheet" type="text/css" href="../css/timer.css">
+</head>
+
+<body>
+  <div class="miniCountdown" id="miniCountdown">
+    <div class="currentClass" id="currentFullName"></div><div class="countdown" id="countdownText" style="margin-left:5px"></div></div>
+  </div>
+  <div class="closeButton notIgnoreClick" id="close">关闭</div>
+</body>
+<script>
+  const { ipcRenderer } = require('electron');
+  let miniCountdown = document.getElementById('miniCountdown')
+  let currentFullName = document.getElementById('currentFullName')
+  let countdownText = document.getElementById('countdownText')
+  let close = document.getElementById('close')
+  let root = document.querySelector(':root');
+  miniCountdown.style.display = "block"
+
+  let closedFullName = null
+
+  for (key in scheduleConfig.css_style) {
+    root.style.setProperty(key, scheduleConfig.css_style[key])
+  }
+
+  initPage(window, root, 'timer.setIgnore')
+
+  close.addEventListener('click', () => {
+    ipcRenderer.send('timer.setVisible', false)
+    closedFullName = currentFullName.innerText
+  })
+
+  ipcRenderer.on('scheduleData.currentHighlight', (event, data) => {
+    if (data.isDuringClassHidden && closedFullName == null)
+    {
+        ipcRenderer.send('timer.setVisible', false)
+        closedFullName = currentFullName.innerText
+      return
+    }
+    currentFullName.innerText = data.fullName;
+    currentFullName.style.color = data.type === 'current' ? 'rgba(0, 255, 10, 1)' : 'rgba(255, 255, 5, 1)'
+    countdownText.innerText = data.countdownText;
+    if (data.fullName != closedFullName) {
+      ipcRenderer.send('timer.setVisible', true)
+      closedFullName = null
+    }
+  })
+
+</script>
+
+</html>
