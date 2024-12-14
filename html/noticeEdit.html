@@ -13,19 +13,102 @@
 
 <body>
   <div class="left">
-    <div class="title">通知列表<button id="addNotice">添加</button></div>
+    <div class="title">通知列表
+      <div class="buttons">
+        <button id="addNotice">添加</button>
+      </div>
+    </div>
     <div class="lineContainer"></div>
   </div>
   <div class="right">
-    <div class="title">通知编辑<button id="deleteNotice">删除</button>
-      <font color="#00000000">padpadpad</font><button id="saveNotice">保存</button></div>
-    <div class="chainContainer"></div>
-    <button id="addChain">添加</button>
+    <div class="title">通知编辑
+      <div class="buttons">
+        <button id="deleteNotice">删除</button>
+        <button id="saveNotice">保存</button>
+      </div>
+    </div>
+    <div class="contentContainer">
+      <div class="currentContentContainer">
+        <textarea id="currentContent"></textarea>
+        <div class="optionsContainer">
+          <a>置顶: <input type="checkbox" id="currentPinned"></a>
+          <a>结束/更新时间: <input type="datetime-local" id="currentFinishTime"></a>
+        </div>
+      </div>
+      <div class="chainContainer"></div>
+    </div>
   </div>
 </body>
 <script>
   const { ipcRenderer } = require('electron');
+  let lines = {}
+  let notices = {}
+  let currentToggled = -1
   let root = document.querySelector(':root');
+  let lineContainer = document.querySelector('.lineContainer');
+
+  ipcRenderer.on('notice.data', (e, arg) => {
+    lines = {}
+    notices = arg
+    lineContainer.innerHTML = ''
+    for (let key in arg) {
+      let line = document.createElement('div')
+      line.className = 'line' + (key == currentToggled ? ' lineSelected' : '')
+      let index = document.createElement('a')
+      index.className = 'lineIndex'
+      index.innerText = '#' + key.toString().padStart(2, '0')
+      line.appendChild(index)
+      let content = document.createElement('a')
+      content.className = 'lineContent'
+      content.innerText = arg[key].content.substring(0, 20)
+      line.appendChild(content)
+      line.aindex = key
+      line.addEventListener('click', () => toggleTo(line.aindex))
+      lineContainer.appendChild(line)
+      lines[key] = line
+    }
+  })
+
+  ipcRenderer.send('notice.getData')
+
+  document.getElementById('addNotice').addEventListener('click', () => {
+    ipcRenderer.invoke('noticeEdit.addNotice').then((index) => {
+      toggleTo(index)
+    })
+  })
+
+  let currentContent = document.getElementById('currentContent')
+  let currentPinned = document.getElementById('currentPinned')
+  let currentFinishTime = document.getElementById('currentFinishTime')
+  currentFinishTime.value = new Date().toLocaleString().replace(/\//g,'-').replace(' ','T')
+  function toggleTo(index) {
+    if (currentToggled != -1 && lines[currentToggled]) lines[currentToggled].classList.remove('lineSelected')
+    lines[index].classList.add('lineSelected')
+    currentToggled = index;
+    let notice = notices[index];
+    currentContent.value = notice.content
+    currentPinned.checked = notice.pinned
+    currentFinishTime.value = new Date(notice.finishTime).toLocaleString().replace(/\//g,'-').replace(' ','T')
+  }
+
+  document.getElementById('deleteNotice').addEventListener('click', () => {
+    if (currentToggled == -1 || !lines[currentToggled]) return
+    ipcRenderer.send('noticeEdit.deleteNotice', currentToggled)
+    currentToggled = -1
+    currentContent.value = ''
+    currentPinned.checked = false
+    currentFinishTime.value = new Date().toLocaleString().replace(/\//g,'-').replace(' ','T')
+  })
+
+  document.getElementById('saveNotice').addEventListener('click', () => {
+    if (currentToggled == -1 || !lines[currentToggled]) return
+    let notice = notices[currentToggled]
+    ipcRenderer.send('noticeEdit.saveNotice', currentToggled, {
+      content: currentContent.value,
+      pinned: currentPinned.checked,
+      finishTime: new Date(currentFinishTime.value).getTime(),
+    })
+  })
 </script>
 
 </html>

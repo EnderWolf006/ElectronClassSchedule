@@ -101,13 +101,13 @@ function process(notice){
   notice.updatedTarget = indexToString(notice.updatedTarget || 0)
   notice.processedLines = processedLines
   notice.height = height
-  notice.pinned = notice.status == 'pinned'
+  if (notice.pinned) notice.status = 'pinned'
 }
 
 function removeDisplayed(){
   for (let key of displayed) {
-    if (!notices[key].pinned)
-      notices[key].container.remove()
+    if (notices[key].pinned) continue;
+    notices[key].container.remove()
     notices[key].container = null
     notices[key].timer = null
     displayed.splice(displayed.indexOf(key), 1)
@@ -123,11 +123,17 @@ function indexToString(index){
 }
 
 function addNotice(notice){
+  if (notice.container){
+    notice.container.remove()
+    displayed.splice(displayed.indexOf(notice.nindex), 1)
+    notice.container = null
+    notice.timer = null
+  }
   let container = document.createElement('div')
   container.classList.add('itemContainer')
   let index = document.createElement('div')
   index.classList.add('statusLineIndex')
-  if (notice.createTime >= Date.now() + noticeConfig.latestDuration)
+  if (notice.createTime >= Date.now() - noticeConfig.latestDuration)
       index.classList.add('statusLatest')
   index.innerText = notice.index
   let status = document.createElement('div')
@@ -220,5 +226,7 @@ function updateSummary(){
 
   summary.innerText = `最新: ${indexToString(summaryData.latestIndex)} `
     + `进行中: ${summaryData.doingCount} 已更新: ${summaryData.updatedCount} `
-    + `已完成: ${summaryData.finishedCount}`
+    + `已结束: ${summaryData.finishedCount}`
 }
+
+ipcRenderer.send('notice.getData')
