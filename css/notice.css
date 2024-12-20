@@ -43,11 +43,11 @@
 
 .container {
     position: fixed;
-    top: var(--top-space);
-    left: 55%;
+    top: var(--notice-top-space);
+    left: var(--notice-left-space);
     transform: translateX(-50%);
-    width: 80%;
-    height: calc(65% + 30px);
+    width: var(--notice-width);
+    height: var(--notice-height);
 }
 
 .noticeContainer {
@@ -86,7 +86,7 @@
 }
 
 .statusUpdated {
-    color: rgba(0, 128, 255, 1);
+    color: rgba(10, 255, 255, 1);
 }
 
 .statusFinished {

@@ -70,10 +70,7 @@ ipcRenderer.on("notice.data", (event, data, summary) => {
   }
   for (let key in notices) {
     if (data[key]) continue
-    if(notices[key].container){
-      displayed.splice(displayed.indexOf(key), 1)
-      notices[key].container.remove()
-    }
+    removeNotice(notices[key])
     delete notices[key]
     updated = true
   }
@@ -107,12 +104,8 @@ function process(notice){
 function removeDisplayed(){
   for (let key of displayed) {
     if (notices[key].pinned) continue;
-    notices[key].container.remove()
-    notices[key].container = null
-    notices[key].timer = null
-    displayed.splice(displayed.indexOf(key), 1)
-    if (notices[key].status == "finished" &&
-        notices[key].finishTime + noticeConfig.finishedDuration < Date.now())
+    removeNotice(notices[key])
+    if (notices[key].finishTime + noticeConfig.finishedDuration < Date.now())
       ipcRenderer.send('notice.removeFinished', key)
   }
   calculateHeight()
@@ -124,10 +117,8 @@ function indexToString(index){
 
 function addNotice(notice){
   if (notice.container){
-    notice.container.remove()
-    displayed.splice(displayed.indexOf(notice.nindex), 1)
-    notice.container = null
-    notice.timer = null
+    if (notice.pinned) return
+    removeNotice(notice)
   }
   let container = document.createElement('div')
   container.classList.add('itemContainer')
@@ -154,6 +145,14 @@ function addNotice(notice){
   notice.timer = timer
   displayed.push(notice.nindex)
   noticeContainer.appendChild(container)
+}
+
+function removeNotice(notice){
+  if (!notice.container) return
+  notice.container.remove()
+  displayed.splice(displayed.indexOf(notice.nindex), 1)
+  notice.container = null
+  notice.timer = null
 }
 
 function getCountdownText(targetTime){
@@ -222,11 +221,13 @@ function updateSummary(){
     if (notice.status == 'updated') summaryData.updatedCount += 1
   }
 
-  summaryData.doingCount -= summaryData.updatedCount // 已更新的任务会额外创建新任务作为下一步
-
   summary.innerText = `最新: ${indexToString(summaryData.latestIndex)} `
     + `进行中: ${summaryData.doingCount} 已更新: ${summaryData.updatedCount} `
     + `已结束: ${summaryData.finishedCount}`
 }
 
 ipcRenderer.send('notice.getData')
+
+ipcRenderer.send('notice.passConfig', {
+  maxNoticeIndex: noticeConfig.maxIndex
+})

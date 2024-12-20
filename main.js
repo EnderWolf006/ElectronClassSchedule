@@ -9,6 +9,8 @@ const Store = require('electron-store');
 const { DisableMinimize } = require('electron-disable-minimize');
 const store = new Store();
 const ext = require("./ext")
+const config = require("./ext/config")
+const schedule = require("./schedule")
 let tray = undefined;
 let form = undefined;
 var win = undefined;
@@ -25,7 +27,7 @@ const createWindow = () => {
         height: 200,
         frame: false,
         transparent: true,
-        alwaysOnTop: store.get('isWindowAlwaysOnTop', true),
+        alwaysOnTop: config.configs().isWindowAlwaysOnTop,
         minimizable: false,
         maximizable: false,
         autoHideMenuBar: true,
@@ -37,18 +39,16 @@ const createWindow = () => {
             enableRemoteModule: true
         },
     })
-    // win.webContents.openDevTools()
+    // win.webContents.openDevTools({ mode: 'detach' })
     win.loadFile('index.html')
-    if (store.get('isWindowAlwaysOnTop', true))
-        win.setAlwaysOnTop(true, 'screen-saver', 9999999999999)
 }
-function setAutoLaunch() {
+function setAutoLaunch(autoLaunch = true) {
     const shortcutName = '电子课表(请勿重命名).lnk'
     app.setLoginItemSettings({ // backward compatible
         openAtLogin: false,
         openAsHidden: false
     })
-    if (store.get('isAutoLaunch', true)) {
+    if (autoLaunch) {
         createShortcut.create(startupFolderPath + '/' + shortcutName,
             {
                 target: app.getPath('exe'),
@@ -60,16 +60,12 @@ function setAutoLaunch() {
 
 }
 app.whenReady().then(() => {
+    ext.pass({"store": store})
     createWindow()
     Menu.setApplicationMenu(null)
-    win.webContents.on('did-finish-load', () => {
-        win.webContents.send('getWeekIndex');
-    })
     const handle = win.getNativeWindowHandle();
     DisableMinimize(handle); // Thank to peter's project https://github.com/tbvjaos510/electron-disable-minimize
-    setAutoLaunch()
     createTray()
-    ext.pass({"store": store})
     ext.load()
     // win.webContents.openDevTools({mode:'detach'})
 })
@@ -78,40 +74,12 @@ function createTray(){
     tray = new Tray(basePath + 'image/icon.png')
     template = [
         {
-            label: '第一周',
-            type: 'radio',
-            click: () => {
-                win.webContents.send('setWeekIndex', 0)
-            }
-        },
-        {
-            label: '第二周',
-            type: 'radio',
-            click: () => {
-                win.webContents.send('setWeekIndex', 1)
-            }
-        },
-        {
-            label: '第三周',
-            type: 'radio',
-            click: () => {
-                win.webContents.send('setWeekIndex', 2)
-            }
-        },
-        {
-            label: '第四周',
-            type: 'radio',
-            click: () => {
-                win.webContents.send('setWeekIndex', 3)
-            }
-        },
-        {
             type: 'separator'
         },
         {
             label: '显示计时',
             click: () => {
-              ext.timer.setVisible(true)
+              ext.timer.show()
             }
         },
         {
@@ -121,52 +89,23 @@ function createTray(){
             }
         },
         {
-            icon: basePath + 'image/setting.png',
-            label: '配置课表',
-            click: () => {
-                win.webContents.send('openSettingDialog')
-            }
-        },
-        {
-            icon: basePath + 'image/clock.png',
-            label: '矫正计时',
-            click: () => {
-                win.webContents.send('getTimeOffset')
-            }
-        },
-        {
-            icon: basePath + 'image/toggle.png',
-            label: '切换日程',
-            click: () => {
-                win.webContents.send('setDayOffset')
-            }
-        },
-        {
-            icon: basePath + 'image/github.png',
-            label: '源码仓库',
-            click: () => {
-                shell.openExternal('https://github.com/EnderWolf006/ElectronClassSchedule');
-            }
-        },
-        {
             type: 'separator'
         },
         {
             label: '计时置顶',
             type: 'checkbox',
-            checked: store.get('timer.isWindowAlwaysOnTop', true),
+            checked: config.configs().ext.timer.isWindowAlwaysOnTop,
             click: (e) => {
-                store.set('timer.isWindowAlwaysOnTop', e.checked)
-                ext.timer.sendSettingsChanged()
+                config.configs(c => c.ext.timer.isWindowAlwaysOnTop = e.checked)
             }
         },
         {
             label: '窗口置顶',
             type: 'checkbox',
-            checked: store.get('isWindowAlwaysOnTop', true),
+            checked: config.configs().isWindowAlwaysOnTop,
             click: (e) => {
-                store.set('isWindowAlwaysOnTop', e.checked)
-                if (store.get('isWindowAlwaysOnTop', true))
+                config.configs(c => c.isWindowAlwaysOnTop = e.checked)
+                if (e.checked)
                     win.setAlwaysOnTop(true, 'screen-saver', 9999999999999)
                 else
                     win.setAlwaysOnTop(false)
@@ -175,18 +114,18 @@ function createTray(){
         {
             label: '上课隐藏',
             type: 'checkbox',
-            checked: store.get('isDuringClassHidden', true),
+            checked: config.configs().isDuringClassHidden,
             click: (e) => {
-                store.set('isDuringClassHidden', e.checked)
+                config.configs(c => c.isDuringClassHidden = e.checked)
                 win.webContents.send('ClassHidden', e.checked)
             }
         },
         {
             label: '开机启动',
             type: 'checkbox',
-            checked: store.get('isAutoLaunch', true),
+            checked: config.configs().isAutoLaunch,
             click: (e) => {
-                store.set('isAutoLaunch', e.checked)
+                config.configs(c => c.isAutoLaunch = e.checked)
                 setAutoLaunch()
             }
         },
@@ -217,9 +156,19 @@ function createTray(){
     tray.setContextMenu(form)
 }
 
-ipcMain.on('getWeekIndex', (e, arg) => {
-    template[arg].checked = true
-    win.webContents.send('ClassHidden', store.get('isDuringClassHidden', true))
+ipcMain.on('configs.configsChanged', (e, arg) => {
+    win.webContents.send('configs.configsChanged', arg)
+    if (arg.isWindowAlwaysOnTop)
+        win.setAlwaysOnTop(true, 'screen-saver', 9999999999999)
+    else win.setAlwaysOnTop(false)
+    setAutoLaunch(arg.isAutoLaunch)
+})
+
+ipcMain.on('schedule.data', (e, arg) => {
+    if (!win) return
+    win.webContents.send('schedule.data', arg, {
+        editedDate: schedule.getCurrentEditedDate().valueOf()
+    })
 })
 
 ipcMain.on('log', (e, arg) => {
@@ -233,33 +182,3 @@ ipcMain.on('setIgnore', (e, arg) => {
         win.setIgnoreMouseEvents(false);
 })
 
-ipcMain.on('dialog', (e, arg) => {
-    dialog.showMessageBox(win, arg.options).then((data) => {
-        e.reply(arg.reply, { 'arg': arg, 'index': data.response })
-    })
-})
-
-ipcMain.on('pop', (e, arg) => {
-    tray.popUpContextMenu(form)
-})
-
-ipcMain.on('getTimeOffset', (e, arg) => {
-    prompt({
-        title: '计时矫正',
-        label: '请设置课表计时与系统时间的偏移秒数:',
-        value: arg.toString(),
-        inputAttrs: {
-            type: 'number'
-        },
-        type: 'input',
-        height: 180,
-        width: 400,
-        icon: basePath + 'image/clock.png',
-    }).then((r) => {
-        if (r === null) {
-            console.log('[getTimeOffset] User cancelled');
-        } else {
-            win.webContents.send('setTimeOffset', Number(r) % 10000000000000)
-        }
-    })
-})

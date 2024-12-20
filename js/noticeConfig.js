@@ -6,8 +6,10 @@ const _scheduleConfig = {
         '--global-border-radius': '16px', // 所有背景框的圆角大小
         '--global-bg-opacity': '0.5', // 所有背景框的不透明度, 范围: [0, 1]
         '--container-bg-padding': '8px 14px', // 上面三个框各自的背景内边距, 前面的数字表示纵向边距，后面的数字表示横向边距
-        '--countdown-bg-padding': '5px 12px', // 倒计时框的背景内边距, 前面的数字表示纵向边距，后面的数字表示横向边距
-        '--top-space': '20%', // 通知表主体最顶端与电脑屏幕上边框的间隔长度
+        '--notice-top-space': '20%', // 通知表主体最顶端与电脑屏幕上边框的间隔长度
+        '--notice-left-space': '55%', // 通知表主体最顶端与电脑屏幕左边框的间隔长度
+        '--notice-width': '80%', // 通知表主体宽度
+        '--notice-height': '66%', // 通知表主体高度
         '--container-width': '500px', // 通知的宽度
     },
     duration: 30*1000, // 通知持续时间

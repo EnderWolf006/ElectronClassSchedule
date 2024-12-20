@@ -9,7 +9,6 @@ exports.pass = function(data) {
 }
 
 exports.load = function() {
-  createNoticeWindow()
 }
 
 const notices = (() => {
@@ -23,8 +22,11 @@ const notices = (() => {
     try{
       let ret = operator(notices)
       lock -= 1
-      if (lock == 0) store.set('notices', notices)
-      ipcMain.emit('notice.getData')
+      if (lock == 0){
+        store.set('notices', notices)
+        ipcMain.emit('notice.getData')
+        console.log("store")
+      }
       return ret
     }catch(e){
       lock -= 1
@@ -54,6 +56,7 @@ function createNoticeWindow(){
     })
     win.setIgnoreMouseEvents(true, {forward: true});
     win.loadFile('html/notice.html')
+    win.webContents.openDevTools({ mode: 'detach' })
     const handle = win.getNativeWindowHandle();
     DisableMinimize(handle)
 }
@@ -71,23 +74,13 @@ function createNoticeEditWindow(){
         },
     })
     editWin.loadFile('html/noticeEdit.html')
-    editWin.webContents.openDevTools({ mode: 'detach' })
+    // editWin.webContents.openDevTools({ mode: 'detach' })
     const handle = win.getNativeWindowHandle();
     DisableMinimize(handle)
 }
 
-ipcMain.on("scheduleData.currentHighlight", (e, arg) => {
-    let hidden = store.get('isDuringClassHidden', true)
-    if (!hidden) return
-    if (win.isVisible() && arg.type == "current"){
-        win.hide()
-    }
-    if (!win.isVisible() && arg.type == "incoming") {
-        win.showInactive()
-    }
-})
-
 ipcMain.on('notice.setIgnore', (e, arg) => {
+    if (!win) return
     if (process.platform === 'linux'){
       win.setIgnoreMouseEvents(true)
       return
@@ -99,7 +92,7 @@ ipcMain.on('notice.getData', () => {
   let payload = ['notice.data', notices(), {
     latestIndex: store.get('noticeIndex', 0)
   }]
-  win.webContents.send(...payload);
+  if (win) win.webContents.send(...payload);
   if (editWin) editWin.webContents.send(...payload)
 })
 
@@ -126,8 +119,10 @@ const noticesUpdate = () => notices((notices) => {
       Object.assign(newNotice, first, {
         chain: notice.chain
       })
+      newNotice.updated += 1
       notice.updatedTarget = newNotice.index
       notice.status = 'updated'
+      notice.updated += 1
     }
     updated = true
   }
@@ -138,9 +133,22 @@ setInterval(() => {
   noticesUpdate()
 }, 10000)
 
+let maxNoticeIndex = 0
+ipcMain.on('notice.passConfig', (event, arg) => {
+  maxNoticeIndex = arg.maxNoticeIndex
+})
+
 function createNotice(){
   let index = store.get('noticeIndex', 0)
-  index += 1
+  let n = notices()
+  let repeat = 0
+  do {
+    index = (index + 1) % maxNoticeIndex
+    repeat += 1
+  } while (n[index] && repeat < maxNoticeIndex)
+  while (repeat >= maxNoticeIndex && n[index]){
+    index = index + 1
+  }
   store.set('noticeIndex', index)
   return notices(a => a[index] = {
     index: index,
@@ -154,12 +162,12 @@ function createNotice(){
   })
 }
 
-ipcMain.handle('noticeEdit.addNotice', (e, arg) => {
+ipcMain.handle('noticeEdit.addNotice', () => {
   let notice = createNotice()
   return notice.index
 })
 
-ipcMain.on('noticeEdit.removeNotice', (event, index) => {
+ipcMain.on('noticeEdit.deleteNotice', (event, index) => {
   notices((notices) => {
     delete notices[index]
   })
@@ -171,6 +179,15 @@ ipcMain.on('noticeEdit.saveNotice', (event, index, object) => {
     Object.assign(notice, object)
     notice.updated += 1
   })
+})
+
+ipcMain.on('configs.configsChanged', (e, arg) => {
+    let enabled = arg.ext.timer.enabled
+    if (enabled && !win) createNoticeWindow()
+    if (!enabled && win){
+        win.close()
+        win = void 0
+    }
 })
 
 exports.openEdit = () => {

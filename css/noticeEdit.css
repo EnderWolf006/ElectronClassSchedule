@@ -37,6 +37,7 @@ html body {
   width: calc(100% - 310px);
   height: 100vh;
   border-left: 1px solid #222;
+  overflow-y: scroll;
 }
 
 .title {

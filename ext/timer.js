@@ -1,5 +1,6 @@
 const { ipcMain, BrowserWindow, screen } = require('electron')
 const { DisableMinimize } = require('electron-disable-minimize');
+const { configs } = require('./config');
 
 let store = void 0;
 let win = void 0;
@@ -8,7 +9,6 @@ exports.pass = function(data) {
 }
 
 exports.load = function() {
-    createTimerWindow()
 }
 
 function createTimerWindow(){
@@ -33,37 +33,34 @@ function createTimerWindow(){
     })
     // win.webContents.openDevTools({ mode: 'detach' })
     win.loadFile('html/timer.html')
-    if (store.get('isWindowAlwaysOnTop', true))
-        win.setAlwaysOnTop(true, 'screen-saver', 9999999999999)
     const handle = win.getNativeWindowHandle();
     DisableMinimize(handle)
 }
 
-exports.sendSettingsChanged = function(){
-    ipcMain.emit('timer.settingsChanged', null, {
-        isWindowAlwaysOnTop: store.get('isWindowAlwaysOnTop', true),
-    })
+ipcMain.on('configs.configsChanged', (e, arg) => {
+    let enabled = arg.ext.timer.enabled
+    if (enabled && !win) createTimerWindow()
+    if (!enabled && win){
+        win.close()
+        win = void 0
+    }
+    if (!win) return
+    win.webContents.send('configs.configsChanged', arg)
+    win.setAlwaysOnTop(arg.ext.timer.isWindowAlwaysOnTop, 'screen-saver', 9999999999999)
+})
+
+exports.show = () => {
+    if (!win) return
+    win.webContents.send('timer.show')
 }
-
-ipcMain.on("scheduleData.currentHighlight", (e, arg) => {
-    arg.isDuringClassHidden = store.get('isDuringClassHidden', true)
-    win.webContents.send('scheduleData.currentHighlight', arg)
-})
-
-ipcMain.on('timer.settingsChanged', (e, arg) => {
-    win.setAlwaysOnTop(arg.isWindowAlwaysOnTop, 'screen-saver', 9999999999999)
-})
-
-exports.setVisible = (arg) => {
-    if (arg) win.showInactive()
-    else win.hide()
-}
-
-ipcMain.on('timer.setVisible', (e, arg) => {
-    exports.setVisible(arg)
-})
 
 ipcMain.on('timer.setIgnore', (e, arg) => {
+    if (!win) return
     if (process.platform === 'linux') return
     win.setIgnoreMouseEvents(arg, arg? { forward: true }: void 0);
+})
+
+ipcMain.on('schedule.data', (e, arg) => {
+    if (!win) return
+    win.webContents.send('schedule.data', arg)
 })

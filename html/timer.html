@@ -8,12 +8,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script type="text/javascript" src="../js/jquery.min.js"></script>
   <script type="text/javascript" src="../js/scheduleConfig.js"></script>
+  <script type="text/javascript" src="../js/index.js"></script>
   <script type="text/javascript" src="../js/util.js"></script>
   <link rel="stylesheet" type="text/css" href="../css/style.css">
   <link rel="stylesheet" type="text/css" href="../css/timer.css">
 </head>
 
-<body>
+<body id="body">
   <div class="miniCountdown" id="miniCountdown">
     <div class="currentClass" id="currentFullName"></div><div class="countdown" id="countdownText" style="margin-left:5px"></div></div>
   </div>
@@ -25,6 +26,7 @@
   let currentFullName = document.getElementById('currentFullName')
   let countdownText = document.getElementById('countdownText')
   let close = document.getElementById('close')
+  let body = document.getElementById('body')
   let root = document.querySelector(':root');
   miniCountdown.style.display = "block"
 
@@ -36,23 +38,30 @@
 
   initPage(window, root, 'timer.setIgnore')
 
+  ipcRenderer.on('timer.show', () => {
+    body.style.display = "block"
+  })
+
   close.addEventListener('click', () => {
-    ipcRenderer.send('timer.setVisible', false)
+    body.style.display = "none"
     closedFullName = currentFullName.innerText
   })
 
-  ipcRenderer.on('scheduleData.currentHighlight', (event, data) => {
-    if (data.isDuringClassHidden && closedFullName == null)
-    {
-        ipcRenderer.send('timer.setVisible', false)
-        closedFullName = currentFullName.innerText
+  let isDuringClassHidden = true;
+  handleConfigs(({ ext: { timer } }) => {
+    isDuringClassHidden = timer.isDuringClassHidden
+  })
+
+  ipcRenderer.on('schedule.data', (event, { currentHighlight: data }) => {
+    if (isDuringClassHidden && data.type == 'current') {
+      body.style.display = "none"
       return
     }
     currentFullName.innerText = data.fullName;
     currentFullName.style.color = data.type === 'current' ? 'rgba(0, 255, 10, 1)' : 'rgba(255, 255, 5, 1)'
     countdownText.innerText = data.countdownText;
     if (data.fullName != closedFullName) {
-      ipcRenderer.send('timer.setVisible', true)
+      body.style.display = "block"
       closedFullName = null
     }
   })

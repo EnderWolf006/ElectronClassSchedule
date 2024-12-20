@@ -28,21 +28,15 @@
       </div>
     </div>
     <div class="contentContainer">
-      <div class="currentContentContainer">
-        <textarea id="currentContent"></textarea>
-        <div class="optionsContainer">
-          <a>置顶: <input type="checkbox" id="currentPinned"></a>
-          <a>结束/更新时间: <input type="datetime-local" id="currentFinishTime"></a>
-        </div>
-      </div>
-      <div class="chainContainer"></div>
     </div>
+    <button id="addChain">添加</button>
   </div>
 </body>
 <script>
   const { ipcRenderer } = require('electron');
   let lines = {}
   let notices = {}
+  let chains = []
   let currentToggled = -1
   let root = document.querySelector(':root');
   let lineContainer = document.querySelector('.lineContainer');
@@ -67,6 +61,10 @@
       lineContainer.appendChild(line)
       lines[key] = line
     }
+    if (currentToggled != -1 && !lines[currentToggled]) {
+      currentToggled = -1
+      resetChain()
+    }
   })
 
   ipcRenderer.send('notice.getData')
@@ -77,37 +75,98 @@
     })
   })
 
-  let currentContent = document.getElementById('currentContent')
-  let currentPinned = document.getElementById('currentPinned')
-  let currentFinishTime = document.getElementById('currentFinishTime')
-  currentFinishTime.value = new Date().toLocaleString().replace(/\//g,'-').replace(' ','T')
+  let contentContainer = document.querySelector('.contentContainer');
+  function createChain(data = {}) {
+    let container = document.createElement('div')
+    container.className = 'chainContainer'
+    let content = document.createElement('textarea')
+    content.className = 'chainContent'
+    content.value = data.content ?? ""
+    container.appendChild(content)
+    let options = document.createElement('div')
+    options.className = 'optionsContainer'
+
+    let pinned = document.createElement('a')
+    pinned.innerText = '置顶'
+    options.appendChild(pinned)
+    let pinnedCheckbox = document.createElement('input')
+    pinnedCheckbox.type = 'checkbox'
+    pinnedCheckbox.checked = data.pinned ?? false
+    options.appendChild(pinnedCheckbox)
+
+    let finishTime = document.createElement('a')
+    finishTime.innerText = '结束/更新时间'
+    options.appendChild(finishTime)
+    let finishTimeInput = document.createElement('input')
+    finishTimeInput.type = 'datetime-local'
+    finishTimeInput.value = new Date(data.finishTime ?? Date.now()).toLocaleString()
+      .replace(/\//g,'-').replace(' ','T')
+    options.appendChild(finishTimeInput)
+
+    let removeButton = document.createElement('button')
+    removeButton.innerText = '删除'
+    options.appendChild(removeButton)
+    removeButton.addEventListener('click', () => {
+      container.remove()
+      chains.splice(chains.indexOf(element), 1)
+    })
+
+    container.appendChild(options)
+    contentContainer.appendChild(container)
+    let element = {
+      container, content, pinnedCheckbox, finishTimeInput,
+      removeButton,
+      pack: () => ({
+        content: content.value,
+        pinned: pinnedCheckbox.checked,
+        finishTime: new Date(finishTimeInput.value).getTime()
+      })
+    }
+    chains.push(element)
+    return element
+  }
+
+  function resetChain(){
+    chains.forEach(chain => {
+      chain.container.remove()
+    })
+    chains = []
+  }
+  function packChain(){
+    let data = chains.map(chain => chain.pack())
+    let notice = data.shift()
+    return Object.assign(notice, {chain: data})
+  }
+
   function toggleTo(index) {
     if (currentToggled != -1 && lines[currentToggled]) lines[currentToggled].classList.remove('lineSelected')
     lines[index].classList.add('lineSelected')
     currentToggled = index;
     let notice = notices[index];
-    currentContent.value = notice.content
-    currentPinned.checked = notice.pinned
-    currentFinishTime.value = new Date(notice.finishTime).toLocaleString().replace(/\//g,'-').replace(' ','T')
+    resetChain()
+    let noticeChain = createChain(notice)
+    noticeChain.removeButton.remove()
+    for (let element of notice.chain) {
+      let chain = createChain(element)
+    }
   }
 
   document.getElementById('deleteNotice').addEventListener('click', () => {
     if (currentToggled == -1 || !lines[currentToggled]) return
     ipcRenderer.send('noticeEdit.deleteNotice', currentToggled)
     currentToggled = -1
-    currentContent.value = ''
-    currentPinned.checked = false
-    currentFinishTime.value = new Date().toLocaleString().replace(/\//g,'-').replace(' ','T')
+    resetChain()
   })
 
   document.getElementById('saveNotice').addEventListener('click', () => {
     if (currentToggled == -1 || !lines[currentToggled]) return
     let notice = notices[currentToggled]
-    ipcRenderer.send('noticeEdit.saveNotice', currentToggled, {
-      content: currentContent.value,
-      pinned: currentPinned.checked,
-      finishTime: new Date(currentFinishTime.value).getTime(),
-    })
+    ipcRenderer.send('noticeEdit.saveNotice', currentToggled, packChain())
+  })
+
+  document.getElementById('addChain').addEventListener('click', () => {
+    if (currentToggled == -1 || !lines[currentToggled]) return
+    createChain()
   })
 </script>
 

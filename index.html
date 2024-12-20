@@ -8,7 +8,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script type="text/javascript" src="js/jquery.min.js"></script>
   <script type="text/javascript" src="js/scheduleConfig.js"></script>
-  <script type="text/javascript" src="js/index.js"></script>
   <script type="text/javascript" src="js/util.js"></script>
   <link rel="stylesheet" type="text/css" href="css/style.css">
 </head>
@@ -29,7 +28,7 @@
 </body>
 <script>
   const { ipcRenderer } = require('electron');
-  let scheduleData = getScheduleData();
+  let scheduleData;
   let globalContainer = document.getElementById('globalContainer')
   let classContainer = document.getElementById('classContainer')
   let countdownContainer = document.getElementById('countdownContainer')
@@ -54,6 +53,15 @@
     timetable: null,
     divider: [null, null]
   }
+
+  ipcRenderer.on('schedule.data', (event, data, others) => {
+    scheduleData = data
+    scheduleData.others = others
+    tick()
+  })
+  handleConfigs((a) => {
+    isClassHidden = a.isDuringClassHidden
+  })
 
   function setScheduleClass() {
     let classHtml = '';
@@ -119,7 +127,7 @@
   }
 
   function setSidebar() {
-    let date = getCurrentEditedDate()
+    let date = new Date(scheduleData.others.editedDate)
     let week = date.getDay()
     let data = scheduleConfig.daily_class[week]
     weekCH.innerText = data.Chinese
@@ -134,8 +142,6 @@
   }
 
   function tick(reset = false) {
-    scheduleData = getScheduleData();
-    ipcRenderer.send("scheduleData.currentHighlight", scheduleData.currentHighlight)
     if (JSON.stringify(scheduleData.scheduleArray) != JSON.stringify(lastScheduleData.scheduleArray) ||
       scheduleData.currentHighlight.index != lastScheduleData.currentHighlight.index ||
       scheduleData.currentHighlight.fullName != lastScheduleData.currentHighlight.fullName ||
@@ -148,127 +154,11 @@
     lastScheduleData = $.extend(true, {}, scheduleData)
   }
 
-
-  let lastTickTime = new Date().getTime()
-  setInterval(() => {
-    if (new Date().getTime() - lastTickTime >= 1000) {
-      lastTickTime = new Date().getTime()
-      tick()
-    }
-  }, 20);
-
   for (key in scheduleConfig.css_style) {
     root.style.setProperty(key, scheduleConfig.css_style[key])
   }
 
   initPage(window, root, 'setIgnore')
-
-  function setScheduleDialog() {
-    ipcRenderer.send('dialog', {
-      reply: 'getSelectedClassIndex',
-      options: {
-        title: '更改课表',
-        message: `请选择你要更改的课程序号`,
-        buttons: scheduleData.scheduleArray.map((value, index) => { return `第 ${index + 1} 节: ${scheduleConfig.subject_name[value]}` }),
-        cancelId: -1,
-        defaultId: scheduleData.currentHighlight.index
-      }
-    })
-  }
-
-  ipcRenderer.on('getSelectedClassIndex', (e, arg) => {
-    if (arg.index == -1) return
-    let text = arg.arg.options.buttons[arg.index]
-    let classes = Object.keys(scheduleConfig.subject_name).sort();
-    ipcRenderer.send('dialog', {
-      reply: 'getSelectedChangingClass',
-      index: arg.index,
-      classes: classes,
-      options: {
-        title: '更改课表',
-        message: `将 第 ${arg.index + 1} 节 ${scheduleConfig.subject_name[scheduleData.scheduleArray[arg.index]]} 更改为:`,
-        buttons: classes.map((value) => { return scheduleConfig.subject_name[value] }),
-        cancelId: -1,
-      }
-    })
-  })
-
-  ipcRenderer.on('getSelectedChangingClass', (e, arg) => {
-    if (arg.index == -1) return
-    let index = arg.arg.index;
-    let selectedClass = arg.arg.classes[arg.index];
-    const date = getCurrentEditedDate();
-    const dayOfWeek = getCurrentEditedDay(date);
-    scheduleConfig.daily_class[dayOfWeek].classList[index] = selectedClass;
-  })
-
-  ipcRenderer.on('openSettingDialog', (e, arg) => {
-    setScheduleDialog()
-  })
-
-  document.addEventListener("click", function (event) {
-    if (event.target.className.indexOf('options') != -1) {
-      ipcRenderer.send('pop')
-    }
-  });
-
-  ipcRenderer.on('setWeekIndex', (e, arg) => {
-    scheduleConfig = JSON.parse(JSON.stringify(_scheduleConfig))
-    weekIndex = arg
-    localStorage.setItem('weekIndex', weekIndex.toString())
-  })
-
-  ipcRenderer.on('getWeekIndex', (e, arg) => {
-    let index = localStorage.getItem('weekIndex');
-    ipcRenderer.send('getWeekIndex', index === null ? 0 : Number(index))
-  })
-
-  ipcRenderer.on('getTimeOffset', (e, arg) => {
-    let offset = localStorage.getItem('timeOffset');
-    ipcRenderer.send('getTimeOffset', offset === null ? 0 : Number(offset))
-  })
-
-  ipcRenderer.on('setTimeOffset', (e, arg) => {
-    timeOffset = arg
-    localStorage.setItem('timeOffset', arg.toString())
-  })
-
-  ipcRenderer.on('ClassCountdown', (e, arg) => {
-    isClassCountdown = arg
-    tick(reset = true)
-  })
-
-  ipcRenderer.on('ClassHidden', (e, arg) => {
-    isClassHidden = arg
-    tick(reset = true)
-  })
-
-  ipcRenderer.on('setDayOffset', (e, arg) => {
-    ipcRenderer.send('dialog', {
-      reply: 'getDayOffset',
-      options: {
-        title: '切换日程',
-        message: `将今日使用课表日程设置为本周的星期几：`,
-        buttons: ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '重置至当前日期'],
-        cancelId: -1,
-      }
-    })
-  })
-
-  ipcRenderer.on('getDayOffset', (e, arg) => {
-    if (arg.index == -1) return
-    if (arg.index <= 6) {
-      localStorage.setItem('dayOffset', arg.index.toString())
-      localStorage.setItem('setDayOffsetLastDay', new Date().getDay().toString())
-      dayOffset = arg.index
-      setDayOffsetLastDay = new Date().getDay()
-      return
-    }
-    localStorage.setItem('dayOffset', '-1')
-    localStorage.setItem('setDayOffsetLastDay', '-1')
-    dayOffset = -1
-    setDayOffsetLastDay = -1
-  })
 </script>
 
 </html>
