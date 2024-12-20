@@ -7,7 +7,6 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script type="text/javascript" src="../js/jquery.min.js"></script>
-  <script type="text/javascript" src="../js/scheduleConfig.js"></script>
   <script type="text/javascript" src="../js/index.js"></script>
   <script type="text/javascript" src="../js/util.js"></script>
   <link rel="stylesheet" type="text/css" href="../css/style.css">
@@ -32,10 +31,6 @@
 
   let closedFullName = null
 
-  for (key in scheduleConfig.css_style) {
-    root.style.setProperty(key, scheduleConfig.css_style[key])
-  }
-
   initPage(window, root, 'timer.setIgnore')
 
   ipcRenderer.on('timer.show', () => {
@@ -48,8 +43,14 @@
   })
 
   let isDuringClassHidden = true;
-  handleConfigs(({ ext: { timer } }) => {
+  handleConfigs(({ css, ext: { timer } }) => {
     isDuringClassHidden = timer.isDuringClassHidden
+    for (key in css) {
+      root.style.setProperty(key, css[key])
+    }
+    for (key in timer.css) {
+      root.style.setProperty(key, timer.css[key])
+    }
   })
 
   ipcRenderer.on('schedule.data', (event, { currentHighlight: data }) => {

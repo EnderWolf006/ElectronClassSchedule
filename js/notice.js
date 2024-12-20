@@ -28,24 +28,28 @@ let displayed = []
 let notices = {}
 let summaryData = {latestIndex: 0}
 
-let fontSize = +noticeConfig.css_style['--font-size'].replace('px', '')
-let containerWidth = +noticeConfig.css_style['--container-width'].replace('px', '')
+let fontSize, containerWidth
 let maxHeight = 0;
 let heightPerCol = 0;
 let usedHeight = 0;
 
 let updateTimer = Date.now();
-let duration = noticeConfig.duration;
+let duration;
 let forEachIndex = 0;
-let forEachIndexMax = noticeConfig.maxIndex;
+let forEachIndexMax;
 
-(() => {
+handleConfigs(({ ext: { notice: { css, duration: d, maxIndex } } }) => { 
+  fontSize = +css['--font-size'].replace('px', '')
+  containerWidth = +css['--container-width'].replace('px', '')
+  duration = d
+  forEachIndexMax = maxIndex
+
   let width = noticeContainer.clientWidth
   let height = noticeContainer.clientHeight
   heightPerCol = Math.floor(height / fontSize)
   let cols = Math.floor(width / containerWidth)
   maxHeight = cols * heightPerCol
-})();
+});
 
 function calculateHeight(){
   let height = 0
@@ -227,7 +231,3 @@ function updateSummary(){
 }
 
 ipcRenderer.send('notice.getData')
-
-ipcRenderer.send('notice.passConfig', {
-  maxNoticeIndex: noticeConfig.maxIndex
-})

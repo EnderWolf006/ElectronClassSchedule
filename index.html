@@ -7,7 +7,6 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script type="text/javascript" src="js/jquery.min.js"></script>
-  <script type="text/javascript" src="js/scheduleConfig.js"></script>
   <script type="text/javascript" src="js/util.js"></script>
   <link rel="stylesheet" type="text/css" href="css/style.css">
 </head>
@@ -59,8 +58,21 @@
     scheduleData.others = others
     tick()
   })
+  
+  let weekStrings, countdownTarget, weekDisplay
+
   handleConfigs((a) => {
     isClassHidden = a.isDuringClassHidden
+    for (key in a.css) {
+      root.style.setProperty(key, a.css[key])
+    }
+    weekStrings = a.weekStrings.map(a => {
+      let splited = a.split('.')
+      return { en: splited[0], ch: splited[1] }
+    })
+    countdownTarget = a.countdownTarget
+    weekDisplay = a.weekDisplay
+    tick(true)
   })
 
   function setScheduleClass() {
@@ -129,16 +141,16 @@
   function setSidebar() {
     let date = new Date(scheduleData.others.editedDate)
     let week = date.getDay()
-    let data = scheduleConfig.daily_class[week]
-    weekCH.innerText = data.Chinese
-    weekEN.innerText = data.English
-    if (scheduleConfig.countdown_target === 'hidden') {
+    let data = weekStrings[week]
+    weekCH.innerText = data.ch
+    weekEN.innerText = data.en
+    if (countdownTarget === 'hidden') {
       rightSidebar.style.display = 'none'
     } else {
       rightSidebar.style.display = 'block'
-      countdownDays.innerText = Math.ceil(Math.abs(new Date(scheduleConfig.countdown_target) - date) / (1000 * 60 * 60 * 24))
+      countdownDays.innerText = Math.ceil(Math.abs(new Date(countdownTarget) - date) / (1000 * 60 * 60 * 24))
     }
-    leftSidebar.style.display = scheduleConfig.week_display ? 'block' : 'none'
+    leftSidebar.style.display = weekDisplay ? 'block' : 'none'
   }
 
   function tick(reset = false) {
@@ -152,10 +164,6 @@
       setBackgroundDisplay()
     }
     lastScheduleData = $.extend(true, {}, scheduleData)
-  }
-
-  for (key in scheduleConfig.css_style) {
-    root.style.setProperty(key, scheduleConfig.css_style[key])
   }
 
   initPage(window, root, 'setIgnore')

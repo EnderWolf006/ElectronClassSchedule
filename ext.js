@@ -1,3 +1,7 @@
+const { ipcMain, dialog } = require("electron");
+const { BrowserWindow } = require("electron/main");
+const { promises: fs } = require("fs");
+
 let store = void 0;
 let config = exports.config = require("./ext/config")
 let timer = exports.timer = require("./ext/timer")
@@ -15,3 +19,26 @@ exports.load = function() {
     timer.load()
     notice.load()
 }
+
+ipcMain.handle('ext.fileAccess', async (e, {mode, data}) => {
+  if (mode == "open") {
+    let result = await dialog.showOpenDialog(BrowserWindow.fromId(e.frameId), {
+      properties: ['openFile'],
+      filters: [
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    })
+    if (!result.filePaths[0]) throw new Error("User cancelled")
+    return (await fs.readFile(result.filePaths[0])).toString()
+  }
+  if (mode == "save") {
+    let result = await dialog.showSaveDialog(BrowserWindow.fromId(e.frameId), {
+      filters: [
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    })
+    if (!result.filePath) throw new Error("User cancelled")
+    await fs.writeFile(result.filePath, data)
+    return true
+  }
+})

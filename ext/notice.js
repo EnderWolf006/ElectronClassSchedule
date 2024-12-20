@@ -25,7 +25,6 @@ const notices = (() => {
       if (lock == 0){
         store.set('notices', notices)
         ipcMain.emit('notice.getData')
-        console.log("store")
       }
       return ret
     }catch(e){
@@ -56,7 +55,7 @@ function createNoticeWindow(){
     })
     win.setIgnoreMouseEvents(true, {forward: true});
     win.loadFile('html/notice.html')
-    win.webContents.openDevTools({ mode: 'detach' })
+    // win.webContents.openDevTools({ mode: 'detach' })
     const handle = win.getNativeWindowHandle();
     DisableMinimize(handle)
 }
@@ -134,9 +133,6 @@ setInterval(() => {
 }, 10000)
 
 let maxNoticeIndex = 0
-ipcMain.on('notice.passConfig', (event, arg) => {
-  maxNoticeIndex = arg.maxNoticeIndex
-})
 
 function createNotice(){
   let index = store.get('noticeIndex', 0)
@@ -182,12 +178,14 @@ ipcMain.on('noticeEdit.saveNotice', (event, index, object) => {
 })
 
 ipcMain.on('configs.configsChanged', (e, arg) => {
-    let enabled = arg.ext.timer.enabled
+    maxNoticeIndex = arg.ext.notice.maxIndex
+    let enabled = arg.ext.notice.enabled
     if (enabled && !win) createNoticeWindow()
     if (!enabled && win){
         win.close()
         win = void 0
     }
+    if (win) win.webContents.send('configs.configsChanged', arg)
 })
 
 exports.openEdit = () => {

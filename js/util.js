@@ -25,7 +25,12 @@ function initPage(window, root, channel){
 function handleConfigs(func){
   const { ipcRenderer } = require('electron');
   ipcRenderer.on('configs.configsChanged', (e, arg) => {
+    ipcRenderer.emit('configs.handled', null)
     func(arg)
   })
-  ipcRenderer.invoke('configs.get').then(func)
+  ipcRenderer.invoke('configs.get').then(func).then(() => {
+    ipcRenderer.emit('configs.handled', null)
+  })
 }
+
+

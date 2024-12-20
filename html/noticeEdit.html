@@ -86,22 +86,26 @@
     let options = document.createElement('div')
     options.className = 'optionsContainer'
 
+    let optionContainer = document.createElement('div')
     let pinned = document.createElement('a')
     pinned.innerText = '置顶'
-    options.appendChild(pinned)
+    optionContainer.appendChild(pinned)
     let pinnedCheckbox = document.createElement('input')
     pinnedCheckbox.type = 'checkbox'
     pinnedCheckbox.checked = data.pinned ?? false
-    options.appendChild(pinnedCheckbox)
+    optionContainer.appendChild(pinnedCheckbox)
+    options.appendChild(optionContainer)
 
+    optionContainer = document.createElement('div')
     let finishTime = document.createElement('a')
     finishTime.innerText = '结束/更新时间'
-    options.appendChild(finishTime)
+    optionContainer.appendChild(finishTime)
     let finishTimeInput = document.createElement('input')
     finishTimeInput.type = 'datetime-local'
     finishTimeInput.value = new Date(data.finishTime ?? Date.now()).toLocaleString()
       .replace(/\//g,'-').replace(' ','T')
-    options.appendChild(finishTimeInput)
+    optionContainer.appendChild(finishTimeInput)
+    options.appendChild(optionContainer)
 
     let removeButton = document.createElement('button')
     removeButton.innerText = '删除'

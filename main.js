@@ -89,6 +89,12 @@ function createTray(){
             }
         },
         {
+            label: '配置编辑',
+            click: () => {
+              ext.config.openEdit()
+            }
+        },
+        {
             type: 'separator'
         },
         {
