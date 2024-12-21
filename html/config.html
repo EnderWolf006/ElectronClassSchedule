@@ -17,6 +17,7 @@
 
 <body>
   <div class="buttons">
+    <button id="importjs">导入JS</button>
     <button id="import">导入</button>
     <button id="export">导出</button>
     <button id="save">保存</button>
@@ -111,6 +112,39 @@
 
   $('#save').click(() => {
     ipcRenderer.invoke('configs.set', json, true)
+  })
+  $('#importjs').click(() => {
+    ipcRenderer.invoke('ext.fileAccess', {
+      mode: 'open',
+    }).then(data => {
+        var config = {};
+      try {
+        config = eval(data + `\n;let o = {};
+try{eval("o.scheduleConfig = scheduleConfig")}catch(e){};
+try{eval("o.noticeConfig = noticeConfig")}catch(e){};
+;o`)
+      } catch(e) { alert(e) }
+      if (config.scheduleConfig){
+        let scheduleConfig = config.scheduleConfig
+        Object.assign(json, {
+          countdownTarget: scheduleConfig.countdown_target,
+          weekDisplay: scheduleConfig.week_display,
+          weekStrings: scheduleConfig.daily_class.map(a => a.English + '.' + a.Chinese),
+        })
+        json.css = Object.assign(json.css || {}, scheduleConfig.css_style)
+      }
+      if (config.noticeConfig){
+        let noticeConfig = config.noticeConfig
+        Object.assign(json.ext.notice, {
+          duration: noticeConfig.duration,
+          maxIndex: noticeConfig.maxIndex,
+          latestDuration: noticeConfig.latestDuration,
+          finishedDuration: noticeConfig.finishedDuration,
+        })
+        json.ext.notice.css = Object.assign(json.ext.notice.css || {}, noticeConfig.css_style)
+      }
+      applyEditor(json)
+    })
   })
   $('#import').click(() => {
     ipcRenderer.invoke('ext.fileAccess', {
