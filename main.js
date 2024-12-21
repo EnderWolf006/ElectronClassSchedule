@@ -97,7 +97,7 @@ function createTray(){
         {
             label: '课表编辑',
             click: () => {
-              ext.scheduleConfig.openScheduleEdit()
+              ext.scheduleConfig.openEdit()
             }
         },
         {

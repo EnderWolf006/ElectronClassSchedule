@@ -158,7 +158,7 @@ exports.scheduleConfigs = (() => {
 })();
 
 exports.load = () => {
-  scheduleConfigs(()=>{})
+  exports.scheduleConfigs(()=>{})
 }
 
 exports.subject_names = new Proxy({}, {
