@@ -4,18 +4,21 @@ const { promises: fs } = require("fs");
 
 let store = void 0;
 let config = exports.config = require("./ext/config")
+let scheduleConfig = exports.scheduleConfig = require("./ext/scheduleConfig")
 let timer = exports.timer = require("./ext/timer")
 let notice = exports.notice = require("./ext/notice")
 
 exports.pass = function(data) {
     store = data.store
     config.pass(data)
+    scheduleConfig.pass(data)
     timer.pass(data)
     notice.pass(data)
 }
 
 exports.load = function() {
     config.load()
+    scheduleConfig.load()
     timer.load()
     notice.load()
 }

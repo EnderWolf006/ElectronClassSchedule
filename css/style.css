@@ -148,3 +148,15 @@
     display: inline;
     font-size: var(--sub-font-size);
 }
+
+button {
+  padding: 5px;
+  margin-right: 5px;
+  border: 1px solid #222;
+  background-color: #fff;
+  color: #222;
+}
+
+button:hover {
+  background-color: #bbb;
+}

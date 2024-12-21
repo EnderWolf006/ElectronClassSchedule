@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ch" id="html">
+
+<head>
+  <title>课表配置</title>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script type="text/javascript" src="../js/jquery.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="../css/style.css">
+  <link rel="stylesheet" type="text/css" href="../css/scheduleConfig.css">
+</head>
+
+<body>
+  <div class="tabs" id="tabs">
+    <button target="./scheduleConfig/binding.html" default="true">数据绑定</button>
+    <button target="./scheduleConfig/states.html">状态定义</button>
+    <button target="./scheduleConfig/subjects.html">课程</button>
+    <button target="./scheduleConfig/classSchedule.html">课表</button>
+    <button target="./scheduleConfig/timetable.html">时间表</button>
+  </div>
+  <div class="buttons">
+    <button id="save">保存</button>
+  </div>
+
+  <iframe id="body"></iframe>
+</body>
+<script>
+  const { ipcRenderer } = require('electron');
+  let root = document.querySelector(':root');
+  let body = document.querySelector('#body');
+  let tabs = document.querySelector('#tabs');
+
+  let current = void 0;
+
+  for (let i = 0; i < tabs.children.length; i++) {
+    let child = tabs.children[i];
+    child.addEventListener('click', () => {
+      if (current) current.classList.remove('selected');
+      body.src = child.getAttribute('target');
+      current = child;
+      child.classList.add('selected');
+    })
+    if (child.getAttribute('default')) {
+      body.src = child.getAttribute('target');
+      current = child;
+      child.classList.add('selected');
+    }
+  }
+
+  body.addEventListener('load', () => {
+    body.contentWindow.data = {}
+  })
+
+</script>
+
+</html>

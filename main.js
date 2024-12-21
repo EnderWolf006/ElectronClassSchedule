@@ -95,6 +95,12 @@ function createTray(){
             }
         },
         {
+            label: '课表编辑',
+            click: () => {
+              ext.scheduleConfig.openScheduleEdit()
+            }
+        },
+        {
             type: 'separator'
         },
         {
