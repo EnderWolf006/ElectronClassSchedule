@@ -114,6 +114,14 @@
     overflow-wrap: anywhere;
 }
 
+.itemLine {
+    font-weight: 300;
+    font-family: Sou;
+    overflow-wrap: anywhere;
+    color: white;
+    font-size: var(--font-size);
+}
+
 .summary {
   color: white;
   font-size: var(--font-size);

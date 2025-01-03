@@ -92,7 +92,7 @@ ipcMain.on('notice.getData', () => {
     latestIndex: store.get('noticeIndex', 0)
   }]
   if (win) win.webContents.send(...payload);
-  if (editWin) editWin.webContents.send(...payload)
+  if (editWin && !editWin.isDestroyed()) editWin.webContents.send(...payload)
 })
 
 ipcMain.on('notice.removeFinished', (event, index) => {
@@ -192,4 +192,7 @@ exports.openEdit = () => {
   createNoticeEditWindow()
 }
 
-
+ipcMain.on('schedule.data', (e, arg) => {
+    if (!win) return
+    win.webContents.send('schedule.data', arg)
+})

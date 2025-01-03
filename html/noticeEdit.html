@@ -102,8 +102,8 @@
     optionContainer.appendChild(finishTime)
     let finishTimeInput = document.createElement('input')
     finishTimeInput.type = 'datetime-local'
-    finishTimeInput.value = new Date(data.finishTime ?? Date.now()).toLocaleString()
-      .replace(/\//g,'-').replace(' ','T')
+    finishTimeInput.value = new Date((data.finishTime ?? Date.now())
+       - new Date().getTimezoneOffset() * 60 * 1000).toISOString().substring(0, 16)
     optionContainer.appendChild(finishTimeInput)
     options.appendChild(optionContainer)
 

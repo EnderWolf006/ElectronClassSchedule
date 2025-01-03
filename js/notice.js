@@ -1,6 +1,6 @@
 const statuses = {
   'doing':    ['进行中', 'statusDoing',    '${timer}'],
-  'pinned':   ['已置顶', 'statusPinned',   '${timer}'],
+  'pinned':   ['已固定', 'statusPinned',   '${timer}'],
   'updated':  ['已更新', 'statusUpdated',  '已更新为${updated}'],
   'finished': ['已结束', 'statusFinished', '已结束']
 }
@@ -55,9 +55,6 @@ function calculateHeight(){
   let height = 0
   for (let key of displayed) {
     let notice = notices[key]
-    let noExpandHeight = Math.ceil(height / heightPerCol) * heightPerCol
-    let currentColLeft = noExpandHeight - height
-    if(currentColLeft < notice.height) height = noExpandHeight
     height += notice.height
   }
   usedHeight = height
@@ -94,7 +91,7 @@ function process(notice){
     let line = lines.shift()
     processedLines.push(line.substring(0, chars))
     line = line.substring(chars)
-    if (line.length != 0) lines.push(line)
+    if (line.length != 0) lines.unshift(line)
     height += 1
   }
   notice.nindex = notice.index
@@ -120,10 +117,7 @@ function indexToString(index){
 }
 
 function addNotice(notice){
-  if (notice.container){
-    if (notice.pinned) return
-    removeNotice(notice)
-  }
+  if (notice.elements) removeNotice(notice)
   let container = document.createElement('div')
   container.classList.add('itemContainer')
   let index = document.createElement('div')
@@ -138,24 +132,27 @@ function addNotice(notice){
   let timer = document.createElement('div')
   timer.classList.add('statusLineCountdown')
   timer.innerText = getTimerText(notice)
-  let body = document.createElement('div')
-  body.classList.add('itemBody')
-  body.innerText = notice.processedLines.join('\n')
   container.appendChild(index)
   container.appendChild(status)
   container.appendChild(timer)
-  container.appendChild(body)
-  notice.container = container
-  notice.timer = timer
-  displayed.push(notice.nindex)
   noticeContainer.appendChild(container)
+  notice.elements = [container]
+  notice.timer = timer
+  notice.processedLines.forEach(line => {
+    let element = document.createElement('div')
+    element.classList.add('itemLine')
+    element.innerText = line
+    noticeContainer.appendChild(element)
+    notice.elements.push(element)
+  })
+  displayed.push(notice.nindex)
 }
 
 function removeNotice(notice){
-  if (!notice.container) return
-  notice.container.remove()
+  if (!notice.elements) return
+  notice.elements.forEach(e => e.remove())
   displayed.splice(displayed.indexOf(notice.nindex), 1)
-  notice.container = null
+  notice.elements = null
   notice.timer = null
 }
 
@@ -184,9 +181,6 @@ function addNew(){
     i = (i + 1) % forEachIndexMax
     if (!notice) continue
     usedHeight = height
-    let noExpandHeight = Math.ceil(height / heightPerCol) * heightPerCol
-    let currentColLeft = noExpandHeight - height
-    if(currentColLeft < notice.height) height = noExpandHeight
     height += notice.height
     if (height > maxHeight){
       i = (i + forEachIndexMax - 1) % forEachIndexMax

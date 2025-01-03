@@ -13,9 +13,9 @@ exports.load = function() {
 
 function createTimerWindow(){
     win = new BrowserWindow({
-        x: screen.getPrimaryDisplay().workAreaSize.width - 300,
+        x: screen.getPrimaryDisplay().workAreaSize.width - 400,
         y: 0,
-        width: 300,
+        width: 400,
         height: 150,
         frame: false,
         transparent: true,

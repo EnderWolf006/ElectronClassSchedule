@@ -7,6 +7,8 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script type="text/javascript" src="../../js/jquery.min.js"></script>
+  <script type="text/javascript" src="../../js/util.js"></script>
+  <script type="text/javascript" src="../../js/scheduleConfigUtil.js"></script>
   <link rel="stylesheet" type="text/css" href="../../css/style.css">
   <link rel="stylesheet" type="text/css" href="../../css/scheduleConfig.css">
 </head>
@@ -15,6 +17,11 @@
   数据绑定
 </body>
 <script>
+  handleIpcRendererReady((ipcRenderer) => {
+    ipcRenderer.on('scheduleConfig.data', (event, data) => {
+      console.log(data)
+    })
+  })
 </script>
 
 </html>

@@ -25,8 +25,10 @@
   let noticeConfig;
 
   initPage(window, root, 'notice.setIgnore')
-
-  handleConfigs(({ css, ext: { notice } }) => {
+  
+  let isDuringClassHidden = false;
+  handleConfigs(({ isDuringClassHidden: hi, css, ext: { notice } }) => {
+    isDuringClassHidden = hi
     for (key in css) {
         root.style.setProperty(key, css[key])
     }
@@ -34,6 +36,14 @@
         root.style.setProperty(key, notice.css[key])
     }
     noticeConfig = notice
+  })
+
+  ipcRenderer.on('schedule.data', (event, { currentHighlight: data }) => {
+    if (isDuringClassHidden) {
+      root.style.visibility = data.type == 'current'? 'hidden': 'visible'
+    } else {
+      root.style.visibility = 'visible'
+    }
   })
 </script>
 

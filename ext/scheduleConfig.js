@@ -137,28 +137,36 @@ function applyDefaults(configs){
 }
 
 let cache = void 0;
-exports.scheduleConfigs = (() => {
+exports.scheduleConfig = (() => {
   let lock = 0;
-  function scheduleConfigs(operator){
-    let configs = lock == 0? applyDefaults(store.get('scheduleConfigs', {})): cache
+  function scheduleConfig(operator){
+    let configs = lock == 0? applyDefaults(store.get('scheduleConfig', {})): cache
     cache = configs
     if (!operator) return configs
     lock += 1
     try{
       let ret = operator(configs)
       lock -= 1
-      if (lock == 0) store.set('scheduleConfigs', configs)
-      ipcMain.emit('scheduleConfigs.changed', null, configs)
+      if (lock == 0) store.set('scheduleConfig', configs)
+      ipcMain.emit('scheduleConfig.changed', null, configs)
       return ret
     }catch(e){
       lock -= 1
     }
   }
-  return scheduleConfigs
+  return scheduleConfig
 })();
 
+ipcMain.handle('scheduleConfig.get', () => scheudleConfigs())
+
+ipcMain.handle('scheduleConfig.set', (_, arg) => {
+  scheduleConfig((configs) => {
+    Object.assign(configs, arg)
+  })
+})
+
 exports.load = () => {
-  exports.scheduleConfigs(()=>{})
+  exports.scheduleConfig(()=>{})
 }
 
 exports.subject_names = new Proxy({}, {

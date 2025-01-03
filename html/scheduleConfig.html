@@ -32,6 +32,14 @@
   let tabs = document.querySelector('#tabs');
 
   let current = void 0;
+  let scheduleConfig = void 0;
+
+  ipcRenderer.invoke('scheduleConfig.get').then(data => {
+    scheduleConfig = data
+    console.log(data)
+    ipcRenderer.emit('scheduleConfig.data', data)
+    data.a = 1
+  })
 
   for (let i = 0; i < tabs.children.length; i++) {
     let child = tabs.children[i];
@@ -49,7 +57,9 @@
   }
 
   body.addEventListener('load', () => {
-    body.contentWindow.data = {}
+    body.ipcRenderer = ipcRenderer
+    body.ipcRendererReady.forEach(fn => fn(ipcRenderer))
+    if (scheduleConfig) body.ipcRenderer.emit('scheduleConfig.data', scheduleConfig)
   })
 
 </script>

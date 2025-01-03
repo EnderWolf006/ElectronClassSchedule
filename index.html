@@ -101,10 +101,7 @@
   }
 
   function setBackgroundDisplay() {
-    let elements = document.getElementsByClassName('background')
-    for (element of elements) {
-      element.style.visibility = (scheduleData.currentHighlight.type === 'current' && isClassHidden) ? 'hidden' : 'visible'
-    }
+    root.style.visibility = (scheduleData.currentHighlight.type === 'current' && isClassHidden) ? 'hidden' : 'visible'
   }
 
   function setCountdownerPosition() {

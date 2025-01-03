@@ -43,8 +43,8 @@
   })
 
   let isDuringClassHidden = true;
-  handleConfigs(({ css, ext: { timer } }) => {
-    isDuringClassHidden = timer.isDuringClassHidden
+  handleConfigs(({ isDuringClassHidden: hi, css, ext: { timer } }) => {
+    isDuringClassHidden = hi
     for (key in css) {
       root.style.setProperty(key, css[key])
     }
@@ -54,14 +54,14 @@
   })
 
   ipcRenderer.on('schedule.data', (event, { currentHighlight: data }) => {
-    if (isDuringClassHidden && data.type == 'current') {
-      body.style.display = "none"
-      return
+    if (isDuringClassHidden && closedFullName == null) {
+      body.style.display = data.type == 'current'? 'none': 'block'
+      if (data.type == 'current') return
     }
     currentFullName.innerText = data.fullName;
     currentFullName.style.color = data.type === 'current' ? 'rgba(0, 255, 10, 1)' : 'rgba(255, 255, 5, 1)'
     countdownText.innerText = data.countdownText;
-    if (data.fullName != closedFullName) {
+    if (data.fullName != closedFullName || closedFullName == null) {
       body.style.display = "block"
       closedFullName = null
     }

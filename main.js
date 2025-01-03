@@ -104,47 +104,6 @@ function createTray(){
             type: 'separator'
         },
         {
-            label: '计时置顶',
-            type: 'checkbox',
-            checked: config.configs().ext.timer.isWindowAlwaysOnTop,
-            click: (e) => {
-                config.configs(c => c.ext.timer.isWindowAlwaysOnTop = e.checked)
-            }
-        },
-        {
-            label: '窗口置顶',
-            type: 'checkbox',
-            checked: config.configs().isWindowAlwaysOnTop,
-            click: (e) => {
-                config.configs(c => c.isWindowAlwaysOnTop = e.checked)
-                if (e.checked)
-                    win.setAlwaysOnTop(true, 'screen-saver', 9999999999999)
-                else
-                    win.setAlwaysOnTop(false)
-            }
-        },
-        {
-            label: '上课隐藏',
-            type: 'checkbox',
-            checked: config.configs().isDuringClassHidden,
-            click: (e) => {
-                config.configs(c => c.isDuringClassHidden = e.checked)
-                win.webContents.send('ClassHidden', e.checked)
-            }
-        },
-        {
-            label: '开机启动',
-            type: 'checkbox',
-            checked: config.configs().isAutoLaunch,
-            click: (e) => {
-                config.configs(c => c.isAutoLaunch = e.checked)
-                setAutoLaunch()
-            }
-        },
-        {
-            type: 'separator'
-        },
-        {
             icon: basePath + 'image/quit.png',
             label: '退出程序',
             click: () => {
