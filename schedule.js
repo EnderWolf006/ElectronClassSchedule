@@ -1,22 +1,20 @@
 const { ipcMain } = require("electron")
 const ext = require("./ext")
-const { scheduleConfig } = require("./scheduleConfig")
+const { proxy: scheduleConfig } = require("./ext/scheduleConfig")
 
 let weekIndex = 0
-let timeOffset = 0
 let dayOffset = -1
 let setDayOffsetLastDay = -1
 
 ipcMain.on('configs.configsChanged', (e, { schedule }) => {
   weekIndex = schedule.weekIndex
-  timeOffset = schedule.timeOffset
   dayOffset = schedule.dayOffset
   setDayOffsetLastDay = schedule.setDayOffsetLastDay
 })
 
 function getCurrentEditedDate() {
     let d = new Date();
-    d.setSeconds(d.getSeconds() + timeOffset)
+    d.setSeconds(d.getSeconds() + scheduleConfig.timeOffset)
     return d;
 }
 

@@ -74,7 +74,7 @@ function createNoticeEditWindow(){
     })
     editWin.loadFile('html/noticeEdit.html')
     // editWin.webContents.openDevTools({ mode: 'detach' })
-    const handle = win.getNativeWindowHandle();
+    const handle = editWin.getNativeWindowHandle();
     DisableMinimize(handle)
 }
 

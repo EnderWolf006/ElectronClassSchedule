@@ -118,7 +118,7 @@ function createTray(){
         }
     ]
     form = Menu.buildFromTemplate(template)
-    tray.setToolTip('电子课表 - by lsl')
+    tray.setToolTip('电子课表 - by lsl(github.com/EnderWolf006)\n修改 - lsp(github.com/aawwaaa)')
     function trayClicked() {
         tray.popUpContextMenu(form)
     }

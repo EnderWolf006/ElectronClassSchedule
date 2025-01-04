@@ -9,10 +9,12 @@
 
 .json-editor .property,
 .json-editor .value { 
+  /*
   border: none;
   -webkit-border-radius: 5px;
   -moz-border-radius: 5px;
   border-radius: 5px;
+  */
   padding: 3px;
   margin-right: 2px;
 }

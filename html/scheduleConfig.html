@@ -20,6 +20,9 @@
     <button target="./scheduleConfig/timetable.html">时间表</button>
   </div>
   <div class="buttons">
+    <button id="importjs">导入JS</button>
+    <button id="import">导入</button>
+    <button id="export">导出</button>
     <button id="save">保存</button>
   </div>
 
@@ -32,13 +35,11 @@
   let tabs = document.querySelector('#tabs');
 
   let current = void 0;
-  let scheduleConfig = void 0;
+  window.sconfig = void 0;
 
   ipcRenderer.invoke('scheduleConfig.get').then(data => {
-    scheduleConfig = data
-    console.log(data)
-    ipcRenderer.emit('scheduleConfig.data', data)
-    data.a = 1
+    sconfig = data
+    ipcRenderer.emit('scheduleConfig.data', null, data)
   })
 
   for (let i = 0; i < tabs.children.length; i++) {
@@ -57,11 +58,79 @@
   }
 
   body.addEventListener('load', () => {
-    body.ipcRenderer = ipcRenderer
-    body.ipcRendererReady.forEach(fn => fn(ipcRenderer))
-    if (scheduleConfig) body.ipcRenderer.emit('scheduleConfig.data', scheduleConfig)
+    body.contentWindow.ipcRenderer = ipcRenderer
+    body.contentWindow.ipcRendererReady.forEach(fn => fn(ipcRenderer))
+    if (sconfig) ipcRenderer.emit('scheduleConfig.data', null, sconfig)
   })
 
+  document.getElementById('save').addEventListener('click', () => {
+    ipcRenderer.invoke('scheduleConfig.set', sconfig)
+  })
+
+  $('#importjs').click(() => {
+    ipcRenderer.invoke('ext.fileAccess', {
+      mode: 'open',
+    }).then(data => {
+      var config = {};
+      try {
+        config = eval('exports = {}\n' + data + `\n;let o = exports;
+try{eval("o.scheduleConfig = scheduleConfig")}catch(e){};
+;o`)
+      } catch(e) { alert(e) }
+      if (config.scheduleConfig){
+        let { daily_class, divider, subject_name, timetable } = config.scheduleConfig
+        sconfig.subjects = subject_name
+        sconfig.timetables = {}
+        for (let name in timetable) {
+          let table = []
+          for (let time in timetable[name]) {
+            let value = timetable[name][time]
+            let i = { time: time.substring(0, 5), value }
+            if (typeof value == 'number') i.divider = divider[name].includes(value)
+            table.push(i)
+          }
+          sconfig.timetables[name] = table
+        }
+        sconfig.bindings = []
+        sconfig.classSchedules = {}
+        for (let {English, classList, timetable} of daily_class) {
+          let schedule = []
+          for (let value of classList) {
+            if (typeof value == "string") {
+              schedule.push([{ condition: ['always'], value }])
+              continue
+            }
+            schedule.push(value.map((value, index) => ({
+              condition: ['equals', 'weekIndex', index],
+              value
+            })))
+          }
+          sconfig.classSchedules["sch#" + English] = schedule
+          sconfig.bindings.push([{
+            condition: ['always'],
+            timetable,
+            classSchedule: "sch#" + English
+          }])
+        }
+        ipcRenderer.emit('scheduleConfig.data', null, sconfig)
+      }
+    })
+  })
+  $('#import').click(() => {
+    ipcRenderer.invoke('ext.fileAccess', {
+      mode: 'open',
+    }).then(data => {
+      data = JSON.parse(data)
+      sconfig = data
+      ipcRenderer.emit('scheduleConfig.data', null, data)
+    })
+  })
+  $('#export').click(() => {
+    ipcRenderer.invoke('ext.fileAccess', {
+      mode: 'save',
+      data: JSON.stringify(scheduleConfig)
+    })
+  })
 </script>
 
 </html>

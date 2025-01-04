@@ -21,7 +21,7 @@ function createEditWindow(){
         },
     })
     win.loadFile('html/scheduleConfig.html')
-    win.webContents.openDevTools({ mode: 'detach' })
+    // win.webContents.openDevTools({ mode: 'detach' })
     const handle = win.getNativeWindowHandle();
     DisableMinimize(handle)
 }
@@ -31,6 +31,9 @@ exports.openEdit = () => {
 }
 
 exports.defaultConfigs = {
+  timeOffset: 0,
+  // {date: number, timetable: string, classSchedule: string}
+  tempBindings: [],
   subjects: {
     '自': '自习',
     '物': '物理',
@@ -47,40 +50,36 @@ exports.defaultConfigs = {
     '班': '班会',
   },
   timetables: {
-    workday: {
-      meta: {
-        dividers: [4, 8]
-      },
-      data: {
-        '00:00-07:39': '早自习',
-        '07:40-08:19': 0,
-        '08:20-08:29': '课间',
-        '08:30-09:09': 1,
-        '09:10-09:19': '课间',
-        '09:20-09:59': 2,
-        '10:00-10:29': '大课间',
-        '10:30-11:09': 3,
-        '11:10-11:19': '课间',
-        '11:20-11:59': 4,
-        '12:00-12:59': '午休',
-        '13:00-13:39': 5,
-        '13:40-13:49': '课间',
-        '13:50-14:29': 6,
-        '14:30-14:59': '大课间',
-        '15:00-15:39': 7,
-        '15:40-15:49': '课间',
-        '15:50-16:19': 8,
-        '16:20-16:29': '课间',
-        '16:30-17:29': 9,
-        '17:30-18:29': '晚休',
-        '18:30-19:29': 10,
-        '19:30-19:39': '课间',
-        '19:40-20:59': 11,
-        '21:00-23:59': '放学',
-      }
-    },
+    workday: [
+      { 'time': '00:00', 'value': '早自习' },
+      { 'time': '07:40', 'value': 0, 'divider': false },
+      { 'time': '08:20', 'value': '课间' },
+      { 'time': '08:30', 'value': 1, 'divider': false },
+      { 'time': '09:10', 'value': '课间'},
+      { 'time': '09:20', 'value': 2, 'divider': false },
+      { 'time': '10:00', 'value': '大课间' },
+      { 'time': '10:30', 'value': 3, 'divider': false },
+      { 'time': '11:10', 'value': '课间' },
+      { 'time': '11:20', 'value': 4, 'divider': true },
+      { 'time': '12:00', 'value': '午休' },
+      { 'time': '13:00', 'value': 5, 'divider': false },
+      { 'time': '13:40', 'value': '课间' },
+      { 'time': '13:50', 'value': 6, 'divider': false },
+      { 'time': '14:30', 'value': '大课间' },
+      { 'time': '15:00', 'value': 7, 'divider': false },
+      { 'time': '15:40', 'value': '课间' },
+      { 'time': '15:50', 'value': 8, 'divider': false },
+      { 'time': '16:20', 'value': '课间' },
+      { 'time': '16:30', 'value': 9, 'divider': true },
+      { 'time': '17:30', 'value': '晚休' },
+      { 'time': '18:30', 'value': 10, 'divider': false },
+      { 'time': '19:30', 'value': '课间' },
+      { 'time': '19:40', 'value': 11, 'divider': false },
+      { 'time': '21:00', 'value': '放学' },
+    ],
   },
-  classSchedules: {
+  // [value, [{condition: [...], value: ''}, ...]]
+  classSchedules: Object.fromEntries(Object.entries({
     monday: ['物', '英', '数', '语', '数', '自', '自', '化', '走', '语', '语', '自'],
     tuesday: ['物', '英', '数', '语', '数', '自', '自', '化', '走', '语', '语', '自'],
     wednsday: ['物', '英', '数', '语', '数', '自', '自', '化', '走', '语', '语', '自'],
@@ -88,46 +87,67 @@ exports.defaultConfigs = {
     friday: ['物', '英', '数', '语', '数', '自', '自', '化', '走', '语', '语', '自'],
     saturday: ['物', '英', '数', '语', '数', '自', '自', '化', '走', '语', '语', '自'],
     sunday: ['物', '英', '数', '语', '数', '自', '自', '化', '走', '语', '语', '自'],
-  },
+  }).map(([k, v]) => [k, v.map(x => [{condition: ['always'], value: x}])])),
   states: {
     weekIndex: {
       offset: 0,
-      type: 'date-auto',
+      type: 'dateAuto',
       begin: 0,
       cycle: 7,
       max: 4,
     },
   },
-  // condition: [['cond', 'value'], ['...']]
+  // condition: ['type', ...args]
   bindings: [
-    {
-      timetable: 'workday',
-      classSchedule: 'sunday',
-    },
-    {
-      timetable: 'workday',
-      classSchedule: 'monday',
-    },
-    {
-      timetable: 'workday',
-      classSchedule: 'tuesday',
-    },
-    {
-      timetable: 'workday',
-      classSchedule: 'wednsday',
-    },
-    {
-      timetable: 'workday',
-      classSchedule: 'thursday',
-    },
-    {
-      timetable: 'workday',
-      classSchedule: 'friday',
-    },
-    {
-      timetable: 'workday',
-      classSchedule: 'saturday',
-    },
+    [
+      {
+        condition: ['always'],
+        timetable: 'workday',
+        classSchedule: 'sunday',
+      },
+    ],
+    [
+      {
+        condition: ['always'],
+        timetable: 'workday',
+        classSchedule: 'monday',
+      },
+    ],
+    [
+      {
+        condition: ['always'],
+        timetable: 'workday',
+        classSchedule: 'tuesday',
+      },
+    ],
+    [
+      {
+        condition: ['always'],
+        timetable: 'workday',
+        classSchedule: 'wednsday',
+      },
+    ],
+    [
+      {
+        condition: ['always'],
+        timetable: 'workday',
+        classSchedule: 'thursday',
+      },
+    ],
+    [
+      {
+        condition: ['always'],
+        timetable: 'workday',
+        classSchedule: 'friday',
+      },
+    ],
+    [
+      {
+        condition: ['always'],
+        timetable: 'workday',
+        classSchedule: 'saturday',
+      },
+    ],
   ]
 }
 
@@ -149,6 +169,7 @@ exports.scheduleConfig = (() => {
       lock -= 1
       if (lock == 0) store.set('scheduleConfig', configs)
       ipcMain.emit('scheduleConfig.changed', null, configs)
+      for (let k in cachedData) cachedData[k] = {}
       return ret
     }catch(e){
       lock -= 1
@@ -157,34 +178,150 @@ exports.scheduleConfig = (() => {
   return scheduleConfig
 })();
 
-ipcMain.handle('scheduleConfig.get', () => scheudleConfigs())
+ipcMain.handle('scheduleConfig.get', () => exports.scheduleConfig())
 
 ipcMain.handle('scheduleConfig.set', (_, arg) => {
-  scheduleConfig((configs) => {
+  exports.scheduleConfig((configs) => {
     Object.assign(configs, arg)
   })
 })
 
+ipcMain.handle('scheduleConfig.getStateValue', (event, state) => {
+  return getStateValue(state)
+})
+
+ipcMain.handle('scheduleConfig.getToday', () => {
+  let {timetable, classSchedule} = getTodayBinding()
+  return [timetable, classSchedule]
+})
+
 exports.load = () => {
-  exports.scheduleConfig(()=>{})
+  exports.scheduleConfig((a)=>{})
 }
 
-exports.subject_names = new Proxy({}, {
+const stateTypes = {
+  'manual': ({value}) => value,
+  'dateAuto': ({begin, cycle, max, offset}) => {
+    let t = Date.now() - begin;
+    let d = Math.floor(t / (cycle * 24 * 60 * 60 * 1000));
+    d += offset + max * 1000
+    let r = d % max;
+    return r;
+  },
+  'javascript': ({code}) => {
+    let state = getStateValue;
+    let sc = exports.scheduleConfig;
+    return eval(code)
+  }
+}
+function getStateValue(state) {
+  state = cache.states[state]
+  if (state.type in stateTypes) {
+    return stateTypes[state.type](state)
+  }
+  return -1
+}
+
+const conditionTypes = {
+  'always': () => true,
+  'never': () => false,
+  'equals': (state, value) => getStateValue(state) == value,
+  'notEquals': (state, value) => getStateValue(state) != value,
+  'lessThan': (state, value) => getStateValue(state) < value,
+  'lessThanEquals': (state, value) => getStateValue(state) <= value,
+  'greaterThan': (state, value) => getStateValue(state) > value,
+  'greaterThanEquals': (state, value) => getStateValue(state) >= value,
+  'between': (state, value) => getStateValue(state) >= value[0] && getStateValue(state) <= value[1],
+  'notBetween': (state, value) => getStateValue(state) < value[0] || getStateValue(state) > value[1],
+  'javascript': (code) => {
+    let state = getStateValue
+    let sc = exports.scheduleConfig
+    return eval(code)
+  }
+}
+function evaluateConditions(conditions) {
+  return conditions.find(a => conditionTypes[a.condition[0]](...a.condition.slice(1)))
+}
+
+function getTodayBinding() {
+  let today = new Date().toISOString().substring(0, 10)
+  for (let binding of cache.tempBindings) {
+    if (binding.date + 24 * 60 * 60 * 1000 < Date.now()) {
+      exports.scheduleConfig((c) => {
+        c.tempBindings.splice(c.tempBindings.findIndex(b => b.date == binding.date), 1)
+      })
+      continue
+    }
+    if (new Date(binding.date).toISOString().substring(0, 10) == today) return binding
+  }
+  let day = new Date().getDay()
+  let binding = cache.bindings[day]
+  return evaluateConditions(binding)
+}
+
+function timeDecreasedOneMinute(time) {
+  let [h, m] = time.split(':')
+  m = parseInt(m) - 1
+  if (m < 0) {
+    m = 59
+    h = parseInt(h) - 1
+  }
+  if (h < 0) h = 23
+  return h + ':' + m
+}
+
+exports.proxy = {}
+let cachedData = {
+  timetable: {},
+  divider: {},
+  classSchedule: {},
+}
+
+Object.defineProperty(exports.proxy, "timeOffset", {
+  get: () => {
+    return cache.timeOffset
+  }
+})
+exports.proxy.subject_name = new Proxy({}, {
   get: (target, name) => {
     return cache.subjects[name]
   }
 })
-exports.time_table = new Proxy({}, {
+exports.proxy.timetable = new Proxy({}, {
   get: (target, name) => {
-    return cache.timetables[name].data
+    if (cachedData.timetable[name]) return cachedData.timetable[name]
+    let tt = cache.timetables[name]
+    let generated = {}
+    for (let i in tt) {
+      let v = tt[i]
+      let next = tt[+i+1] ?? { time: '00:00' }
+      generated[v.time + '-' + timeDecreasedOneMinute(next.time)] = tt[i].value
+    }
+    cachedData.timetable[name] = generated
+    return generated
   }
 })
-exports.divider = new Proxy({}, {
+exports.proxy.divider = new Proxy({}, {
   get: (target, name) => {
-    return cache.timetables[name].meta.dividers
+    if (cachedData.divider[name]) return cachedData.divider[name]
+    let tt = cache.timetables[name]
+    let generated = []
+    for (let i of tt) {
+      if (i.divider) generated.push(i.value)
+    }
+    cachedData.divider[name] = generated
+    return generated
   }
 })
-exports.daily_class = new Proxy({}, {
+exports.proxy.daily_class = new Proxy({}, {
   get: (target, name) => {
+    let {classSchedule, timetable} = getTodayBinding()
+    classSchedule = cache.classSchedules[classSchedule]
+    classSchedule = cachedData.classSchedule[classSchedule] ??
+      (cachedData.classSchedule[classSchedule] = classSchedule.map(a => evaluateConditions(a).value))
+    return {
+      classList: classSchedule,
+      timetable
+    }
   }
 })
