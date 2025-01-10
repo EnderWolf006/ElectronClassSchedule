@@ -15,6 +15,10 @@
 </head>
 
 <body>
+  <div class="group" id="error" style="display:none">
+    <div class="title">错误</div>
+    <div class="item">配置出现了错误, 导致无法加载</div>
+  </div>
   <div class="group">
     <div class="title">通用</div>
     <div class="item">计时偏移: <input id="timeOffset" type="number" value="0">s</div>
@@ -38,6 +42,20 @@
       data = d
       load()
     })
+    let errorListItems = []
+    ipcRenderer.on('scheduleConfig.binding.errorList', (event, d) => {
+      document.getElementById('error').style.display = d.length != 0? 'block': 'none'
+      for (let item of errorListItems) item.remove()
+      errorListItems = []
+      for (let item of d) {
+        let itemDiv = document.createElement('div')
+        itemDiv.className = 'item'
+        itemDiv.innerText = `${item.stack}`
+        errorListItems.push(itemDiv)
+        document.getElementById('error').appendChild(itemDiv)
+      }
+    })
+    ipcRenderer.send('scheduleConfig.binding.getErrorList')
   })
 
   function load(){

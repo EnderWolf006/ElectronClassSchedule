@@ -37,6 +37,7 @@ function createTimerWindow(){
     DisableMinimize(handle)
 }
 
+let __timeout = -1
 ipcMain.on('configs.configsChanged', (e, arg) => {
     let enabled = arg.ext.timer.enabled
     if (enabled && !win) createTimerWindow()
@@ -47,6 +48,8 @@ ipcMain.on('configs.configsChanged', (e, arg) => {
     if (!win) return
     win.webContents.send('configs.configsChanged', arg)
     win.setAlwaysOnTop(arg.ext.timer.isWindowAlwaysOnTop, 'screen-saver', 9999999999999)
+    if (__timeout != -1) clearTimeout(__timeout)
+    __timeout = setTimeout(() => win.setAlwaysOnTop(arg.ext.timer.isWindowAlwaysOnTop, 'screen-saver', 9999999999999), 1000)
 })
 
 exports.show = () => {

@@ -110,7 +110,7 @@ function getScheduleData() {
         const classIndex = dayTimetable[timeRange];
 
         if (typeof classIndex === 'number') {
-            const subjectShortName = currentSchedule[classIndex];
+            const subjectShortName = currentSchedule[classIndex] ?? ext.scheduleConfig.DEFAULT_SUBJECT
             const subjectFullName = scheduleConfig.subject_name[subjectShortName];
             scheduleArray.push(subjectShortName);
 
@@ -177,8 +177,12 @@ function formatCountdown(countdownSeconds) {
 let scheduleData = {}
 
 setInterval(() => {
-  scheduleData = getScheduleData()
-  ipcMain.emit('schedule.data', null, scheduleData)
+  try {
+    scheduleData = getScheduleData()
+    ipcMain.emit('schedule.data', null, scheduleData)
+  } catch (error) {
+    ext.scheduleConfig.currentError(error)
+  }
 }, 1000)
 
 exports.getCurrentEditedDate = () => getCurrentEditedDate()

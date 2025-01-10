@@ -153,3 +153,128 @@ function attachSelectableList(div, listSource, clicked) {
     }
   }
 }
+
+function timeGreaterThan(a, b) {
+  let [h1, m1] = a.split(':')
+  let [h2, m2] = b.split(':')
+  if (h1 != h2) return h1 > h2
+  return m1 > m2
+}
+
+function validTime(a) {
+  let [h, m] = a.split(':')
+  return h >= 0 && h < 24 && m >= 0 && m < 60
+}
+
+function timetableRange(timetable, i) {
+  let {time} = timetable[i]
+  let {time: nextTime} = timetable[+i+1] ?? {time: '23:59'}
+  return `${time} ~ ${nextTime}`
+}
+
+function checkConditions(conds, config, current, warn, error){
+  let hasAlways = false
+  for (let index in conds) {
+    let { condition } = conds[index]
+    current('条件 # ' + index)
+    error(conditions[condition[0]][1] == 'ss' && !config.states[condition[1]], '无效的状态名: ' + condition[1])
+    warn(hasAlways, '条件被always覆盖: 条件上方存在always条件')
+    if (condition[0] == 'always') hasAlways = true
+  }
+  current('')
+  warn(!hasAlways, '不存在always条件: 可能无符合条件的值')
+}
+
+function checkBindings(bindings, config, current, warn, error){
+  for (let index in bindings){
+    let binding = bindings[index]
+    current('条件 # ' + index)
+    checkBinding(binding, config, current, warn, error)
+  }
+}
+
+function checkBinding(binding, config, current, warn, error){
+  let timetable = config.timetables[binding.timetable]
+  let classSchedule = config.classSchedules[binding.classSchedule]
+  error(!timetable, '无效的时间表: ' + binding.timetable)
+  error(!classSchedule, '无效的课程表: ' + binding.classSchedule)
+  if (timetable && classSchedule) {
+    let max = timetable.reduce((a, b) => typeof b.value == 'number'? b.value > a ? b.value : a : a, 0)
+    warn(classSchedule.length < max, '课程表课程数量不足(' + classSchedule.length + '), 少于时间表课程数量(' + max + ')')
+  }
+}
+
+const checks = {
+  bindings: [
+    checkConditions,
+    checkBindings
+  ],
+  tempBindings: [
+    checkBinding
+  ],
+  timetables: [
+    (timetable, config, current, warn, error) => {
+      let lastTime = '00:00'
+      for (let i in timetable) {
+        let {time, value} = timetable[i]
+        current(timetableRange(timetable, i))
+        error(typeof value == 'number' && value < 0, `无效的课程索引(<0)`)
+        error(!validTime(time), '无效的时间')
+        error(i != 0 && validTime(time) && !timeGreaterThan(time, lastTime), '无效的时间(时间倒流)')
+        lastTime = time
+      }
+    }
+  ],
+  classSchedules: [
+    (classSchedule, config, current, warn, error) => {
+      for (let index in classSchedule) {
+        let conditions = classSchedule[index]
+        let curr = '第' + index + '节'
+        current(curr)
+        checkConditions(conditions, config, (a) => current(curr + a), warn, error)
+        for (let i in conditions) {
+          let { value } = conditions[i]
+          error(!config.subjects[value], '无效的课程: ' + value)
+        }
+      }
+    }
+  ]
+}
+
+function runCheckFor(type, name, object, config, output) {
+  let cs = checks[type]
+  if (!cs) return
+  let cn = ''
+  let warn = (a, b) => {
+    if (!a) return
+    output.lines.push('[⚠警告] ' + name + (cn? '[' + cn + ']': '') + ': ' + b)
+    output.warns += 1
+  }
+  let error = (a, b) => {
+    if (!a) return
+    output.lines.push('[✖错误] ' + name + (cn? '[' + cn + ']': '') + ': ' + b)
+    output.errors += 1
+  }
+  for (let check of cs) {
+    check(object, config, (a) => cn = a, warn, error)
+  }
+}
+
+function checkConfig(config) {
+  let output = {
+    lines: [],
+    warns: 0,
+    errors: 0
+  }
+  function runCheck(type, array, name, value = (a) => a) {
+    array.forEach((a, index) => {
+      runCheckFor(type, name(a, index), value(a, index), config, output)
+    })
+  }
+  let weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+  runCheck('bindings', config.bindings, (_, i) => '数据绑定[' + weekdays[i] + ']')
+  runCheck('tempBindings', config.tempBindings, (d) => '临时数据绑定[' + new Date(d.date).toLocaleDateString() + ']')
+  runCheck('timetables', Object.entries(config.timetables), ([v, _]) => '时间表[' + v + ']', ([_, v]) => v)
+  runCheck('classSchedules', Object.entries(config.classSchedules), ([v, _]) => '课程表[' + v + ']', ([_, v]) => v)
+  return output
+}

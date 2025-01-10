@@ -1,6 +1,10 @@
 const { ipcMain, BrowserWindow } = require('electron')
 const { DisableMinimize } = require('electron-disable-minimize');
 
+const DEFAULT_SUBJECT = '❎'
+exports.DEFAULT_SUBJECT = DEFAULT_SUBJECT
+const DEFAULT_SUBJECT_NAME = '错误'
+
 let store = void 0;
 exports.pass = function(data) {
   store = data.store
@@ -170,6 +174,7 @@ exports.scheduleConfig = (() => {
       if (lock == 0) store.set('scheduleConfig', configs)
       ipcMain.emit('scheduleConfig.changed', null, configs)
       for (let k in cachedData) cachedData[k] = {}
+      exports.clearErrorList()
       return ret
     }catch(e){
       lock -= 1
@@ -199,6 +204,28 @@ exports.load = () => {
   exports.scheduleConfig((a)=>{})
 }
 
+let errorList = []
+exports.clearErrorList = () => {
+  errorList = []
+  exports.sendErrorList()
+}
+exports.sendErrorList = () => {
+  if (win && !win.isDestroyed()){
+    win.webContents.send('scheduleConfig.binding.errorList', errorList)
+  }
+}
+
+ipcMain.on('scheduleConfig.binding.getErrorList', exports.sendErrorList)
+exports.currentError = (error) => {
+  if (!error) return
+  errorList.push({
+    message: error.message,
+    stack: error.stack,
+  })
+  if (errorList.length > 10) errorList.shift()
+  exports.sendErrorList()
+}
+
 const stateTypes = {
   'manual': ({value}) => value,
   'dateAuto': ({begin, cycle, max, offset}) => {
@@ -214,8 +241,9 @@ const stateTypes = {
     return eval(code)
   }
 }
-function getStateValue(state) {
-  state = cache.states[state]
+function getStateValue(stateName) {
+  let state = cache.states[stateName]
+  if (!state) throw new Error('未知状态名: ' + stateName)
   if (state.type in stateTypes) {
     return stateTypes[state.type](state)
   }
@@ -236,11 +264,18 @@ const conditionTypes = {
   'javascript': (code) => {
     let state = getStateValue
     let sc = exports.scheduleConfig
-    return eval(code)
+    try {
+      return eval(code)
+    } catch (e) {
+      e.message += '\n条件判断javascript错误'
+      throw e
+    }
   }
 }
 function evaluateConditions(conditions) {
-  return conditions.find(a => conditionTypes[a.condition[0]](...a.condition.slice(1)))
+  let result = conditions.find(a => conditionTypes[a.condition[0]](...a.condition.slice(1)))
+  if (!result) throw new Error('无满足任一条件的值')
+  return result
 }
 
 function getTodayBinding() {
@@ -258,6 +293,14 @@ function getTodayBinding() {
   let binding = cache.bindings[day]
   return evaluateConditions(binding)
 }
+getTodayBinding = ((fun) => {
+  return () => {
+    try { return fun() } catch(e) {
+      e.message += '\n获取今日数据绑定错误'
+      throw e
+    }
+  }
+})(getTodayBinding);
 
 function timeDecreasedOneMinute(time) {
   let [h, m] = time.split(':')
@@ -279,11 +322,12 @@ let cachedData = {
 
 Object.defineProperty(exports.proxy, "timeOffset", {
   get: () => {
-    return cache.timeOffset
+    return cache? cache.timeOffset: 0
   }
 })
 exports.proxy.subject_name = new Proxy({}, {
   get: (target, name) => {
+    if (name == DEFAULT_SUBJECT) return DEFAULT_SUBJECT_NAME
     return cache.subjects[name]
   }
 })
@@ -315,10 +359,17 @@ exports.proxy.divider = new Proxy({}, {
 })
 exports.proxy.daily_class = new Proxy({}, {
   get: (target, name) => {
-    let {classSchedule, timetable} = getTodayBinding()
-    classSchedule = cache.classSchedules[classSchedule]
+    let {classSchedule: classScheduleName, timetable} = getTodayBinding()
+    let classSchedule = cache.classSchedules[classScheduleName]
     classSchedule = cachedData.classSchedule[classSchedule] ??
-      (cachedData.classSchedule[classSchedule] = classSchedule.map(a => evaluateConditions(a).value))
+      (cachedData.classSchedule[classSchedule] = classSchedule.map((a, index) => {
+        try { return evaluateConditions(a).value } catch (e) {
+          e.message += '\n在课程条件判断时出现问题: '
+          e.message += `课程表 ${classScheduleName} 课程 第${index}节 时间表 ${timetable}`
+          exports.currentError(e)
+          return DEFAULT_SUBJECT
+        }
+      }))
     return {
       classList: classSchedule,
       timetable

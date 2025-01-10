@@ -7,7 +7,7 @@ exports.pass = function(data) {
 }
 
 exports.defaultConfigs = { 
-  isWindowAlwaysOnTop: true,
+  isWindowAlwaysOnTop: false,
   isDuringClassHidden: true,
   isAutoLaunch: true,
   // 倒计时目标：位于右侧框中的倒计时，输入日期即可，可以是中考高考期末等等，格式YYYY-MM-DD
@@ -56,7 +56,7 @@ exports.defaultConfigsDeep = {
       }
     },
     notice: {
-      enabled: true,
+      enabled: false,
       duration: 30*1000, // 通知持续时间
       maxIndex: 100, // 通知最大索引
       latestDuration: 1*60*60*1000, // 最新通知持续时间
