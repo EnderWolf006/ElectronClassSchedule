@@ -149,12 +149,15 @@ const _scheduleConfig = {
         '--center-font-size': '50px', // 中间课表中的课程简写单字的字体大小
         '--corner-font-size': '14px', // 左侧的星期中文角标与右侧的"天"字的字体大小
         '--countdown-font-size': '28px', // 课程或课间全称与倒计时的字体大小
+        '--hitokoto-content-font-size': '20px', // 一言的字体大小
+        '--hitokoto-origin-font-size': '12px', // 一言的字体大小
         '--global-border-radius': '16px', // 所有背景框的圆角大小
         '--global-bg-opacity': '0.5', // 所有背景框的不透明度, 范围: [0, 1]
         '--container-bg-padding': '8px 14px', // 上面三个框各自的背景内边距, 前面的数字表示纵向边距，后面的数字表示横向边距
         '--countdown-bg-padding': '5px 12px', // 倒计时框的背景内边距, 前面的数字表示纵向边距，后面的数字表示横向边距
         '--container-space': '16px', // 上面三个框中间的间隔长度
         '--top-space': '16px', // 课表主体最顶端与电脑屏幕上边框的间隔长度
+        '--hitokoto-top-space': '150px', // 一言与电脑上边距的间隔长度
         '--main-horizontal-space': '8px', // 中间课表中的课程简写单字之间的间隔长度
         '--divider-width': '2px', // 分隔线宽度
         '--divider-margin': '6px', // 分隔线外边距
