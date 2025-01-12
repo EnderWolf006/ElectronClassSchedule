@@ -57,9 +57,36 @@
     transform: translateX(-50%);
 }
 
+.cloudContainer { /*不太熟悉css，能优化帮忙优化一下*/
+    box-sizing: border-box;
+    position: fixed;
+    top: var(--hitokoto-top-space);
+    left: 50%;
+    transform: translateX(-50%);
+    width: fit-content;
+    padding: 2px;
+    border-radius: var(--global-border-radius);
+    background-color: rgba(0, 0, 0, var(--global-bg-opacity));
+}
+
 .class {
     color: rgba(255, 255, 255, 1);
     margin: 0 var(--main-horizontal-space);
+}
+
+.hitokoto { /*同上*/
+    color: rgba(255, 255, 255, 1);
+    margin: 0 var(--main-horizontal-space);
+    font-size: var(--hitokoto-content-font-size);
+    font-family: Ali;
+}
+
+.hitokoto-origin {
+    color: rgba(255, 255, 255, 1);
+    margin: 0 var(--main-horizontal-space);
+    font-size: var(--hitokoto-origin-font-size);
+    text-align: right;
+    font-style: italic;
 }
 
 .current {
