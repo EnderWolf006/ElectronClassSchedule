@@ -26,8 +26,13 @@
         <div class="countdown" id="countdownText">00:00</div>
       </div>
     </div>
-    <div class="leftSidebar sidebar background" id="leftSidebar"><span id="weekEN" class="t">Load</span><div class="corner options notIgnoreClick" id="weekCH">ing</div></div>
-    <div class="rightSidebar sidebar background" id="rightSidebar"><span id="countdownDays" class="t">000</span><div class="corner">天</div></div>
+    <div class="cloudContainer" id="cloudContainer"></div>
+    <div class="leftSidebar sidebar background" id="leftSidebar"><span id="weekEN" class="t">Load</span>
+      <div class="corner options notIgnoreClick" id="weekCH">ing</div>
+    </div>
+    <div class="rightSidebar sidebar background" id="rightSidebar"><span id="countdownDays" class="t">000</span>
+      <div class="corner">天</div>
+    </div>
   </div>
   <div class="miniCountdown" id="miniCountdown">00:00</div>
 
@@ -37,6 +42,9 @@
   let scheduleData = getScheduleData();
   let globalContainer = document.getElementById('globalContainer')
   let classContainer = document.getElementById('classContainer')
+  let cloudContainer = document.getElementById('cloudContainer')
+  let weaTemContainer = document.getElementById('weaTemContainer')
+  let weaPredictContainer = document.getElementById('weaPredictContainer')
   let countdownContainer = document.getElementById('countdownContainer')
   let countdowner = document.getElementById('countdowner')
   let currentFullName = document.getElementById('currentFullName')
@@ -50,6 +58,8 @@
   let root = document.querySelector(':root');
   let isClassCountdown = true
   let isClassHidden = true
+  let isDuringClass = true
+  let isCloudHidden = false
   let lastScheduleData = {
     currentHighlight: {
       index: null,
@@ -100,22 +110,38 @@
     currentFullName.style.color = scheduleData.currentHighlight.type === 'current' ? 'rgba(0, 255, 10, 1)' : 'rgba(255, 255, 5, 1)'
     countdownText.innerText = scheduleData.currentHighlight.countdownText;
     if (scheduleData.currentHighlight.type === 'current') {
+      if (!isDuringClass) {
+        isDuringClass = true;
+        ipcRenderer.send('sendIsCloudHidden', true);
+      }
       if (isClassCountdown) {
-        if (isClassHidden) { // 上课 并且开启了倒计时 并且 隐藏主体 -> 显示小窗口 
+        if (isClassHidden) { // 上课 并且开启了倒计时 并且 隐藏主体 -> 显示小窗口
           countdownContainer.style.display = 'none'
+          cloudContainer.style.display = 'none'
           miniCountdown.style.display = 'block'
           miniCountdown.innerHTML = `<div class="currentClass">${currentFullName.innerText = scheduleData.currentHighlight.fullName}</div><div class="countdown" style="margin-left:5px">${scheduleData.currentHighlight.countdownText}</div>`
         } else { // 上课 并且开启了倒计时 并且 不隐藏主体 -> 正常计时
           countdownContainer.style.display = 'block'
+          cloudContainer.style.display = 'none'
           miniCountdown.style.display = 'none'
         }
       } else { // 上课 并且关闭了倒计时 -> 都不显示
         countdownContainer.style.display = 'none'
+        cloudContainer.style.display = 'none'
         miniCountdown.style.display = 'none'
       }
     }
     else { // 下课正常显示
-      countdownContainer.style.display = 'block';
+      if (isDuringClass) {
+        isDuringClass = false;
+        ipcRenderer.send('sendIsCloudHidden', false);
+      }
+      if (isCloudHidden) {
+        cloudContainer.style.display = 'none'
+      } else {
+        cloudContainer.style.display = 'block'
+      }
+      countdownContainer.style.display = 'block'
       miniCountdown.style.display = 'none'
     }
   }
@@ -194,25 +220,25 @@
     root.style.setProperty(key, scheduleConfig.css_style[key])
   }
 
-  let timer = undefined
-  window.addEventListener("mousemove", event => {
-    if (event.target.className && event.target.className.indexOf('notIgnoreClick') == -1) {
-      root.style.opacity = '0.2'
-      clearTimeout(timer)
-      timer = setTimeout(() => {
+  let timer = undefined /
+    window.addEventListener("mousemove", event => {
+      if (event.target.className && event.target.className.indexOf('notIgnoreClick') == -1) {
+        root.style.opacity = '0.2'
+        clearTimeout(timer)
+        timer = setTimeout(() => {
+          root.style.opacity = '1'
+        }, 5000);
+      } else {
+        clearTimeout(timer)
         root.style.opacity = '1'
-      }, 5000);
-    } else {
-      clearTimeout(timer)
-      root.style.opacity = '1'
-    }
-    if (event.target.className.indexOf('notIgnoreClick') == -1) {
-      ipcRenderer.send('setIgnore', true)
-    } else {
-      ipcRenderer.send('setIgnore', false)
-    }
+      }
+      if (event.target.className.indexOf('notIgnoreClick') == -1) {
+        ipcRenderer.send('setIgnore', true)
+      } else {
+        ipcRenderer.send('setIgnore', false)
+      }
 
-  });
+    });
   ipcRenderer.send('setIgnore', true)
 
   function setScheduleDialog() {
@@ -291,7 +317,12 @@
   })
 
   ipcRenderer.on('ClassHidden', (e, arg) => {
-    isClassHidden = arg
+    isClassHidden = arg;
+    tick(reset = true)
+  })
+
+  ipcRenderer.on('cloudHidden', (e, arg) => {
+    isCloudHidden = arg;
     tick(reset = true)
   })
 
@@ -320,6 +351,14 @@
     localStorage.setItem('setDayOffsetLastDay', '-1')
     dayOffset = -1
     setDayOffsetLastDay = -1
+  })
+// 接收两种格式的数据（一种含有作者）
+  ipcRenderer.on('renderCloudPost', (event, data) => {
+    if (data.length == 4) {
+      cloudContainer.innerHTML = `<div class="hitokoto">${data[0]}</div><div class="hitokoto-origin">${data[1]} -${data[2]} --${data[3]}</div>`;
+    } else {
+      cloudContainer.innerHTML = `<div class="hitokoto">${data[0]}</div><div class="hitokoto-origin">${data[1]} -${data[2]}</div>`;
+    }
   })
 </script>
 
