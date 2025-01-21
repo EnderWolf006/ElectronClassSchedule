@@ -6,12 +6,6 @@ let weekIndex = 0
 let dayOffset = -1
 let setDayOffsetLastDay = -1
 
-ipcMain.on('configs.configsChanged', (e, { schedule }) => {
-  weekIndex = schedule.weekIndex
-  dayOffset = schedule.dayOffset
-  setDayOffsetLastDay = schedule.setDayOffsetLastDay
-})
-
 function getCurrentEditedDate() {
     let d = new Date();
     d.setSeconds(d.getSeconds() + scheduleConfig.timeOffset)
@@ -24,10 +18,6 @@ function getCurrentEditedDay(date) {
     if (setDayOffsetLastDay == new Date().getDay()) {
         return dayOffset;
     }
-    ext.configs.configs(c => {
-        c.schedule.dayOffset = -1
-        c.schedule.setDayOffsetLastDay = -1
-    })
     return date.getDay();
 }
 

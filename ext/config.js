@@ -1,5 +1,4 @@
 const { ipcMain, BrowserWindow } = require('electron')
-const { DisableMinimize } = require('electron-disable-minimize');
 
 let store = void 0;
 exports.pass = function(data) {
@@ -34,12 +33,6 @@ exports.defaultConfigsDeep = {
     '--divider-margin': '6px', // 分隔线外边距
     '--triangle-size': '16px', // 倒计时框上方小三角箭头的大小
     '--sub-font-size': '20px', // 中间课表中的课程下角标(X@X)的字体大小
-  },
-  schedule: {
-    weekIndex: 0,
-    timeOffset: 0,
-    dayOffset: -1,
-    setDayOffsetLastDay: -1
   },
   ext: {
     timer: {
@@ -158,8 +151,6 @@ function createConfigEditWindow(){
     })
     win.loadFile('html/config.html')
     // win.webContents.openDevTools({ mode: 'detach' })
-    const handle = win.getNativeWindowHandle();
-    DisableMinimize(handle)
 }
 
 exports.openEdit = () => {

@@ -6,7 +6,6 @@ const createShortcut = require('windows-shortcuts')
 const startupFolderPath = path.join(os.homedir(), 'AppData', 'Roaming', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup');
 const prompt = require('electron-prompt');
 const Store = require('electron-store');
-const { DisableMinimize } = require('electron-disable-minimize');
 const store = new Store();
 const ext = require("./ext")
 const config = require("./ext/config")
@@ -64,7 +63,7 @@ app.whenReady().then(() => {
     createWindow()
     Menu.setApplicationMenu(null)
     const handle = win.getNativeWindowHandle();
-    DisableMinimize(handle); // Thank to peter's project https://github.com/tbvjaos510/electron-disable-minimize
+    ext.disableMinimize(handle); // Thank to peter's project https://github.com/tbvjaos510/electron-disable-minimize
     createTray()
     ext.load()
     // win.webContents.openDevTools({mode:'detach'})

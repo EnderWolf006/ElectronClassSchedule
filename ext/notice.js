@@ -1,5 +1,5 @@
 const { ipcMain, BrowserWindow, screen } = require('electron')
-const { DisableMinimize } = require('electron-disable-minimize');
+const ext = require("../ext")
 
 let store = void 0;
 let win = void 0;
@@ -57,7 +57,7 @@ function createNoticeWindow(){
     win.loadFile('html/notice.html')
     // win.webContents.openDevTools({ mode: 'detach' })
     const handle = win.getNativeWindowHandle();
-    DisableMinimize(handle)
+    ext.DisableMinimize(handle)
 }
 
 function createNoticeEditWindow(){
@@ -74,8 +74,6 @@ function createNoticeEditWindow(){
     })
     editWin.loadFile('html/noticeEdit.html')
     // editWin.webContents.openDevTools({ mode: 'detach' })
-    const handle = editWin.getNativeWindowHandle();
-    DisableMinimize(handle)
 }
 
 ipcMain.on('notice.setIgnore', (e, arg) => {

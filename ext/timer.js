@@ -1,6 +1,5 @@
 const { ipcMain, BrowserWindow, screen } = require('electron')
-const { DisableMinimize } = require('electron-disable-minimize');
-const { configs } = require('./config');
+const ext = require("../ext")
 
 let store = void 0;
 let win = void 0;
@@ -34,7 +33,7 @@ function createTimerWindow(){
     // win.webContents.openDevTools({ mode: 'detach' })
     win.loadFile('html/timer.html')
     const handle = win.getNativeWindowHandle();
-    DisableMinimize(handle)
+    ext.disableMinimize(handle)
 }
 
 let __timeout = -1

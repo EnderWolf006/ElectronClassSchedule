@@ -1,5 +1,4 @@
 const { ipcMain, BrowserWindow } = require('electron')
-const { DisableMinimize } = require('electron-disable-minimize');
 
 const DEFAULT_SUBJECT = '❎'
 exports.DEFAULT_SUBJECT = DEFAULT_SUBJECT
@@ -26,8 +25,6 @@ function createEditWindow(){
     })
     win.loadFile('html/scheduleConfig.html')
     // win.webContents.openDevTools({ mode: 'detach' })
-    const handle = win.getNativeWindowHandle();
-    DisableMinimize(handle)
 }
 
 exports.openEdit = () => {
@@ -279,7 +276,7 @@ function evaluateConditions(conditions) {
 }
 
 function getTodayBinding() {
-  let today = new Date().toISOString().substring(0, 10)
+  let today = new Date().toLocaleDateString()
   for (let binding of cache.tempBindings) {
     if (binding.date + 24 * 60 * 60 * 1000 < Date.now()) {
       exports.scheduleConfig((c) => {
@@ -287,7 +284,8 @@ function getTodayBinding() {
       })
       continue
     }
-    if (new Date(binding.date).toISOString().substring(0, 10) == today) return binding
+    console.log(new Date(binding.date).toLocaleDateString(), today)	
+    if (new Date(binding.date).toLocaleDateString().substring(0, 10) == today) return binding
   }
   let day = new Date().getDay()
   let binding = cache.bindings[day]

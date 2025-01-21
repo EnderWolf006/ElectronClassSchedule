@@ -45,3 +45,10 @@ ipcMain.handle('ext.fileAccess', async (e, {mode, data}) => {
     return true
   }
 })
+
+exports.disableMinimize = function(win){
+  if (process.platform === 'linux') return
+  const { DisableMinimize } = require('electron-disable-minimize');
+  const handle = win.getNativeWindowHandle();
+  DisableMinimize(handle);
+}
