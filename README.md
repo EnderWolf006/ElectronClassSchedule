@@ -39,7 +39,7 @@
 
 ### 配置界面
 
-!(config_edit)[image/README/config_edit.png]
+![config_edit](image/README/config_edit.png)
 
 通过菜单中 `配置编辑` 打开。
 
@@ -53,7 +53,7 @@
 
 ### 通知界面
 
-!(notices)[image/README/notices.png]
+![notices](image/README/notices.png)
 
 通过菜单中 `通知编辑` 进行修改。
 
@@ -61,7 +61,7 @@
 
 支持计时，固定，自动更新。
 
-!(notice_edit)[image/README/notice_edit.png]
+![notice_edit](image/README/notice_edit.png)
 
 左侧 `添加` 添加新通知，可点击已有通知进行编辑。
 
@@ -76,7 +76,7 @@
 在进行修改过后，请 `保存`。
 
 #### 数据绑定
-!(schedule_config_1)[image/README/schedule_config_1.png]
+![schedule_config_1](image/README/schedule_config_1.png)
 
 这里用于设定基础配置，如 `计时偏移`。
 
@@ -85,12 +85,12 @@
 可修改 `数据绑定` 为每个星期指定时间表和课表，支持条件判断。
 
 #### 检查
-!(schedule_config_2)[image/README/schedule_config_2.png]
+![schedule_config_2](image/README/schedule_config_2.png)
 
 用于检查课表配置是否存在问题或可能出现的问题。
 
 #### 状态定义
-!(schedule_config_3)[image/README/schedule_config_3.png]
+![schedule_config_3](image/README/schedule_config_3.png)
 
 用于创建条件判断所使用的 `变量`。
 
@@ -101,14 +101,14 @@
 - JS表达式：基于JS表达式对变量求值。
 
 #### 课程
-!(schedule_config_4)[image/README/schedule_config_4.png]
+![schedule_config_4](image/README/schedule_config_4.png)
 
 用于定义在课表中使用的 `课程简称` 和 `课程全称`。
 
 在简称中支持使用 `大字体@角表` 来表示课程变体（如语文自习）。
 
 #### 课表
-!(schedule_config_5)[image/README/schedule_config_5.png]
+![schedule_config_5](image/README/schedule_config_5.png)
 
 用于创建和修改 `课表`。
 
@@ -119,7 +119,7 @@
 需要注意的是，课表从第0节开始。
 
 #### 时间表
-!(schedule_config_6)[image/README/schedule_config_6.png]
+![schedule_config_6](image/README/schedule_config_6.png)
 
 用于创建和修改 `时间表`。
 
