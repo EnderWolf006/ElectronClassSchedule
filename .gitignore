@@ -132,3 +132,5 @@ dist
 # vitrual env
 venv/
 pyvenv.cfg
+
+.DS_Store
