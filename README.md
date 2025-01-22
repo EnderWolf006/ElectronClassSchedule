@@ -1,3 +1,8 @@
+<!-- > <font color=red>本分支为 `ECS v1` 版本，如无严重漏洞将不会继续维护更新，推荐使用 `ECS v2` [传送门](https://github.com/EnderWolf006/ElectronClassSchedule/tree/ECS2.0)</font> -->
+
+> 本分支为 `ECS v1` 版本，如无严重漏洞将不会继续维护更新。 
+> `ECS v2` [传送门](https://github.com/EnderWolf006/ElectronClassSchedule/tree/ECS2.0) 正在开发中，将由 [@AwA](https://github.com/aawwaaa) 与  [我](https://github.com/EnderWolf006) 继续维护，敬请期待。
+
 # 电子课程表
 
 ![view](image/README/view.png)
@@ -12,7 +17,7 @@
 - 在电子白板在学校普及的今天，欢迎大家下载体验与分享，但也请不要用于商业用途。
 - 喜欢本项目的话，点击右上角的Star或发视频宣传一波支持一下作者吧😘
 - [【点我加群】电子课程表QQ交流二群: 914887202](https://qm.qq.com/cgi-bin/qm/qr?k=SL4_VQ9Zmpch-64RbYhkKbTZ5cNjIZ-N&jump_from=webapi&authKey=kxhiNZcQZwoSC/85e3dPxUsL+kpaLIBmxbrcfRLjSJeH35o0D0a/tHBVYI1as5p1)
-- [【点我加群】电子课程表TG交流群](https://t.me/ECSchedule)
+
 ## 食用说明
 以下为在Windows系统下的使用方法，其他操作系统请各位大佬自行拉取仓库打包
 
