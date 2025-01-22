@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ch" id="html">
+
+<head>
+  <title>电子课表</title>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script type="text/javascript" src="../js/jquery.min.js"></script>
+  <script type="text/javascript" src="../js/index.js"></script>
+  <script type="text/javascript" src="../js/util.js"></script>
+  <link rel="stylesheet" type="text/css" href="../css/style.css">
+  <link rel="stylesheet" type="text/css" href="../css/timer.css">
+</head>
+
+<body id="body">
+  <div class="miniCountdown" id="miniCountdown">
+    <div class="currentClass" id="currentFullName"></div><div class="countdown" id="countdownText" style="margin-left:5px"></div></div>
+  </div>
+  <div class="closeButton notIgnoreClick" id="close">关闭</div>
+</body>
+<script>
+  const { ipcRenderer } = require('electron');
+  let miniCountdown = document.getElementById('miniCountdown')
+  let currentFullName = document.getElementById('currentFullName')
+  let countdownText = document.getElementById('countdownText')
+  let close = document.getElementById('close')
+  let body = document.getElementById('body')
+  let root = document.querySelector(':root');
+  miniCountdown.style.display = "block"
+
+  let closedFullName = null
+
+  initPage(window, root, 'timer.setIgnore')
+
+  ipcRenderer.on('timer.show', () => {
+    body.style.display = "block"
+  })
+
+  close.addEventListener('mousemove', () => {
+    body.style.display = "none"
+    closedFullName = currentFullName.innerText
+  })
+
+  let isDuringClassHidden = true;
+  handleConfigs(({ isDuringClassHidden: hi, css, ext: { timer } }) => {
+    isDuringClassHidden = hi
+    for (key in css) {
+      root.style.setProperty(key, css[key])
+    }
+    for (key in timer.css) {
+      root.style.setProperty(key, timer.css[key])
+    }
+  })
+
+  ipcRenderer.on('schedule.data', (event, { currentHighlight: data }) => {
+    if (isDuringClassHidden && closedFullName == null) {
+      body.style.display = data.type == 'current'? 'none': 'block'
+      if (data.type == 'current') return
+    }
+    currentFullName.innerText = data.fullName;
+    currentFullName.style.color = data.type === 'current' ? 'rgba(0, 255, 10, 1)' : 'rgba(255, 255, 5, 1)'
+    countdownText.innerText = data.countdownText;
+    if (data.fullName != closedFullName || closedFullName == null) {
+      body.style.display = "block"
+      closedFullName = null
+    }
+  })
+
+</script>
+
+</html>

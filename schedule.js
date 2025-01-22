@@ -1,23 +1,14 @@
-var weekIndex = localStorage.getItem('weekIndex')
-if (weekIndex === null) localStorage.setItem('weekIndex', '0')
-weekIndex = Number(localStorage.getItem('weekIndex'))
+const { ipcMain } = require("electron")
+const ext = require("./ext")
+const { proxy: scheduleConfig } = require("./ext/scheduleConfig")
 
-var timeOffset = localStorage.getItem('timeOffset')
-if (timeOffset === null) localStorage.setItem('timeOffset', '0')
-timeOffset = Number(localStorage.getItem('timeOffset'))
-
-var dayOffset = localStorage.getItem('dayOffset')
-if (dayOffset === null) localStorage.setItem('dayOffset', '-1')
-dayOffset = Number(localStorage.getItem('dayOffset'))
-
-var setDayOffsetLastDay = localStorage.getItem('setDayOffsetLastDay')
-if (setDayOffsetLastDay === null) localStorage.setItem('setDayOffsetLastDay', '-1')
-setDayOffsetLastDay = Number(localStorage.getItem('setDayOffsetLastDay'))
-
+let weekIndex = 0
+let dayOffset = -1
+let setDayOffsetLastDay = -1
 
 function getCurrentEditedDate() {
     let d = new Date();
-    d.setSeconds(d.getSeconds() + timeOffset)
+    d.setSeconds(d.getSeconds() + scheduleConfig.timeOffset)
     return d;
 }
 
@@ -27,10 +18,6 @@ function getCurrentEditedDay(date) {
     if (setDayOffsetLastDay == new Date().getDay()) {
         return dayOffset;
     }
-    localStorage.setItem('dayOffset', '-1')
-    localStorage.setItem('setDayOffsetLastDay', '-1')
-    dayOffset = -1
-    setDayOffsetLastDay = -1
     return date.getDay();
 }
 
@@ -113,7 +100,7 @@ function getScheduleData() {
         const classIndex = dayTimetable[timeRange];
 
         if (typeof classIndex === 'number') {
-            const subjectShortName = currentSchedule[classIndex];
+            const subjectShortName = currentSchedule[classIndex] ?? ext.scheduleConfig.DEFAULT_SUBJECT
             const subjectFullName = scheduleConfig.subject_name[subjectShortName];
             scheduleArray.push(subjectShortName);
 
@@ -177,3 +164,16 @@ function formatCountdown(countdownSeconds) {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
+let scheduleData = {}
+
+setInterval(() => {
+  try {
+    scheduleData = getScheduleData()
+    ipcMain.emit('schedule.data', null, scheduleData)
+  } catch (error) {
+    ext.scheduleConfig.currentError(error)
+  }
+}, 1000)
+
+exports.getCurrentEditedDate = () => getCurrentEditedDate()
+exports.scheduleData = () => scheduleData

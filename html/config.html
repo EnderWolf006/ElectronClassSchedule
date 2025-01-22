@@ -1,0 +1,164 @@
+
+<!DOCTYPE html>
+<html lang="ch" id="html">
+
+<head>
+  <title>配置编辑</title>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script type="text/javascript" src="../js/flexijsoneditor/json2.js"></script>
+  <script type="text/javascript" src="../js/jquery.min.js"></script>
+  <script type="text/javascript" src="../js/flexijsoneditor/jquery.jsoneditor.js"></script>
+  <link rel="stylesheet" type="text/css" href="../js/flexijsoneditor/jsoneditor.css">
+  <link rel="stylesheet" type="text/css" href="../css/style.css">
+  <link rel="stylesheet" type="text/css" href="../css/config.css">
+</head>
+
+<body>
+  <div class="buttons">
+    <button id="importjs">导入JS</button>
+    <button id="import">导入</button>
+    <button id="export">导出</button>
+    <button id="save">保存</button>
+  </div>
+  <div class="container">
+    <div id="editor" class="json-editor"></div>
+  </div>
+</body>
+<script>
+  const { ipcRenderer } = require('electron');
+  let root = document.querySelector(':root');
+
+  const comments = {
+    'isWindowAlwaysOnTop': '主课表是否置顶[true/false]',
+    'isDuringClassHidden': '所有窗口上课时间是否隐藏[true/false]',
+    'isAutoLaunch': '是否开机自启[true/false]',
+    'countdownTarget': '倒计时目标[YYYY-MM-DD / hidden, 字符串]',
+    'weekDisplay': '星期显示[true/false]',
+    'weekStrings': '用于左上角显示的星期字符串[日-六, 英.中, 字符串]',
+    'css': '全局样式配置[请不要修改单位, 均为字符串]',
+    'css.--center-font-size': '中间课表中的课程简写单字的字体大小[px]',
+    'css.--corner-font-size': '左侧的星期中文角标与右侧的"天"字的字体大小[px]',
+    'css.--global-border-radius': '所有背景框的圆角大小[px]',
+    'css.--global-bg-opacity': '所有背景框的不透明度[0-1]',
+    'css.--container-bg-padding': '上面三个框各自的背景内边距[px]',
+    'css.--container-space': '上面三个框中间的间隔长度[px]',
+    'css.--top-space': '课表主体最顶端与电脑屏幕上边框的间隔长度[px]',
+    'css.--main-horizontal-space': '中间课表中的课程简写单字之间的间隔长度[px]',
+    'css.--divider-width': '分隔线宽度[px]',
+    'css.--divider-margin': '分隔线外边距[px]',
+    'css.--triangle-size': '倒计时框上方小三角箭头的大小[px]',
+    'css.--sub-font-size': '中间课表中的课程下角标(X@X)的字体大小[px]',
+    'schedule': '课表配置',
+    'schedule.weekIndex': '当前为第几周[非负整数, 从0开始]',
+    'schedule.timeOffset': '课表时间相对电脑时间的偏移量[单位s, 数字]',
+    'schedule.dayOffset': '临时课表星期[-1不设置, 0(周日)-6(周六)]',
+    'schedule.setDayOffsetLastDay': '内部使用',
+    'ext': '扩展配置',
+    'ext.timer': '倒计时窗口配置',
+    'ext.timer.enabled': '是否开启右上角倒计时[true/false]',
+    'ext.timer.isWindowAlwaysOnTop': '倒计时窗口是否置顶[true/false]',
+    'ext.timer.css': '倒计时窗口样式配置[请不要修改单位]',
+    'ext.timer.css.--font-size': '字体大小[px, 字符串]',
+    'ext.timer.css.--global-border-radius': '背景框的圆角大小[px, 字符串]',
+    'ext.timer.css.--global-bg-opacity': '背景框的不透明度[0-1, 字符串]',
+    'ext.timer.css.--countdown-bg-padding': '背景内边距[px, 字符串]',
+    'ext.timer.css.--top-space': '最顶端与电脑屏幕上边框的间隔长度[px, 字符串]',
+    'ext.timer.css.--countdown-font-size': '倒计时的字体大小[px, 字符串]',
+    'ext.timer.css.--timer-close-font-size': '倒计时关闭按钮的大小[px, 字符串]',
+    'ext.notice': '通知窗口配置',
+    'ext.notice.enabled': '是否开启通知窗口[true/false]',
+    'ext.notice.duration': '通知持续时间[单位ms, 数字]',
+    'ext.notice.maxIndex': '通知最大索引[非负整数, 数字]',
+    'ext.notice.latestDuration': '最新通知持续时间[单位ms, 数字]',
+    'ext.notice.finishedDuration': '已结束通知持续时间[单位ms, 数字]',
+    'ext.notice.css': '通知窗口样式配置[请不要修改单位]',
+    'ext.notice.css.--font-size': '字体大小[px, 字符串]',
+    'ext.notice.css.--global-border-radius': '背景框的圆角大小[px, 字符串]',
+    'ext.notice.css.--global-bg-opacity': '背景框的不透明度[0-1, 字符串]',
+    'ext.notice.css.--container-bg-padding': '背景内边距[px, 字符串]',
+    'ext.notice.css.--notice-top-space': '通知表主体最顶端与电脑屏幕上边框的间隔长度[百分比, 字符串]',
+    'ext.notice.css.--notice-left-space': '通知表主体最顶端与电脑屏幕左边框的间隔长度[百分比, 字符串]',
+    'ext.notice.css.--notice-width': '通知表主体宽度[百分比, 字符串]',
+    'ext.notice.css.--notice-height': '通知表主体高度[百分比, 字符串]',
+    'ext.notice.css.--container-width': '每个通知的宽度[px, 字符串]',
+  }
+  let json = {};
+
+  let editor = $('#editor')
+  function applyEditor(data){
+    json = data
+    editor.jsonEditor(data, {
+      change: (data) => {
+        json = data
+        if (data.schedule && data.schedule.dayOffset != -1 && data.schedule.setDayOffsetLastDay == -1) {
+          data.schedule.setDayOffsetLastDay = new Date().getDay()
+          applyEditor(data)
+          return
+        }
+        if (data.schedule && data.schedule.dayOffset == -1 && data.schedule.setDayOffsetLastDay != -1) {
+          data.schedule.setDayOffsetLastDay = -1
+          applyEditor(data)
+          return
+        }
+      },
+      comments
+    })
+  }
+  ipcRenderer.invoke('configs.get').then(data => {
+    applyEditor(data)
+  })
+
+  $('#save').click(() => {
+    ipcRenderer.invoke('configs.set', json, true)
+  })
+  $('#importjs').click(() => {
+    ipcRenderer.invoke('ext.fileAccess', {
+      mode: 'open',
+    }).then(data => {
+        var config = {};
+      try {
+        config = eval(data + `\n;let o = {};
+try{eval("o.scheduleConfig = scheduleConfig")}catch(e){};
+try{eval("o.noticeConfig = noticeConfig")}catch(e){};
+;o`)
+      } catch(e) { alert(e) }
+      if (config.scheduleConfig){
+        let scheduleConfig = config.scheduleConfig
+        Object.assign(json, {
+          countdownTarget: scheduleConfig.countdown_target,
+          weekDisplay: scheduleConfig.week_display,
+          weekStrings: scheduleConfig.daily_class.map(a => a.English + '.' + a.Chinese),
+        })
+        json.css = Object.assign(json.css || {}, scheduleConfig.css_style)
+      }
+      if (config.noticeConfig){
+        let noticeConfig = config.noticeConfig
+        Object.assign(json.ext.notice, {
+          duration: noticeConfig.duration,
+          maxIndex: noticeConfig.maxIndex,
+          latestDuration: noticeConfig.latestDuration,
+          finishedDuration: noticeConfig.finishedDuration,
+        })
+        json.ext.notice.css = Object.assign(json.ext.notice.css || {}, noticeConfig.css_style)
+      }
+      applyEditor(json)
+    })
+  })
+  $('#import').click(() => {
+    ipcRenderer.invoke('ext.fileAccess', {
+      mode: 'open',
+    }).then(data => {
+      applyEditor(JSON.parse(data))
+    })
+  })
+  $('#export').click(() => {
+    ipcRenderer.invoke('ext.fileAccess', {
+      mode: 'save',
+      data: JSON.stringify(json)
+    })
+  })
+</script>
+
+</html>

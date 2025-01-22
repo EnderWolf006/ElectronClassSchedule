@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ch" id="html">
+
+<head>
+  <title>课表配置</title>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script type="text/javascript" src="../js/jquery.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="../css/style.css">
+  <link rel="stylesheet" type="text/css" href="../css/scheduleConfig.css">
+</head>
+
+<body>
+  <div class="tabs" id="tabs">
+    <button target="./scheduleConfig/binding.html" default="true">数据绑定</button>
+    <button target="./scheduleConfig/check.html">检查</button>
+    <button target="./scheduleConfig/states.html">状态定义</button>
+    <button target="./scheduleConfig/subjects.html">课程</button>
+    <button target="./scheduleConfig/classSchedule.html">课表</button>
+    <button target="./scheduleConfig/timetable.html">时间表</button>
+  </div>
+  <div class="buttons">
+    <button id="importjs">导入JS</button>
+    <button id="import">导入</button>
+    <button id="export">导出</button>
+    <button id="save">保存</button>
+  </div>
+
+  <iframe id="body"></iframe>
+</body>
+<script>
+  const { ipcRenderer } = require('electron');
+  let root = document.querySelector(':root');
+  let body = document.querySelector('#body');
+  let tabs = document.querySelector('#tabs');
+
+  let current = void 0;
+  window.sconfig = void 0;
+
+  ipcRenderer.invoke('scheduleConfig.get').then(data => {
+    sconfig = data
+    ipcRenderer.emit('scheduleConfig.data', null, data)
+  })
+
+  for (let i = 0; i < tabs.children.length; i++) {
+    let child = tabs.children[i];
+    child.addEventListener('click', () => {
+      if (current) current.classList.remove('selected');
+      body.src = child.getAttribute('target');
+      current = child;
+      child.classList.add('selected');
+    })
+    if (child.getAttribute('default')) {
+      body.src = child.getAttribute('target');
+      current = child;
+      child.classList.add('selected');
+    }
+  }
+
+  body.addEventListener('load', () => {
+    body.contentWindow.ipcRenderer = ipcRenderer
+    body.contentWindow.ipcRendererReady.forEach(fn => fn(ipcRenderer))
+    if (sconfig) ipcRenderer.emit('scheduleConfig.data', null, sconfig)
+  })
+
+  document.getElementById('save').addEventListener('click', () => {
+    ipcRenderer.invoke('scheduleConfig.set', sconfig)
+  })
+
+  $('#importjs').click(() => {
+    ipcRenderer.invoke('ext.fileAccess', {
+      mode: 'open',
+    }).then(data => {
+      var config = {};
+      try {
+        config = eval('exports = {}\n' + data + `\n;let o = exports;
+try{eval("o.scheduleConfig = scheduleConfig")}catch(e){};
+;o`)
+      } catch(e) { alert(e) }
+      if (config.scheduleConfig){
+        let { daily_class, divider, subject_name, timetable } = config.scheduleConfig
+        sconfig.subjects = subject_name
+        sconfig.timetables = {}
+        for (let name in timetable) {
+          let table = []
+          for (let time in timetable[name]) {
+            let value = timetable[name][time]
+            let i = { time: time.substring(0, 5), value }
+            if (typeof value == 'number') i.divider = divider[name].includes(value)
+            table.push(i)
+          }
+          sconfig.timetables[name] = table
+        }
+        sconfig.bindings = []
+        sconfig.classSchedules = {}
+        for (let {English, classList, timetable} of daily_class) {
+          let schedule = []
+          for (let value of classList) {
+            if (typeof value == "string") {
+              schedule.push([{ condition: ['always'], value }])
+              continue
+            }
+            let conditions = value.map((value, index) => ({
+              condition: ['equals', 'weekIndex', index],
+              value
+            }))
+            conditions.push({
+              condition: ['always'],
+              value: value[0]
+            })
+            schedule.push(conditions)
+          }
+          sconfig.classSchedules["sch#" + English] = schedule
+          sconfig.bindings.push([{
+            condition: ['always'],
+            timetable,
+            classSchedule: "sch#" + English
+          }])
+        }
+        ipcRenderer.emit('scheduleConfig.data', null, sconfig)
+      }
+    })
+  })
+  $('#import').click(() => {
+    ipcRenderer.invoke('ext.fileAccess', {
+      mode: 'open',
+    }).then(data => {
+      data = JSON.parse(data)
+      sconfig = data
+      ipcRenderer.emit('scheduleConfig.data', null, data)
+    })
+  })
+  $('#export').click(() => {
+    ipcRenderer.invoke('ext.fileAccess', {
+      mode: 'save',
+      data: JSON.stringify(scheduleConfig)
+    })
+  })
+</script>
+
+</html>

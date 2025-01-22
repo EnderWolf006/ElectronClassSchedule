@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ch" id="html">
+
+<head>
+  <title>数据绑定</title>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script type="text/javascript" src="../../js/jquery.min.js"></script>
+  <script type="text/javascript" src="../../js/util.js"></script>
+  <script type="text/javascript" src="../../js/responsiblity.js"></script>
+  <script type="text/javascript" src="../../js/scheduleConfigUtil.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../css/style.css">
+  <link rel="stylesheet" type="text/css" href="../../css/scheduleConfig.css">
+</head>
+
+<body>
+  <div class="group" id="error" style="display:none">
+    <div class="title">错误</div>
+    <div class="item">配置出现了错误, 导致无法加载</div>
+  </div>
+  <div class="group">
+    <div class="title">通用</div>
+    <div class="item">计时偏移: <input id="timeOffset" type="number" value="0">s</div>
+  </div>
+  <div class="group">
+    <div class="title">临时绑定</div>
+    <div class="item" id="tempBindings"></div>
+    <div class="item">
+      <button id="createTempBinding">创建</button>
+      <button id="createTempBindingFromToday">从今日复制</button>
+    </div>
+  </div>
+  <div class="group" id='bindings'>
+    <div class="title">数据绑定</div>
+  </div>
+</body>
+<script>
+  window.data = {}
+  handleIpcRenderer((ipcRenderer) => {
+    ipcRenderer.on('scheduleConfig.data', (event, d) => {
+      data = d
+      load()
+    })
+    let errorListItems = []
+    ipcRenderer.on('scheduleConfig.binding.errorList', (event, d) => {
+      document.getElementById('error').style.display = d.length != 0? 'block': 'none'
+      for (let item of errorListItems) item.remove()
+      errorListItems = []
+      for (let item of d) {
+        let itemDiv = document.createElement('div')
+        itemDiv.className = 'item'
+        itemDiv.innerText = `${item.stack}`
+        errorListItems.push(itemDiv)
+        document.getElementById('error').appendChild(itemDiv)
+      }
+    })
+    ipcRenderer.send('scheduleConfig.binding.getErrorList')
+  })
+
+  function load(){
+    responsiblity.attachToInput(document.getElementById('timeOffset'), data, 'timeOffset')
+    for (let bind of data.tempBindings) tempBindingItem(bind)
+    let weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+    let index = 0
+    weekDays.forEach((d) => binding(d, index++))
+  }
+
+  function bindingItem(item) {
+    let div = document.createElement('div')
+    div.className = 'bindingItem'
+    let condition = document.createElement('div')
+    condition.className = 'condition'
+    let dataContainer = document.createElement('div')
+    dataContainer.className = 'data'
+    let timetable = document.createElement('select')
+    timetable.className = 'timetable'
+    let classSchedule = document.createElement('select')
+    classSchedule.className = 'classSchedule'
+    responsiblity.attachToSelect(timetable,
+      Object.fromEntries(Object.keys(data.timetables).map(a => [a, a])),
+      item, 'timetable')
+    responsiblity.attachToSelect(classSchedule,
+      Object.fromEntries(Object.keys(data.classSchedules).map(a => [a, a])),
+      item, 'classSchedule')
+    dataContainer.appendChild(timetable)
+    dataContainer.appendChild(classSchedule)
+    let options = document.createElement('div')
+    options.className = 'options'
+    let deleteBtn = document.createElement('button')
+    deleteBtn.className = 'delete'
+    deleteBtn.textContent = '删除'
+    options.appendChild(deleteBtn)
+    div.appendChild(condition)
+    div.appendChild(dataContainer)
+    div.appendChild(options)
+    return {condition, div, deleteBtn}
+  }
+
+  let tempBindings = document.getElementById('tempBindings')
+  function tempBindingItem(item) {
+    let {condition, div, deleteBtn} = bindingItem(item)
+    let date = document.createElement('input')
+    date.type = 'date'
+    condition.appendChild(date)
+    responsiblity.attachToInput(date, item, 'date')
+    tempBindings.appendChild(div)
+    deleteBtn.addEventListener('click', () => {
+      div.remove()
+      data.tempBindings.splice(data.tempBindings.indexOf(item), 1)
+    })
+  }
+
+  document.getElementById('createTempBinding').addEventListener('click', () => {
+    let bind = {
+      date: Date.now(),
+      timetable: Object.keys(data.timetables)[0],
+      classSchedule: Object.keys(data.classSchedules)[0]
+    }
+    data.tempBindings.push(bind)
+    tempBindingItem(bind)
+  })
+
+  document.getElementById('createTempBindingFromToday').addEventListener('click', async () => {
+    let [timetable, classSchedule] = await ipcRenderer.invoke('scheduleConfig.getToday')
+    let bind = {
+      date: Date.now(),
+      timetable,
+      classSchedule
+    }
+    data.tempBindings.push(bind)
+    tempBindingItem(bind)
+  })
+
+  let bindings = document.getElementById('bindings')
+  function binding(name, index) {
+    let item = document.createElement('div')
+    item.className = 'item'
+    let title = document.createElement('div')
+    title.className = 'title'
+    title.textContent = name
+    item.appendChild(title)
+    let forks = document.createElement('div')
+    item.appendChild(forks)
+    function attachFork(fork){
+      let {condition, div, deleteBtn} = bindingItem(fork)
+      attachCondition(fork.condition, condition)
+      deleteBtn.addEventListener('click', () => {
+        div.remove()
+        binding.splice(binding.indexOf(fork), 1)
+      })
+      forks.appendChild(div)
+    }
+    let binding = data.bindings[index]
+    for (let fork of binding) {
+      attachFork(fork)
+    }
+    let fork = document.createElement('button')
+    fork.textContent = '创建'
+    fork.addEventListener('click', () => {
+      let fork = {
+        condition: ['always'],
+        timetable: Object.keys(data.timetables)[0],
+        classSchedule: Object.keys(data.classSchedules)[0]
+      }
+      binding.push(fork)
+      attachFork(fork)
+    })
+    item.appendChild(fork)
+    bindings.appendChild(item)
+  }
+</script>
+
+</html>
