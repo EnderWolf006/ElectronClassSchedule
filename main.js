@@ -245,3 +245,10 @@ ipcMain.on('getTimeOffset', (e, arg) => {
         }
     })
 })
+ipcMain.on('ClassCountdown', (e, arg) => {
+    isClassCountdown = arg;
+    tick(reset = true);
+    win.webContents.send('setMiniCountdownVisibility', arg); // 发送有关迷你倒计时可见性的消息
+  });
+
+  
