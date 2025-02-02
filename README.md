@@ -5,7 +5,7 @@
 ## 此分支Release发布
 
 此分支Release于
-[Release: Build Result](https://github.com/aawwaaa/ElectronClassSchedule2/releases/tag/unmarked")
+[Release: Build Result](https://github.com/aawwaaa/ElectronClassSchedule2/releases/tag/unmarked)
 发布
 
 请下载Build Result发布的.zip
