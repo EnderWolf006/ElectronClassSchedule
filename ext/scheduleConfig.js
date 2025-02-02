@@ -1,4 +1,5 @@
 const { ipcMain, BrowserWindow } = require('electron')
+const config = require("./config")
 
 const DEFAULT_SUBJECT = '❎'
 exports.DEFAULT_SUBJECT = DEFAULT_SUBJECT
@@ -161,7 +162,7 @@ let cache = void 0;
 exports.scheduleConfig = (() => {
   let lock = 0;
   function scheduleConfig(operator){
-    let configs = lock == 0? applyDefaults(store.get('scheduleConfig', {})): cache
+    let configs = lock == 0? applyDefaults(config.fetchConfig().scheduleConfig): cache
     cache = configs
     if (!operator) return configs
     lock += 1

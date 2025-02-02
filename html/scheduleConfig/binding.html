@@ -15,6 +15,9 @@
 </head>
 
 <body>
+  <div id="sourceNotice">
+    配置源不位于electron-store, 可能无法导入/保存
+  </div>
   <div class="group" id="error" style="display:none">
     <div class="title">错误</div>
     <div class="item">配置出现了错误, 导致无法加载</div>
@@ -56,6 +59,9 @@
       }
     })
     ipcRenderer.send('scheduleConfig.binding.getErrorList')
+    ipcRenderer.invoke('configs.getSource').then(({source, error}) => {
+      document.getElementById('sourceNotice').style.display = source.source != 'electron-store'? 'block': 'none'
+    })
   })
 
   function load(){

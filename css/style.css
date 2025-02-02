@@ -177,6 +177,10 @@ input {
   user-select: text;
 }
 
+input[type="file"] {
+  border: none;
+}
+
 select {
   height: 30px;
   padding: 5px;
@@ -222,3 +226,26 @@ textarea {
   color: #fff;
   background-color: #888;
 }
+
+.group {
+  padding-left: 20px;
+  padding-top: 5px;
+}
+
+.group .title {
+  font-weight: bold;
+  font-size: 1.4em;
+  padding-bottom: 5px;
+}
+
+.group .item {
+  padding-bottom: 5px;
+  padding-left: 10px;
+}
+
+.group .item .title {
+  font-size: 1.2em;
+  font-weight: bold;
+  padding-bottom: 5px;
+}
+

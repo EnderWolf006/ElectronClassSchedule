@@ -127,6 +127,7 @@ const noticesUpdate = () => notices((notices) => {
 })
 
 setInterval(() => {
+  if (!store) return
   noticesUpdate()
 }, 10000)
 

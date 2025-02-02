@@ -1,8 +1,13 @@
 const { ipcMain, BrowserWindow } = require('electron')
+const fs = require('fs')
 
 let store = void 0;
 exports.pass = function(data) {
   store = data.store
+}
+
+exports.defaultConfigSource = {
+  source: "electron-store"
 }
 
 exports.defaultConfigs = { 
@@ -88,12 +93,83 @@ function applyDefaults(configs){
   return configs
 }
 
+let currentError = null
+
 exports.load = function() {
+  exports.loadConfig()
+}
+
+exports.loadConfig = () => {
   setTimeout(() => exports.configs(()=>{}))
 }
 
 ipcMain.handle('configs.get', () => {
   return exports.configs()
+})
+
+exports.getConfigSource = () => {
+  if(!store.get('configSource')) store.set('configSource', exports.defaultConfigSource)
+  return store.get('configSource')
+}
+
+let fetchCache = null
+let fetchCacheText = ""
+let fetchTimeout = 0
+
+setInterval(() => {
+  if (!store) return
+  exports.fetchConfig()
+}, 5 * 60 * 1000)
+
+exports.fetchConfig = () => {
+  let configSource = exports.getConfigSource()
+  let config, scheduleConfig;
+  switch(configSource.source){
+    case 'electron-store':
+      config = store.get('configs', {})
+      scheduleConfig = store.get('scheduleConfig', {})
+      return {config, scheduleConfig}
+    case 'URL':
+      if (fetchTimeout < Date.now()){
+        if (configSource.url.startsWith('file://'))
+          return JSON.parse(fs.readFileSync(configSource.url.replace('file://', '')))
+        fetch(configSource.url).then(r => r.text()).then(j => {
+          fetchCache = JSON.parse(j)
+          if (j != fetchCacheText) exports.loadConfig()
+          fetchCacheText = j
+        }).catch(e => currentError = e)
+        fetchTimeout = Date.now() + 30*1000
+      }
+      if (!fetchCache) return {config: {}, scheduleConfig: {}}
+      return fetchCache
+    case 'javascript':
+      config = store.get('configs', {})
+      scheduleConfig = store.get('scheduleConfig', {})
+      try {
+        eval(configSource.code)
+      } catch (e) {
+        currentError = e
+      }
+      return {config, scheduleConfig}
+    default:
+      currentError = new Error("Invalid config source: " + configSource.source)
+      return {config: {}, scheduleConfig: {}}
+  }
+}
+
+ipcMain.handle('configs.getSource', () => {
+  return {
+    source: exports.getConfigSource(),
+    error: currentError? {
+      message: currentError.message,
+      stack: currentError.stack,
+    }: null
+  }
+})
+
+ipcMain.handle('configs.setSource', (_, arg) => {
+  store.set('configSource', arg)
+  exports.loadConfig()
 })
 
 ipcMain.handle('configs.set', (_, arg, override) => {
@@ -118,7 +194,7 @@ exports.configs = (() => {
   let cache = void 0;
   let lock = 0;
   function configs(operator){
-    let configs = lock == 0? applyDefaults(store.get('configs', {})): cache
+    let configs = lock == 0? applyDefaults(exports.fetchConfig().config): cache
     cache = configs
     if (!operator) return configs
     lock += 1

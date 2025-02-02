@@ -37,28 +37,6 @@ iframe {
   border: none;
 }
 
-.group {
-  padding-left: 20px;
-  padding-top: 5px;
-}
-
-.group .title {
-  font-weight: bold;
-  font-size: 1.4em;
-  padding-bottom: 5px;
-}
-
-.group .item {
-  padding-bottom: 5px;
-  padding-left: 10px;
-}
-
-.group .item .title {
-  font-size: 1.2em;
-  font-weight: bold;
-  padding-bottom: 5px;
-}
-
 .bindingItem {
   padding-left: 10px;
   height: 30px;

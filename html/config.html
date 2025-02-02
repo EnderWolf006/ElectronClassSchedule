@@ -17,10 +17,35 @@
 
 <body>
   <div class="buttons">
+    <button id="editConfigSource">配置来源</button>
     <button id="importjs">导入JS</button>
     <button id="import">导入</button>
     <button id="export">导出</button>
+    <button id="exportPacked">打包导出</button>
     <button id="save">保存</button>
+  </div>
+  <form id="configSource" class="group">
+    <div class="title">配置来源</div>
+    <div class="item">
+      <input type="radio" name="source" value="electron-store">electron-store</radio>
+      <input type="radio" name="source" value="URL">URL(本地/远程)</radio>
+      <input type="radio" name="source" value="javascript">javascript</radio>
+    </div>
+    <div class="item" id="configSource.URL">
+      URL:
+      <input type="text" name="url" id="configSourceURL" placeholder="URL" style="width: 70%">
+      <input type="file" id="configSourceFile"><br>
+      文件格式: JSON, {config: config, scheduleConfig: scheduleConfig}, 可使用"打包导出"生成<br>
+    </div>
+    <div class="item" id="configSource.javascript">
+      修改来自electron-store中的config: config, scheduleConfig: scheduleConfig，每次获取配置时调用<br>
+      <textarea name="code" id="configSourceCode"></textarea>
+    </div>
+    <div class="item" id="configSourceError"> </div>
+    <button type="submit">保存</button>
+  </form>
+  <div id="sourceNotice">
+    配置源不位于electron-store, 可能无法导入/保存
   </div>
   <div class="container">
     <div id="editor" class="json-editor"></div>
@@ -109,6 +134,56 @@
   ipcRenderer.invoke('configs.get').then(data => {
     applyEditor(data)
   })
+  let configSource;
+  ipcRenderer.invoke('configs.getSource').then(({source, error}) => {
+    configSource = source;
+    document.getElementById('sourceNotice').style.display = source.source != 'electron-store'? 'block': 'none'
+    document.getElementById('configSourceError').innerText = error? error.message: ""
+    document.querySelectorAll('input[name="source"]').forEach(r => {
+      if (r.value == source.source) r.checked = true
+      else r.checked = false
+      r.addEventListener('change', () => {
+        if (!r.checked) return;
+        configSource.source = r.value
+        updateConfigSourceVisible()
+      })
+    })
+    if (source.source == "URL"){
+      document.getElementById('configSourceURL').value = source.url
+    }
+    if (source.source == "javascript"){
+      document.getElementById('configSourceCode').value = source.code
+    }
+    updateConfigSourceVisible()
+  })
+
+  function updateConfigSourceVisible(){
+    document.getElementById('configSource.URL').style.display = configSource.source == 'URL'? 'block': 'none'
+    document.getElementById('configSource.javascript').style.display = configSource.source == 'javascript'? 'block': 'none'
+  }
+
+  document.getElementById('configSourceFile').addEventListener('change', (e) => {
+    // path -> file://path -> source.url
+    document.getElementById('configSourceURL').value = configSource.url = "file://" + e.target.files[0].path
+    e.target.value = null
+  })
+
+  let configSourceForm = document.getElementById('configSource')
+  configSourceForm.style.display = 'none'
+  configSourceForm.addEventListener('submit', (e) => {
+    e.preventDefault()
+    configSource = {}
+    new FormData(configSourceForm).forEach((value, key) => {
+      configSource[key] = value
+    })
+    console.log(configSource)
+    updateConfigSourceVisible()
+    ipcRenderer.invoke('configs.setSource', configSource)
+  })
+
+  $('#editConfigSource').click(() => {
+    configSourceForm.style.display = configSourceForm.style.display == 'none'? 'block': 'none'
+  })
 
   $('#save').click(() => {
     ipcRenderer.invoke('configs.set', json, true)
@@ -157,6 +232,13 @@ try{eval("o.noticeConfig = noticeConfig")}catch(e){};
     ipcRenderer.invoke('ext.fileAccess', {
       mode: 'save',
       data: JSON.stringify(json)
+    })
+  })
+  $('#exportPacked').click(async () => {
+    let scheduleConfig = await ipcRenderer.invoke('scheduleConfig.get')
+    ipcRenderer.invoke('ext.fileAccess', {
+      mode: 'save',
+      data: JSON.stringify({config: json, scheduleConfig})
     })
   })
 </script>
