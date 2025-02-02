@@ -2,6 +2,14 @@
 
 ![overview](image/README/overview.png)
 
+## 此分支Release发布
+
+此分支Release于
+[aawwaaa/ElectronClassSchedule2](https://github.com/aawwaaa/ElectronClassSchedule2/releases/)
+发布
+
+请下载Build Result发布的.zip
+
 ## 软件介绍
 
 - 功能列表:
