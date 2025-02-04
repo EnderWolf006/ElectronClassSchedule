@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ch" id="html">
+
+<head>
+  <title>关于</title>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script type="text/javascript" src="../js/jquery.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="../css/style.css">
+  <link rel="stylesheet" type="text/css" href="../css/scheduleConfig.css">
+</head>
+
+<body>
+  <div class="tabs" id="tabs">
+    <button target="#about" default="true">关于软件</button>
+    <button target="#license">许可协议</button>
+    <button target="#update">检查更新</button>
+  </div>
+  
+  <div id="pages">
+    <div id="about">
+      ElectronClassSchedule:ECS2.0 <a href="https://github.com/EnderWolf006/ElectronClassSchedule/tree/ECS2.0" target="external">[Github]</a><br>
+      Owner: EnderWolf006 <a href="https://github.com/EnderWolf006" target="external">[Github]</a><br>
+      Contributors:
+      <ul>
+        <li>AwA <a href="https://github.com/aawwaaa" target="external">[Github]</a></li>
+      </ul>
+    </div>
+    <div id="license">
+      <iframe src="../LICENSE" style="width: 100%; height: 20000px;"></iframe>
+    </div>
+    <div id="update">
+      当前版本: <span id="currentVersion"></span><br>
+      最新版本: <span id="latestVersion"></span><br>
+      更新源: <span id="updateSource"></span><br>
+      <button id="checkUpdate">检查更新</button>
+      <button id="downloadUpdate">下载更新</button><br>
+      <div id="updateStatus"></div>
+    </div>
+  </div>
+</body>
+<script>
+  const { ipcRenderer } = require('electron');
+  let root = document.querySelector(':root');
+  let tabs = document.querySelector('#tabs');
+
+  let current = void 0;
+
+  for (let i = 0; i < tabs.children.length; i++) {
+    let child = tabs.children[i];
+    child.addEventListener('click', () => {
+      if (current){
+        current.classList.remove('selected');
+        document.querySelector(current.getAttribute('target')).style.display = 'none';
+      }
+      current = child;
+      document.querySelector(child.getAttribute('target')).style.display = 'block';
+      child.classList.add('selected');
+    })
+    if (child.getAttribute('default')) {
+      current = child;
+      document.querySelector(child.getAttribute('target')).style.display = 'block';
+      child.classList.add('selected');
+    }else document.querySelector(child.getAttribute('target')).style.display = 'none';
+  }
+
+  for (let a of document.querySelectorAll('a[target="external"]')) {
+    a.addEventListener('click', (e) => {
+      e.preventDefault()
+      ipcRenderer.send('ext.openExternal', a.getAttribute('href'))
+    })
+  }
+
+  async function checkUpdate(loadOnly = false) {
+    if (!loadOnly) await ipcRenderer.invoke('about.checkUpdate')
+    ipcRenderer.invoke('about.getCurrentVersion').then((version) => {
+      document.querySelector('#currentVersion').innerText = version
+    })
+    ipcRenderer.invoke('about.getLatestVersion').then((version) => {
+      document.querySelector('#latestVersion').innerText = version
+    })
+    ipcRenderer.invoke('about.getUpdateSource').then((source) => {
+      document.querySelector('#updateSource').innerText = source
+    })
+    ipcRenderer.invoke('about.hasUpdate').then((hasUpdate) => {
+      document.querySelector('#downloadUpdate').style.display = hasUpdate ? 'inline-block' : 'none'
+      document.querySelector('button[target="#update"]').innerText = '检查更新' + (hasUpdate ? ' [*]' : '')
+    })
+  }
+
+  checkUpdate(true)
+
+  document.querySelector('#checkUpdate').addEventListener('click', () => {
+    document.querySelector('#latestVersion').innerText = '检查中...'
+    checkUpdate()
+  })
+
+  let downloadUpdate = document.getElementById('downloadUpdate')
+  let updateStatus = document.getElementById('updateStatus')
+  downloadUpdate.addEventListener('click', () => {
+    let confirmed = confirm("是否下载更新 " + document.querySelector('#latestVersion').innerText + " ?")
+    if (!confirmed) return
+    downloadUpdate.innerHTML = '下载中...'
+    downloadUpdate.disabled = true
+    updateStatus.innerText = '更新中... 请不要关闭此窗口'
+    ipcRenderer.invoke('about.downloadUpdate').then(() => {
+      downloadUpdate.innerText = '下载更新'
+      downloadUpdate.disabled = false
+    }).catch(e => {
+      updateStatus.innerText = '更新失败: ' + e
+      downloadUpdate.innerText = '下载更新'
+      downloadUpdate.disabled = false
+    })
+  })
+
+  ipcRenderer.on('updateStatus', (e, arg) => {
+    updateStatus.innerText = '更新中... 请不要关闭此窗口\n' + arg
+  })
+</script>
+
+</html>

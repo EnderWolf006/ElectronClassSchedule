@@ -71,6 +71,10 @@ exports.defaultConfigsDeep = {
         '--notice-height': '66%', // 通知表主体高度
         '--container-width': '500px', // 通知的宽度
       }
+    },
+    about: {
+      updateThroughMirror: false,
+      updateMirror: 'https://mirror.ghproxy.com/{url}'
     }
   }
 }

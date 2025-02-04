@@ -103,6 +103,12 @@ function createTray(){
             type: 'separator'
         },
         {
+            label: ext.about.getText(),
+            click: () => {
+                ext.about.open()
+            }
+        },
+        {
             icon: basePath + 'image/quit.png',
             label: '退出程序',
             click: () => {
@@ -117,7 +123,7 @@ function createTray(){
         }
     ]
     form = Menu.buildFromTemplate(template)
-    tray.setToolTip('电子课表 - by lsl(github.com/EnderWolf006)\n修改 - lsp(github.com/aawwaaa)')
+    tray.setToolTip('电子课表 - by lsl(github.com/EnderWolf006)')
     function trayClicked() {
         tray.popUpContextMenu(form)
     }

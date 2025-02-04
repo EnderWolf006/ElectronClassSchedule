@@ -1,4 +1,4 @@
-const { ipcMain, dialog } = require("electron");
+const { ipcMain, dialog, shell } = require("electron");
 const { BrowserWindow } = require("electron/main");
 const { promises: fs } = require("fs");
 
@@ -7,6 +7,7 @@ let config = exports.config = require("./ext/config")
 let scheduleConfig = exports.scheduleConfig = require("./ext/scheduleConfig")
 let timer = exports.timer = require("./ext/timer")
 let notice = exports.notice = require("./ext/notice")
+let about = exports.about = require("./ext/about")
 
 exports.pass = function(data) {
     store = data.store
@@ -14,6 +15,7 @@ exports.pass = function(data) {
     scheduleConfig.pass(data)
     timer.pass(data)
     notice.pass(data)
+    about.pass(data)
 }
 
 exports.load = function() {
@@ -21,6 +23,7 @@ exports.load = function() {
     scheduleConfig.load()
     timer.load()
     notice.load()
+    about.load()
 }
 
 ipcMain.handle('ext.fileAccess', async (e, {mode, data}) => {
@@ -44,6 +47,10 @@ ipcMain.handle('ext.fileAccess', async (e, {mode, data}) => {
     await fs.writeFile(result.filePath, data)
     return true
   }
+})
+
+ipcMain.handle('ext.openExternal', (e, url) => {
+  shell.openExternal(url)
 })
 
 exports.disableMinimize = function(win){
