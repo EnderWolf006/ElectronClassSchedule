@@ -2,8 +2,9 @@ const { ipcMain, BrowserWindow } = require('electron')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const yauzl = require('yauzl');
+
 const { configs } = require('./config')
-const AdmZip = require('adm-zip')
 
 const endpoint = "https://api.github.com/"
 const repo = "aawwaaa/ElectronClassSchedule2"
@@ -55,7 +56,7 @@ function createUpdateWindow(){
         },
     })
     win.loadFile('html/about.html')
-    win.webContents.openDevTools({ mode: 'detach' })
+    // win.webContents.openDevTools({ mode: 'detach' })
 }
 
 ipcMain.handle('about.getCurrentVersion', () => exports.currentVersion)
@@ -124,9 +125,11 @@ ipcMain.handle('about.downloadUpdate', async () => {
         writer.close()
         
         updateStatus("解压中... ")
-        let zip = new AdmZip(fileName)
-        zip.extractAllTo(path.join(__dirname, '..'), true)
+
+        await unzipFile(fileName, path.join(__dirname, ".."))
         updateStatus("更新完成\n请重启软件")
+
+        fs.unlinkSync(fileName)
     }catch(e){
         console.log(e)
         throw e
@@ -134,6 +137,75 @@ ipcMain.handle('about.downloadUpdate', async () => {
         updating = false
     }
 })
+
+/**
+ * 解压 ZIP 文件到指定目录
+ * @param {string} zipFile - ZIP 文件路径
+ * @param {string} outputDir - 解压目标目录
+ * @author DeepSeek v3
+ */
+function unzipFile(zipFile, outputDir) {
+  let resolve, reject;
+  let promise = new Promise((_resolve, _reject) => {
+    resolve = _resolve
+    reject = _reject
+  })
+  // 打开 ZIP 文件
+  yauzl.open(zipFile, { lazyEntries: true }, (err, zipfile) => {
+    if (err) {
+      console.error('打开 ZIP 文件时发生错误:', err);
+      reject(err);
+      return;
+    }
+
+    // 监听 ZIP 文件的每一个条目（文件或目录）
+    zipfile.readEntry();
+    zipfile.on('entry', (entry) => {
+      if (/\/$/.test(entry.fileName)) {
+        // 如果是目录，创建目录
+        const dirPath = path.join(outputDir, entry.fileName);
+        fs.mkdirSync(dirPath, { recursive: true });
+        zipfile.readEntry(); // 继续读取下一个条目
+      } else {
+        // 如果是文件，解压文件
+        zipfile.openReadStream(entry, (err, readStream) => {
+          if (err) {
+            console.error('解压文件时发生错误:', err);
+            return;
+          }
+
+          // 创建目标文件路径
+          const filePath = path.join(outputDir, entry.fileName);
+          updateStatus(`解压文件: ${entry.fileName}`);
+
+          // 确保目标文件的目录存在
+          fs.mkdirSync(path.dirname(filePath), { recursive: true });
+
+          // 将文件内容写入目标文件
+          readStream.pipe(fs.createWriteStream(filePath));
+
+          // 监听写入完成事件
+          readStream.on('end', () => {
+            zipfile.readEntry(); // 继续读取下一个条目
+          });
+        });
+      }
+    });
+
+    // 监听 ZIP 文件读取完成事件
+    zipfile.on('end', () => {
+      resolve();
+    });
+
+    // 监听错误事件
+    zipfile.on('error', (err) => {
+      console.error('解压过程中发生错误:', err);
+      reject(err)
+    });
+  });
+
+  return promise;
+}
 
 exports.open = () => {
   createUpdateWindow()
