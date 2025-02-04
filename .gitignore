@@ -129,8 +129,4 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
-# vitrual env
-venv/
-pyvenv.cfg
-
 .DS_Store
