@@ -8,6 +8,7 @@ let scheduleConfig = exports.scheduleConfig = require("./ext/scheduleConfig")
 let timer = exports.timer = require("./ext/timer")
 let notice = exports.notice = require("./ext/notice")
 let about = exports.about = require("./ext/about")
+let weekSchedule = exports.weekSchedule = require("./ext/weekSchedule")
 
 exports.pass = function(data) {
     store = data.store
@@ -16,6 +17,7 @@ exports.pass = function(data) {
     timer.pass(data)
     notice.pass(data)
     about.pass(data)
+    weekSchedule.pass(data)
 }
 
 exports.load = function() {
@@ -24,6 +26,7 @@ exports.load = function() {
     timer.load()
     notice.load()
     about.load()
+    weekSchedule.load()
 }
 
 ipcMain.handle('ext.fileAccess', async (e, {mode, data}) => {

@@ -73,13 +73,19 @@ function createTray(){
     tray = new Tray(basePath + 'image/icon.png')
     template = [
         {
-            type: 'separator'
-        },
-        {
             label: '显示计时',
             click: () => {
               ext.timer.show()
             }
+        },
+        {
+            label: '本周课表',
+            click: () => {
+              ext.weekSchedule.open()
+            }
+        },
+        {
+            type: 'separator'
         },
         {
             label: '通知编辑',

@@ -194,13 +194,44 @@ ipcMain.handle('scheduleConfig.getStateValue', (event, state) => {
 })
 
 ipcMain.handle('scheduleConfig.getToday', () => {
-  let {timetable, classSchedule} = getTodayBinding()
+  let {timetable, classSchedule} = getBinding(new Date().toLocaleDateString())
   return [timetable, classSchedule]
 })
 
 exports.load = () => {
   exports.scheduleConfig((a)=>{})
 }
+
+function getThisMonday() {
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 获取今天是本周的第几天（0 是周日，1 是周一，...，6 是周六）
+    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // 计算本周周一的日期
+    const monday = new Date(today.setDate(diff));
+    return monday;
+}
+
+exports.getWeekSchedule = () => {
+  let output = {}
+  let monday = getThisMonday()
+  for(let i = 0; i < 7; i++){
+    let date = new Date(monday.getTime() + i * 24 * 60 * 60 * 1000).toLocaleDateString()
+    let binding = getBinding(date)
+    let classSchedule = cache.classSchedules[binding.classSchedule]
+    classSchedule = cachedData.classSchedule[binding.classSchedule] ??
+      (cachedData.classSchedule[binding.classSchedule] = classSchedule.map((a, index) => {
+        try { return evaluateConditions(a).value } catch (e) {
+          e.message += '\n在课程条件判断时出现问题: '
+          e.message += `课程表 ${binding.classSchedule} 课程 第${index}节 时间表`
+          exports.currentError(e)
+          return DEFAULT_SUBJECT
+        }
+      }))
+    output[["周一", "周二", "周三", "周四", "周五", "周六", "周日"][i]] = classSchedule
+  }
+  return output
+}
+
+ipcMain.handle('scheduleConfig.getWeekSchedule', () => exports.getWeekSchedule())
 
 let errorList = []
 exports.clearErrorList = () => {
@@ -276,8 +307,7 @@ function evaluateConditions(conditions) {
   return result
 }
 
-function getTodayBinding() {
-  let today = new Date().toLocaleDateString()
+function getBinding(date) {
   for (let binding of cache.tempBindings) {
     if (binding.date + 24 * 60 * 60 * 1000 < Date.now()) {
       exports.scheduleConfig((c) => {
@@ -285,21 +315,21 @@ function getTodayBinding() {
       })
       continue
     }
-    console.log(new Date(binding.date).toLocaleDateString(), today)	
-    if (new Date(binding.date).toLocaleDateString().substring(0, 10) == today) return binding
+    console.log(new Date(binding.date).toLocaleDateString(), date)
+    if (new Date(binding.date).toLocaleDateString().substring(0, 10) == date) return binding
   }
-  let day = new Date().getDay()
+  let day = new Date(date).getDay()
   let binding = cache.bindings[day]
   return evaluateConditions(binding)
 }
-getTodayBinding = ((fun) => {
-  return () => {
-    try { return fun() } catch(e) {
-      e.message += '\n获取今日数据绑定错误'
+getBinding = ((fun) => {
+  return (date) => {
+    try { return fun(date) } catch(e) {
+      e.message += '\n获取数据绑定错误'
       throw e
     }
   }
-})(getTodayBinding);
+})(getBinding);
 
 function timeDecreasedOneMinute(time) {
   let [h, m] = time.split(':')
@@ -358,10 +388,10 @@ exports.proxy.divider = new Proxy({}, {
 })
 exports.proxy.daily_class = new Proxy({}, {
   get: (target, name) => {
-    let {classSchedule: classScheduleName, timetable} = getTodayBinding()
+    let {classSchedule: classScheduleName, timetable} = getBinding(new Date().toLocaleDateString())
     let classSchedule = cache.classSchedules[classScheduleName]
-    classSchedule = cachedData.classSchedule[classSchedule] ??
-      (cachedData.classSchedule[classSchedule] = classSchedule.map((a, index) => {
+    classSchedule = cachedData.classSchedule[classScheduleName] ??
+      (cachedData.classSchedule[classScheduleName] = classSchedule.map((a, index) => {
         try { return evaluateConditions(a).value } catch (e) {
           e.message += '\n在课程条件判断时出现问题: '
           e.message += `课程表 ${classScheduleName} 课程 第${index}节 时间表 ${timetable}`
