@@ -1,0 +1,32 @@
+name: Feature Request
+description: 请求新功能.
+title: "[Feature] "
+labels: ["feature-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 注意
+        每个Issue仅请求一个功能
+        标题尽可能包括关键信息
+        你需要确认这不是个伪需求
+  - type: textarea
+    id: requirements
+    attributes:
+      label: 功能需求
+      description: |
+        描述你的需求, 尽可能详细
+    validations:
+      required: true
+  - type: checkboxes
+    id: checking
+    attributes:
+      label: 在提交之前
+      description: 你需要检查以下选项
+      options:
+        - label: 我确认这个Issue只提及了一个需求
+          required: true
+        - label: 我确认标题有意义，而不是如`功能请求`等类似的词
+          required: true
+        - label: 我确认这不是个伪需求
+          required: true
