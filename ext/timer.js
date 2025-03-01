@@ -32,8 +32,7 @@ function createTimerWindow(){
     })
     // win.webContents.openDevTools({ mode: 'detach' })
     win.loadFile('html/timer.html')
-    const handle = win.getNativeWindowHandle();
-    ext.disableMinimize(handle)
+    ext.disableMinimize(win)
 }
 
 let __timeout = -1

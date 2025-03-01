@@ -56,8 +56,7 @@ function createNoticeWindow(){
     win.setIgnoreMouseEvents(true, {forward: true});
     win.loadFile('html/notice.html')
     // win.webContents.openDevTools({ mode: 'detach' })
-    const handle = win.getNativeWindowHandle();
-    ext.DisableMinimize(handle)
+    ext.disableMinimize(win)
 }
 
 function createNoticeEditWindow(){

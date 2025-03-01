@@ -62,8 +62,7 @@ app.whenReady().then(() => {
     ext.pass({"store": store})
     createWindow()
     Menu.setApplicationMenu(null)
-    const handle = win.getNativeWindowHandle();
-    ext.disableMinimize(handle); // Thank to peter's project https://github.com/tbvjaos510/electron-disable-minimize
+    ext.disableMinimize(win); // Thank to peter's project https://github.com/tbvjaos510/electron-disable-minimize
     createTray()
     ext.load()
     // win.webContents.openDevTools({mode:'detach'})
