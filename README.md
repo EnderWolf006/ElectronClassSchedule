@@ -1,7 +1,7 @@
 <!-- > <font color=red>本分支为 `ECS v1` 版本，如无严重漏洞将不会继续维护更新，推荐使用 `ECS v2` [传送门](https://github.com/EnderWolf006/ElectronClassSchedule/tree/ECS2.0)</font> -->
 
 > 本分支为 `ECS v1` 版本，如无严重漏洞将不会继续维护更新。 
-> `ECS v2` [传送门](https://github.com/EnderWolf006/ElectronClassSchedule/tree/ECS2.0) 正在开发中，将由 [@AwA](https://github.com/aawwaaa) 与  [我](https://github.com/EnderWolf006) 继续维护，敬请期待。
+> `ECS v2` [传送门](https://github.com/EnderWolf006/ElectronClassSchedule/tree/ECS2.0) 正在开发中，将由 [@AwA](https://github.com/aawwaaa) 全权维护，敬请期待。
 
 # 电子课程表
 
