@@ -53,6 +53,7 @@ jobs:
           tag_name: latest
           release_name: Latest Release 
           body: |
+            > 如需下载ECS2.0, 请于[Release: Build Result](https://github.com/aawwaaa/ElectronClassSchedule2/releases/tag/unmarked)下载
             - 点击下方 `ElectronClassSchedule.zip` 即可下载，下载完成后请先解压再运行
             - 若下载过慢可使用第三方代理下载 [【点我下载】Win7_Win8_ElectronClassSchedule.zip](https://mirror.ghproxy.com/?q=https%3A%2F%2Fgithub.com%2FEnderWolf006%2FElectronClassSchedule%2Freleases%2Fdownload%2Flatest%2FWin7_Win8_ElectronClassSchedule.zip)
             - 若下载过慢可使用第三方代理下载 [【点我下载】Win10_Win11_ElectronClassSchedule.zip](https://mirror.ghproxy.com/?q=https%3A%2F%2Fgithub.com%2FEnderWolf006%2FElectronClassSchedule%2Freleases%2Fdownload%2Flatest%2FWin10_Win11_ElectronClassSchedule.zip)
