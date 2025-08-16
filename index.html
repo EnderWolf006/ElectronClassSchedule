@@ -50,6 +50,7 @@
   let root = document.querySelector(':root');
   let isClassCountdown = true
   let isClassHidden = true
+  let isUseLocalConfig = false
   let lastScheduleData = {
     currentHighlight: {
       index: null,
@@ -166,6 +167,21 @@
     leftSidebar.style.display = scheduleConfig.week_display ? 'block' : 'none'
   }
 
+  function setStyle(){
+    for(key in scheduleConfig.css_style){
+      root.style.setProperty(key, scheduleConfig.css_style[key])
+    }
+  }
+
+  function setAll(){
+    setCountdownerContent()
+    setScheduleClass()
+    setCountdownerPosition()
+    setSidebar()
+    setBackgroundDisplay()
+    setStyle()
+  }
+
   function tick(reset = false) {
     scheduleData = getScheduleData();
     setCountdownerContent()
@@ -190,9 +206,7 @@
     }
   }, 20);
 
-  for (key in scheduleConfig.css_style) {
-    root.style.setProperty(key, scheduleConfig.css_style[key])
-  }
+  setStyle();
 
   let timer = undefined
   window.addEventListener("mousemove", event => {
@@ -227,6 +241,34 @@
       }
     })
   }
+
+  ipcRenderer.on('openLoadConfig', (e, arg) => {
+    ipcRenderer.send('selectConfig', {
+      options: {
+        title: '选取本地配置文件(config.json)',
+        filters: [
+          {
+            name: 'config',
+            extensions: ['json']
+          }
+        ]
+      }
+    })
+  })
+
+  ipcRenderer.on('setScheduleConfig', (e, arg) => {
+    console.log(arg.data)
+    isUseLocalConfig = true
+    scheduleConfig = JSON.parse(arg.data)
+  })
+
+  ipcRenderer.on('modifyScheduleConfig', (e, arg) => {
+    let filePath = arg.path
+    let fileContent = arg.data
+    scheduleConfig = JSON.parse(fileContent)
+    scheduleData = getScheduleData()
+    setAll()
+  })
 
   ipcRenderer.on('getSelectedClassIndex', (e, arg) => {
     if (arg.index == -1) return
@@ -265,7 +307,9 @@
   });
 
   ipcRenderer.on('setWeekIndex', (e, arg) => {
-    scheduleConfig = JSON.parse(JSON.stringify(_scheduleConfig))
+    if(!isUseLocalConfig){
+      scheduleConfig = JSON.parse(JSON.stringify(_scheduleConfig))
+    }
     weekIndex = arg
     localStorage.setItem('weekIndex', weekIndex.toString())
   })
