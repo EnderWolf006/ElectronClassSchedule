@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>WebView2 Native Bridge Demo</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px;
+    font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
+    background: #101726; color: #dbe4f3;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 20px; color: #8fa0bd; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  button {
+    padding: 10px 12px; border: 1px solid #2c3a56; border-radius: 8px;
+    background: #1a2438; color: #dbe4f3; cursor: pointer; text-align: left;
+  }
+  button:hover { background: #22304b; border-color: #3d5a7d; }
+  button small { display: block; color: #8fa0bd; font-size: 11px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #8fa0bd; margin: 0 0 8px; }
+  pre {
+    margin: 0; padding: 12px; height: 300px; overflow: auto;
+    background: #0b111e; border: 1px solid #22304b; border-radius: 8px;
+    font: 12px/1.5 Consolas, monospace; white-space: pre-wrap; word-break: break-all;
+  }
+  .in  { color: #7dd3fc; }
+  .out { color: #86efac; }
+  .err { color: #fca5a5; }
+  .evt { color: #fcd34d; }
+</style>
+</head>
+<body>
+  <h1>WinUI 3 host &harr; WebView2 bridge</h1>
+  <p class="sub">
+    Buttons below call native Windows APIs via <code>window.chrome.webview.postMessage</code>.
+    The WinUI host (<code style="color:#7dd3fc">NativeBridge.cs</code>) receives them
+    in <code>CoreWebView2.WebMessageReceived</code> and posts the result back.
+  </p>
+
+  <div class="grid">
+    <button data-demo="info">host.info<small>OS / WebView2 version / dark mode (registry)</small></button>
+    <button data-demo="power">power.status<small>kernel32!GetSystemPowerStatus</small></button>
+    <button data-demo="msgbox">host.messageBox<small>user32!MessageBoxW</small></button>
+    <button data-demo="top">window.setAlwaysOnTop<small>OverlappedPresenter.IsAlwaysOnTop</small></button>
+    <button data-demo="click">window.setClickThrough (5 s)<small>WS_EX_TRANSPARENT, auto-reverts</small></button>
+    <button data-demo="pick">dialog.pickFile<small>WinRT FileOpenPicker</small></button>
+    <button data-demo="write">file.write + file.read<small>sandboxed round-trip</small></button>
+    <button data-demo="external">shell.openExternal<small>ShellExecute on a https URL</small></button>
+    <button data-demo="min">window.control: minimize</button>
+    <button data-demo="max">window.control: toggle-maximize</button>
+  </div>
+
+  <h2>Log &mdash; requests / responses / pushed events</h2>
+  <pre id="log"></pre>
+
+  <script src="./nativeBridge.js"></script>
+  <script>
+    const log = document.getElementById('log');
+    const tag = (cls, label, obj) => {
+      log.append(Object.assign(document.createElement('span'), { className: cls, textContent: label + ' ' + JSON.stringify(obj, null, 2) }), '\n');
+      log.scrollTop = log.scrollHeight;
+    };
+
+    if (!nativeHost) {
+      tag('err', '[error]', 'nativeHost unavailable — open this page inside the WinUI 3 shell, not a plain browser.');
+    } else {
+      // Host-pushed event (NativeBridge.PushEvent, every 15 s).
+      nativeHost.on('power.updated', (data) => tag('evt', '[event power.updated]', data));
+
+      // One entry per demo action.
+      const demos = {
+        info:     () => nativeHost.call('host.info'),
+        power:    () => nativeHost.call('power.status'),
+        msgbox:   () => nativeHost.call('host.messageBox', { text: 'Hello from the web layer!', caption: 'user32!MessageBoxW' }),
+        top:      () => nativeHost.call('window.setAlwaysOnTop', { enabled: true }),
+        click:    async () => {
+          const r = await nativeHost.call('window.setClickThrough', { enabled: true });
+          // The window no longer receives mouse input, but this timer keeps running.
+          setTimeout(() => nativeHost.call('window.setClickThrough', { enabled: false }), 5000);
+          return { ...r, note: 'clicks pass through for 5 s…' };
+        },
+        pick:     () => nativeHost.call('dialog.pickFile', { extensions: ['.json'] }),
+        write:    async () => {
+          const path = 'hello.json';
+          await nativeHost.call('file.write', { path, content: JSON.stringify({ hello: 'from WebView2' }, null, 2) });
+          return nativeHost.call('file.read', { path });
+        },
+        external: () => nativeHost.call('shell.openExternal', { url: 'https://learn.microsoft.com/microsoft-edge/webview2' }),
+        min:      () => nativeHost.call('window.control', { action: 'minimize' }),
+        max:      () => nativeHost.call('window.control', { action: 'toggle-maximize' }),
+      };
+
+      document.querySelectorAll('[data-demo]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const action = { info: 'host.info', power: 'power.status', msgbox: 'host.messageBox',
+                           top: 'window.setAlwaysOnTop', click: 'window.setClickThrough',
+                           pick: 'dialog.pickFile', write: 'file.write+read',
+                           external: 'shell.openExternal', min: 'window.control', max: 'window.control' }[btn.dataset.demo];
+          tag('in', `[-> ${action}]`, null);
+          try {
+            const result = await demos[btn.dataset.demo]();
+            tag('out', `[<- ok ${action}]`, result);
+          } catch (err) {
+            tag('err', `[<- error ${action}]`, String(err.message ?? err));
+          }
+        });
+      });
+    }
+  </script>
+</body>
+</html>
