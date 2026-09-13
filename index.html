@@ -7,49 +7,64 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script type="text/javascript" src="js/jquery.min.js"></script>
-  <script type="text/javascript" src="js/scheduleConfig.js"></script>
   <script type="text/javascript" src="js/index.js"></script>
   <link rel="stylesheet" type="text/css" href="css/style.css">
 </head>
 
 <body>
   <div class="globalContainer" id="globalContainer">
-    <div class="classContainer background" id="classContainer">
-      <div class="class">加</div>
-      <div class="class">载</div>
-      <div class="class">中</div>
-    </div>
-    <div class="countdownContainer" id="countdownContainer">
-      <div class="triangle"></div>
-      <div class="countdowner" id="countdowner">
-        <div class="currentClass" id="currentFullName">Loading</div>
-        <div class="countdown" id="countdownText">00:00</div>
+    <div id="componentRows" class="componentRows">
+      <div class="componentRow" data-component-row="0">
+        <div class="scheduleComponent" data-component-slot="schedule">
+          <div class="classContainer background" id="classContainer">
+            <div class="class">加</div>
+            <div class="class">载</div>
+            <div class="class">中</div>
+          </div>
+          <div class="countdownContainer" id="countdownContainer">
+            <div class="triangle"></div>
+            <div class="countdowner" id="countdowner">
+              <div class="currentClass" id="currentFullName">Loading</div>
+              <div class="countdown" id="countdownText">00:00</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="leftSidebar sidebar background" id="leftSidebar"><span id="weekEN" class="t">Load</span><div class="corner options notIgnoreClick" id="weekCH">ing</div></div>
-    <div class="rightSidebar sidebar background" id="rightSidebar"><span id="countdownDays" class="t">000</span><div class="corner">天</div></div>
   </div>
   <div class="miniCountdown" id="miniCountdown">00:00</div>
+  <div class="reminderMask notIgnoreClick" id="reminderMask">
+    <div class="reminderText" id="reminderText"></div>
+  </div>
 
 </body>
 <script>
   const { ipcRenderer } = require('electron');
-  let scheduleData = getScheduleData();
+  let scheduleData = {
+    scheduleArray: [],
+    currentHighlight: { index: null, type: null, fullName: 'Loading', countdown: null, countdownText: '00:00' },
+    timetable: null,
+    divider: []
+  };
   let globalContainer = document.getElementById('globalContainer')
   let classContainer = document.getElementById('classContainer')
   let countdownContainer = document.getElementById('countdownContainer')
   let countdowner = document.getElementById('countdowner')
   let currentFullName = document.getElementById('currentFullName')
   let countdownText = document.getElementById('countdownText')
+  let inlineCountdown = document.querySelector('.inlineCountdown')
   let weekEN = document.getElementById('weekEN')
   let weekCH = document.getElementById('weekCH')
   let countdownDays = document.getElementById('countdownDays')
+  let currentTime = document.getElementById('currentTime')
   let miniCountdown = document.getElementById('miniCountdown')
   let rightSidebar = document.getElementById('rightSidebar')
   let leftSidebar = document.getElementById('leftSidebar')
   let root = document.querySelector(':root');
+  let componentRows = document.getElementById('componentRows')
   let isClassCountdown = true
-  let isClassHidden = true
+  let isClassHidden = false
+  let showNextDayAfterSchool = false
   let lastScheduleData = {
     currentHighlight: {
       index: null,
@@ -63,16 +78,97 @@
     divider: [null, null]
   }
 
+  function getComponentLayout() {
+    const configured = Array.isArray(settings.component_layout) ? settings.component_layout : [['schedule', 'week', 'countdown']];
+    let legacyIndex = 0;
+    const rows = configured.map(row => Array.isArray(row) ? row.map(component => {
+      if (typeof component === 'string') return { id: `${component}-${++legacyIndex}`, type: component, options: {} };
+      return component && ['schedule', 'week', 'date', 'countdown', 'time', 'customText'].includes(component.type)
+        ? { id: component.id || `${component.type}-${++legacyIndex}`, type: component.type, options: component.options || {} } : null;
+    }).filter(Boolean) : []).filter(row => row.length);
+    return rows.length ? rows : [[{ id: 'schedule-1', type: 'schedule', options: {} }]];
+  }
+
+  function renderComponentLayout() {
+    const layout = getComponentLayout();
+    componentRows.innerHTML = layout.map((row, rowIndex) => `
+      <div class="componentRow" data-component-row="${rowIndex}">
+        ${row.map(component => {
+          if (component.type === 'schedule') return `
+            <div class="scheduleComponent" data-component-slot="schedule" data-component-id="${component.id}">
+              <div class="classContainer background" id="classContainer">
+                <div class="class">加</div><div class="class">载</div><div class="class">中</div>
+              </div>
+              <div class="countdownContainer" id="countdownContainer">
+                <div class="triangle"></div>
+                <div class="countdowner" id="countdowner">
+                  <div class="currentClass" id="currentFullName">Loading</div>
+                  <div class="countdown" id="countdownText">00:00</div>
+                </div>
+              </div>
+            </div>`;
+          if (component.type === 'week') return `<div class="leftSidebar sidebar background" data-component-slot="week" data-component-id="${component.id}"><span class="weekEN t">Load</span><div class="corner options notIgnoreClick weekCH">ing</div></div>`;
+          if (component.type === 'date') return `<div class="leftSidebar sidebar background" data-component-slot="date" data-component-id="${component.id}"><span class="dateValue t">00/00</span><div class="corner options notIgnoreClick dateWeek">周一</div></div>`;
+          if (component.type === 'time') return `<div class="timeSidebar sidebar background" data-component-slot="time" data-component-id="${component.id}"><span class="currentTime t">00:00:00</span></div>`;
+          if (component.type === 'customText') return `<div class="customText background" data-component-slot="customText" data-component-id="${component.id}"></div>`;
+          return `<div class="rightSidebar sidebar background" data-component-slot="countdown" data-component-id="${component.id}"><span class="countdownDays t">000</span><div class="corner">天</div></div>`;
+        }).join('')}
+      </div>
+    `).join('');
+    classContainer = document.getElementById('classContainer');
+    countdownContainer = document.getElementById('countdownContainer');
+    currentFullName = document.getElementById('currentFullName');
+    countdownText = document.getElementById('countdownText');
+    inlineCountdown = document.querySelector('.inlineCountdown');
+    weekEN = document.querySelector('.weekEN');
+    weekCH = document.querySelector('.weekCH');
+    countdownDays = document.querySelector('.countdownDays');
+    currentTime = document.querySelector('.currentTime');
+    document.querySelectorAll('[data-component-slot="customText"]').forEach((el) => {
+      const match = layout.flat().find((component) => component.id === el.dataset.componentId);
+      if (match) el.textContent = match.options.text ?? '';
+    });
+    rightSidebar = document.querySelector('[data-component-slot="countdown"]');
+    leftSidebar = document.querySelector('[data-component-slot="week"]');
+  }
+
   function setScheduleClass() {
     let classHtml = '';
+    const fusion = scheduleData.fusion;
+    const highlightedIndex = scheduleData.currentHighlight.displayIndex ?? scheduleData.currentHighlight.index;
+    const showInlineCountdown = hasComponentBelowSchedule() && isClassCountdown;
+    if (scheduleData.currentHighlight.isNextDay) {
+      classHtml += '<div class="class breakClassExpanded stateTransition">明天</div>';
+    }
     for (let i = 0; i < scheduleData.scheduleArray.length; i++) {
+      const isBreakPosition = showInlineCountdown && scheduleData.currentHighlight.isBreak && scheduleData.currentHighlight.index === i && i < scheduleData.scheduleArray.length;
+      const isFusionStart = fusion && i === fusion.start;
+      const isInsideFusion = fusion && i >= fusion.start && i <= fusion.end;
+      if (isBreakPosition) {
+        classHtml += `<div class="class breakClassExpanded stateTransition" id="highlighted"><span class="expandedClassName"></span><span class="inlineCountdown">${scheduleData.currentHighlight.countdownText}</span></div>`;
+      }
+      if (!isBreakPosition && scheduleData.divider.indexOf(i) != -1)
+        classHtml += '<div class="divider"></div>'
+      if (isInsideFusion && !isFusionStart) continue;
       let inner = scheduleData.scheduleArray[i]
-      if (scheduleData.scheduleArray[i].indexOf('@') != -1) {
+      if (isFusionStart && fusion.subject) inner = fusion.subject;
+      if (inner === undefined || inner === null) inner = ''
+      inner = String(inner)
+      if (inner.indexOf('@') != -1) {
         inner = `<div><div style="display:inline">${inner.split('@')[0]}</div><div class="subClass">${inner.split('@')[1]}</div></div>`
       }
-      if (scheduleData.currentHighlight.index == i) {
-        if (scheduleData.currentHighlight.type === 'current')
-          classHtml += `<div class="class current" id="highlighted">${inner}</div>`
+      if (highlightedIndex == i && scheduleData.currentHighlight.isBreak && !showInlineCountdown) {
+        classHtml += `<div class="class upcoming" id="highlighted">${inner}</div>`
+      }
+      else if (highlightedIndex == i && !scheduleData.currentHighlight.isBreak) {
+        if (scheduleData.currentHighlight.type === 'current') {
+          if (showInlineCountdown)
+            classHtml += `<div class="class current currentClassExpanded stateTransition" id="highlighted"><span class="expandedClassName"></span><span class="inlineCountdown">${scheduleData.currentHighlight.countdownText}</span></div>`
+          else
+            classHtml += `<div class="class current" id="highlighted">${inner}</div>`
+        }
+        else if (scheduleData.currentHighlight.isEnd)
+          classHtml += `<div class="class ended" id="highlighted">${inner}</div>`
         else if (scheduleData.currentHighlight.type === 'upcoming')
           classHtml += `<div class="class upcoming" id="highlighted">${inner}</div>`
       }
@@ -82,10 +178,17 @@
         else
           classHtml += `<div class="class">${inner}</div>`
       }
-      if (scheduleData.divider.indexOf(i) != -1)
-        classHtml += '<div class="divider"></div>'
     }
-    classContainer.innerHTML = classHtml
+    if (showInlineCountdown && scheduleData.currentHighlight.isBreak && scheduleData.currentHighlight.index === scheduleData.scheduleArray.length) {
+      classHtml += `<div class="class breakClassExpanded stateTransition" id="highlighted"><span class="expandedClassName"></span><span class="inlineCountdown">${scheduleData.currentHighlight.countdownText}</span></div>`;
+    }
+    document.querySelectorAll('.scheduleComponent .classContainer').forEach((element) => {
+      element.innerHTML = classHtml;
+      const expandedClassName = element.querySelector('.expandedClassName');
+      if (expandedClassName) expandedClassName.textContent = scheduleData.currentHighlight.fullName || '';
+    });
+    classContainer = document.querySelector('.scheduleComponent .classContainer');
+    inlineCountdown = classContainer?.querySelector('.inlineCountdown');
   }
 
   function setBackgroundDisplay() {
@@ -95,33 +198,83 @@
     }
   }
 
+  function hasComponentBelowSchedule() {
+    const scheduleComponent = document.querySelector('.scheduleComponent');
+    const scheduleRow = scheduleComponent?.closest('.componentRow');
+    if (!scheduleRow) return false;
+    let row = scheduleRow.nextElementSibling;
+    while (row) {
+      if (row.querySelector('[data-component-slot]')) return true;
+      row = row.nextElementSibling;
+    }
+    return false;
+  }
+
   function setCountdownerContent() {
+    if (!currentFullName || !countdownText || !countdownContainer || !miniCountdown) return;
+    if (scheduleData.currentHighlight.isNextDay) {
+      countdownContainer.style.display = 'none';
+      miniCountdown.style.display = 'none';
+      document.querySelectorAll('.scheduleComponent .countdownContainer').forEach((element) => {
+        element.style.display = 'none';
+      });
+      return;
+    }
     currentFullName.innerText = scheduleData.currentHighlight.fullName;
     currentFullName.style.color = scheduleData.currentHighlight.type === 'current' ? 'rgba(0, 255, 10, 1)' : 'rgba(255, 255, 5, 1)'
     countdownText.innerText = scheduleData.currentHighlight.countdownText;
+    if (inlineCountdown) {
+      inlineCountdown.innerText = scheduleData.currentHighlight.countdownText;
+      inlineCountdown.style.display = isClassCountdown ? 'inline' : 'none';
+    }
     if (scheduleData.currentHighlight.type === 'current') {
       if (isClassCountdown) {
-        if (isClassHidden) { // 上课 并且开启了倒计时 并且 隐藏主体 -> 显示小窗口 
+        if (hasComponentBelowSchedule()) {
+          countdownContainer.style.display = 'none';
+          miniCountdown.style.display = 'none';
+        } else if (isClassHidden) { // 无下方组件且上课隐藏 -> 显示顶部小窗口
           countdownContainer.style.display = 'none'
           miniCountdown.style.display = 'block'
           miniCountdown.innerHTML = `<div class="currentClass">${currentFullName.innerText = scheduleData.currentHighlight.fullName}</div><div class="countdown" style="margin-left:5px">${scheduleData.currentHighlight.countdownText}</div>`
-        } else { // 上课 并且开启了倒计时 并且 不隐藏主体 -> 正常计时
-          countdownContainer.style.display = 'block'
-          miniCountdown.style.display = 'none'
+        } else {
+          countdownContainer.style.display = 'block';
+          miniCountdown.style.display = 'none';
         }
       } else { // 上课 并且关闭了倒计时 -> 都不显示
         countdownContainer.style.display = 'none'
         miniCountdown.style.display = 'none'
       }
     }
+    else if (scheduleData.currentHighlight.isBreak) {
+      if (isClassCountdown && !hasComponentBelowSchedule()) {
+        countdownContainer.style.display = 'block';
+      } else {
+        countdownContainer.style.display = 'none';
+      }
+      miniCountdown.style.display = 'none';
+    }
     else { // 下课正常显示
       countdownContainer.style.display = 'block';
       miniCountdown.style.display = 'none'
     }
+    document.querySelectorAll('.scheduleComponent .countdowner').forEach((element) => {
+      const name = element.querySelector('.currentClass');
+      const countdown = element.querySelector('.countdown');
+      if (name) {
+        name.innerText = scheduleData.currentHighlight.fullName;
+        name.style.color = currentFullName.style.color;
+      }
+      if (countdown) countdown.innerText = scheduleData.currentHighlight.countdownText;
+    });
+    document.querySelectorAll('.scheduleComponent .countdownContainer').forEach((element) => {
+      element.style.display = countdownContainer.style.display;
+    });
   }
 
   function setCountdownerPosition() {
+    if (!countdownContainer || !classContainer) return;
     let highlightElement = document.getElementById('highlighted')
+    if (!highlightElement) return;
     let offset = {}
     if (scheduleData.currentHighlight.type === 'current') {
       offset = {
@@ -129,7 +282,7 @@
         y: classContainer.offsetHeight
       }
     } else if (scheduleData.currentHighlight.type === 'upcoming') {
-      if (scheduleData.currentHighlight.index != 0 && scheduleData.divider.indexOf((scheduleData.currentHighlight.index - 1)) != -1) {
+      if (scheduleData.currentHighlight.index != 0 && scheduleData.divider.indexOf(scheduleData.currentHighlight.index) != -1) {
         offset = {
           x: highlightElement.offsetLeft - countdownContainer.offsetWidth / 2 - Number(getComputedStyle(highlightElement).marginLeft.replace('px', '')) - getComputedStyle(root).getPropertyValue('--divider-width').replace('px', '') / 2 - getComputedStyle(root).getPropertyValue('--divider-margin').replace('px', ''),
           y: classContainer.offsetHeight
@@ -152,47 +305,88 @@
   }
 
   function setSidebar() {
-    let date = getCurrentEditedDate()
-    let week = date.getDay()
-    let data = scheduleConfig.daily_class[week]
-    weekCH.innerText = data.Chinese
-    weekEN.innerText = data.English
-    if (scheduleConfig.countdown_target === 'hidden') {
-      rightSidebar.style.display = 'none'
-    } else {
-      rightSidebar.style.display = 'block'
-      countdownDays.innerText = Math.ceil(Math.abs(new Date(scheduleConfig.countdown_target) - date) / (1000 * 60 * 60 * 24))
-    }
-    leftSidebar.style.display = scheduleConfig.week_display ? 'block' : 'none'
+    const editedDate = getCurrentEditedDate()
+    const instances = getComponentLayout().flat();
+    const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+    const month = String(editedDate.getMonth() + 1).padStart(2, '0');
+    const day = String(editedDate.getDate()).padStart(2, '0');
+    instances.filter((component) => component.type === 'date').forEach((component) => {
+      const element = document.querySelector(`[data-component-id="${component.id}"]`);
+      if (!element) return;
+      element.querySelector('.dateValue').innerText = `${month}/${day}`;
+      element.querySelector('.dateWeek').innerText = `周${dayNames[editedDate.getDay()]}`;
+    });
+    let data = getCurrentDayScheduleConfig()
+    if (!data) return
+    instances.filter((component) => component.type === 'week').forEach((component) => {
+      const element = document.querySelector(`[data-component-id="${component.id}"]`);
+      if (!element) return;
+      element.querySelector('.weekCH').innerText = data.Chinese;
+      element.querySelector('.weekEN').innerText = data.English;
+      element.style.display = component.options.display === false ? 'none' : '';
+    });
+    instances.filter((component) => component.type === 'time').forEach((component) => {
+      const element = document.querySelector(`[data-component-id="${component.id}"] .currentTime`);
+      if (element) element.innerText = (component.options.source === 'system' ? new Date() : editedDate).toLocaleTimeString('zh-CN', { hour12: false });
+    });
+    instances.filter((component) => component.type === 'customText').forEach((component) => {
+      const element = document.querySelector(`[data-component-id="${component.id}"]`);
+      if (element) element.textContent = component.options.text ?? '';
+    });
+    instances.filter((component) => component.type === 'countdown').forEach((component) => {
+      const element = document.querySelector(`[data-component-id="${component.id}"]`);
+      if (!element) return;
+      const target = component.options.target || scheduleConfig.countdown_target;
+      element.style.display = target === 'hidden' ? 'none' : '';
+      const value = target && target !== 'hidden' ? Math.ceil(Math.abs(new Date(target) - editedDate) / (1000 * 60 * 60 * 24)) : 0;
+      const days = element.querySelector('.countdownDays');
+      if (days) {
+        days.innerText = value;
+        days.style.color = component.options.color || '';
+      }
+    });
   }
 
   function tick(reset = false) {
     scheduleData = getScheduleData();
     setCountdownerContent()
+    setSidebar()
     if (JSON.stringify(scheduleData.scheduleArray) != JSON.stringify(lastScheduleData.scheduleArray) ||
       scheduleData.currentHighlight.index != lastScheduleData.currentHighlight.index ||
       scheduleData.currentHighlight.fullName != lastScheduleData.currentHighlight.fullName ||
-      scheduleData.currentHighlight.type != lastScheduleData.currentHighlight.type || reset) {
+      scheduleData.currentHighlight.type != lastScheduleData.currentHighlight.type ||
+      scheduleData.currentHighlight.isNextDay != lastScheduleData.currentHighlight.isNextDay || reset) {
       setScheduleClass()
       setCountdownerPosition()
-      setSidebar()
       setBackgroundDisplay()
     }
     lastScheduleData = $.extend(true, {}, scheduleData)
   }
 
 
+  function applyScheduleCss() {
+    if (!root) return;
+    for (const key in settings.css_style) {
+      root.style.setProperty(key, settings.css_style[key])
+    }
+  }
+
   let lastTickTime = new Date().getTime()
+  loadScheduleConfig().then(() => {
+    renderComponentLayout()
+    applyScheduleCss()
+    scheduleData = getScheduleData();
+    tick(true)
+  }).catch(() => {
+    applyScheduleCss()
+    tick(true)
+  })
   setInterval(() => {
     if (new Date().getTime() - lastTickTime >= 1000) {
       lastTickTime = new Date().getTime()
       tick()
     }
   }, 20);
-
-  for (key in scheduleConfig.css_style) {
-    root.style.setProperty(key, scheduleConfig.css_style[key])
-  }
 
   let timer = undefined
   window.addEventListener("mousemove", event => {
@@ -250,8 +444,10 @@
     let index = arg.arg.index;
     let selectedClass = arg.arg.classes[arg.index];
     const date = getCurrentEditedDate();
-    const dayOfWeek = getCurrentEditedDay(date);
-    scheduleConfig.daily_class[dayOfWeek].classList[index] = selectedClass;
+    const dayConfig = getCurrentDayScheduleConfig();
+    if (dayConfig && Array.isArray(dayConfig.classList)) {
+      dayConfig.classList[index] = selectedClass;
+    }
   })
 
   ipcRenderer.on('openSettingDialog', (e, arg) => {
@@ -263,17 +459,6 @@
       ipcRenderer.send('pop')
     }
   });
-
-  ipcRenderer.on('setWeekIndex', (e, arg) => {
-    scheduleConfig = JSON.parse(JSON.stringify(_scheduleConfig))
-    weekIndex = arg
-    localStorage.setItem('weekIndex', weekIndex.toString())
-  })
-
-  ipcRenderer.on('getWeekIndex', (e, arg) => {
-    let index = localStorage.getItem('weekIndex');
-    ipcRenderer.send('getWeekIndex', index === null ? 0 : Number(index))
-  })
 
   ipcRenderer.on('getTimeOffset', (e, arg) => {
     let offset = localStorage.getItem('timeOffset');
@@ -295,31 +480,83 @@
     tick(reset = true)
   })
 
+  ipcRenderer.on('NextDayAfterSchool', (e, arg) => {
+    showNextDayAfterSchool = arg === true || arg === 'true' || arg === 1
+    tick(true)
+  })
+
+  ipcRenderer.on('courseFusion', (e, fusion) => {
+    setCourseFusion(fusion);
+    tick(true);
+  })
+
   ipcRenderer.on('setDayOffset', (e, arg) => {
     ipcRenderer.send('dialog', {
       reply: 'getDayOffset',
       options: {
         title: '切换日程',
-        message: `将今日使用课表日程设置为本周的星期几：`,
-        buttons: ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '重置至当前日期'],
+        message: '请选择要切换到的日程',
+        buttons: scheduleConfig.daily_class.map(day => day.Chinese),
         cancelId: -1,
+        defaultId: getCurrentEditedDay(new Date())
       }
     })
   })
 
   ipcRenderer.on('getDayOffset', (e, arg) => {
-    if (arg.index == -1) return
-    if (arg.index <= 6) {
+    if (arg.index === -1) return
       localStorage.setItem('dayOffset', arg.index.toString())
       localStorage.setItem('setDayOffsetLastDay', new Date().getDay().toString())
       dayOffset = arg.index
       setDayOffsetLastDay = new Date().getDay()
-      return
-    }
-    localStorage.setItem('dayOffset', '-1')
-    localStorage.setItem('setDayOffsetLastDay', '-1')
-    dayOffset = -1
-    setDayOffsetLastDay = -1
+      tick(true)
+  })
+
+  // ===== 提醒遮罩 =====
+  const reminderMask = document.getElementById('reminderMask');
+  const reminderText = document.getElementById('reminderText');
+  let reminderHideTimer = null;
+
+  function triggerReminderMask(payload = {}) {
+    const text = String(payload.text ?? '').trim();
+    reminderText.textContent = text;
+    reminderText.style.display = text ? '' : 'none';
+    const scheduleEl = document.querySelector('.scheduleComponent') || globalContainer;
+    const rect = scheduleEl.getBoundingClientRect();
+    reminderMask.style.left = `${rect.left}px`;
+    reminderMask.style.top = `${rect.top}px`;
+    reminderMask.style.width = `${rect.width}px`;
+    reminderMask.style.height = `${rect.height}px`;
+    reminderMask.style.setProperty('--reminder-x', `${rect.width / 2}px`);
+    reminderMask.style.setProperty('--reminder-y', `${rect.height / 2}px`);
+    reminderMask.style.setProperty('--reminder-r', `${Math.ceil(Math.hypot(rect.width, rect.height) / 2) + 2}px`);
+    const color = String(payload.color || settings?.reminder_color || '').trim();
+    if (color) reminderMask.style.setProperty('--reminder-bg-color', color);
+    else reminderMask.style.removeProperty('--reminder-bg-color');
+    clearTimeout(reminderHideTimer);
+    reminderMask.classList.remove('closing');
+    reminderMask.classList.add('active');
+    void reminderMask.offsetWidth;
+    reminderMask.classList.add('shown');
+    const duration = Number(payload.duration);
+    reminderHideTimer = setTimeout(hideReminderMask, Number.isFinite(duration) && duration > 0 ? duration : 5000);
+  }
+
+  function hideReminderMask() {
+    clearTimeout(reminderHideTimer);
+    reminderHideTimer = null;
+    if (!reminderMask.classList.contains('active') || reminderMask.classList.contains('closing')) return;
+    reminderMask.classList.add('closing');
+    setTimeout(() => {
+      reminderMask.classList.remove('active', 'shown', 'closing');
+    }, 1100);
+  }
+
+  reminderMask.addEventListener('click', hideReminderMask);
+
+  ipcRenderer.on('reminder-trigger', (e, payload) => {
+    if (payload && payload.action === 'hide') hideReminderMask();
+    else triggerReminderMask(payload);
   })
 </script>
 

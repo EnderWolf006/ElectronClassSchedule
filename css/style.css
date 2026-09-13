@@ -57,6 +57,29 @@
     transform: translateX(-50%);
 }
 
+.componentRows {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--component-row-gap, 0px);
+}
+
+.componentRow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--component-row-min-height, 0px);
+    gap: var(--component-gap, 10px);
+}
+
+.componentRow[data-component-row="1"] {
+    margin-top: var(--second-component-row-offset, 20px);
+}
+
+.scheduleComponent {
+    position: relative;
+}
+
 .class {
     color: rgba(255, 255, 255, 1);
     margin: 0 var(--main-horizontal-space);
@@ -64,6 +87,76 @@
 
 .current {
     color: rgba(0, 255, 10, 1);
+}
+
+.currentClassExpanded {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.breakClassExpanded {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    white-space: nowrap;
+    color: rgba(255, 255, 5, 1);
+}
+
+.stateTransition {
+    animation-duration: .45s;
+    animation-timing-function: ease-out;
+    animation-fill-mode: both;
+}
+
+.currentClassExpanded.stateTransition {
+    animation-name: enterCurrentClass;
+}
+
+.breakClassExpanded.stateTransition {
+    animation-name: enterBreakClass;
+}
+
+@keyframes enterCurrentClass {
+    from {
+        color: rgba(255, 255, 255, 0);
+        opacity: .35;
+        transform: translateY(-3px) scale(.98);
+    }
+    to {
+        color: rgba(0, 255, 10, 1);
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes enterBreakClass {
+    from {
+        color: rgba(255, 255, 255, 0);
+        opacity: .35;
+        transform: translateY(3px) scale(.98);
+    }
+    to {
+        color: rgba(255, 255, 5, 1);
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.expandedClassName {
+    font-family: Sou;
+    font-weight: bold;
+}
+
+.inlineCountdown {
+    color: rgba(255, 255, 255, 1);
+    font-family: JETB;
+    font-size: var(--countdown-font-size);
+}
+
+.ended {
+    color: rgba(188, 188, 188, 1);
 }
 
 .upcoming {
@@ -92,18 +185,28 @@
     position: absolute;
     top: 0;
     font-family: Ali;
+    position: relative;
+    transform: none;
 }
 
 .rightSidebar {
-    right: 0;
+    right: auto;
     color: #FF3a3a;
-    transform: translateX(calc(100% + var(--container-space)));
+}
+
+.timeSidebar {
+    color: #FFF;
+}
+
+.customText {
+    color: #FFF;
+    font-family: JETB;
+    font-size: var(--center-font-size);
 }
 
 .leftSidebar {
-    left: 0;
+    left: auto;
     color: rgb(0, 238, 255);
-    transform: translateX(calc(-100% - var(--container-space)));
 }
 
 .corner {
@@ -175,4 +278,44 @@
 .subClass {
     display: inline;
     font-size: var(--sub-font-size);
+}
+
+/* ===== 提醒遮罩 ===== */
+.reminderMask {
+    position: fixed;
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--reminder-bg-color, #000000);
+    border-radius: var(--global-border-radius, 0px);
+    clip-path: circle(0px at var(--reminder-x, 50%) var(--reminder-y, 50%));
+    transition: clip-path 1.1s cubic-bezier(0.22, 0.61, 0.36, 1), opacity 0.5s ease;
+}
+
+.reminderMask.active {
+    display: flex;
+}
+
+.reminderMask.shown {
+    clip-path: circle(var(--reminder-r, 9999px) at var(--reminder-x, 50%) var(--reminder-y, 50%));
+}
+
+.reminderMask.closing {
+    clip-path: circle(0px at var(--reminder-x, 50%) var(--reminder-y, 50%));
+    opacity: 0;
+}
+
+.reminderText {
+    font-family: JETB, "Microsoft YaHei", sans-serif;
+    font-size: var(--countdown-font-size, 25px);
+    font-weight: 700;
+    color: #ffffff;
+    text-align: center;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+    max-width: 100%;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.5;
+    padding: 0 12px;
 }

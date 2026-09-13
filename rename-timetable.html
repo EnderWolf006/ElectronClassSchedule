@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>重命名时间表</title>
+  <style>
+    :root {
+      --bg: #101726;
+      --panel: #162540;
+      --border: #283a5d;
+      --text: #eaf3ff;
+      --muted: #a7b8d6;
+      --accent: #72d6ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(180deg, #0b1220 0%, var(--bg) 100%);
+      color: var(--text);
+      font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+
+    .titlebar {
+      height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-left: 14px;
+      border-bottom: 1px solid var(--border);
+      background: #111c2f;
+      -webkit-app-region: drag;
+      user-select: none;
+    }
+
+    .titlebar strong { font-size: 13px; }
+
+    .window-controls {
+      height: 100%;
+      display: flex;
+      -webkit-app-region: no-drag;
+    }
+
+    .window-control {
+      width: 46px;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: var(--text);
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .window-control:hover { background: rgba(114, 214, 255, 0.16); }
+    .window-control.close:hover { background: #c54252; }
+
+    main { padding: 28px; }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #0d1623;
+      color: var(--text);
+      font: inherit;
+      outline: none;
+    }
+
+    input:focus { border-color: var(--accent); }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    button.action {
+      padding: 9px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    button.action.primary { background: #1f3d7a; }
+    button.action:hover { border-color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="titlebar">
+    <strong>重命名时间表</strong>
+    <div class="window-controls">
+      <button class="window-control close" type="button" data-window-action="close" title="关闭">×</button>
+    </div>
+  </div>
+  <main>
+    <label for="timetableName">时间表名称</label>
+    <input id="timetableName" type="text" autofocus />
+    <div class="actions">
+      <button class="action" type="button" id="cancelBtn">取消</button>
+      <button class="action primary" type="button" id="confirmBtn">确定</button>
+    </div>
+  </main>
+  <script>
+    const { ipcRenderer } = require('electron');
+    const input = document.getElementById('timetableName');
+    const query = new URLSearchParams(window.location.search);
+    input.value = query.get('name') || '';
+
+    function closeWindow() {
+      ipcRenderer.send('rename-timetable-result', null);
+    }
+
+    function confirmRename() {
+      ipcRenderer.send('rename-timetable-result', input.value);
+    }
+
+    document.getElementById('cancelBtn').addEventListener('click', closeWindow);
+    document.getElementById('confirmBtn').addEventListener('click', confirmRename);
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') confirmRename();
+      if (event.key === 'Escape') closeWindow();
+    });
+    document.querySelector('[data-window-action="close"]').addEventListener('click', closeWindow);
+  </script>
+</body>
+</html>
