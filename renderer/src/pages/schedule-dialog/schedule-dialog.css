@@ -1,0 +1,72 @@
+html, body, #root {
+  width: 100%;
+  height: 100%;
+}
+
+.dialog {
+  height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 20px 24px 18px;
+}
+
+.dialog-title {
+  margin: 0 0 6px;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: var(--text);
+}
+
+.dialog-subtitle {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.button-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+/* 选项按钮：整行左对齐，默认项高亮为“已选择”样式 */
+#root .button-list button.option-btn {
+  width: 100%;
+  flex-shrink: 0;
+  justify-content: flex-start;
+  text-align: left;
+  min-height: 34px;
+  padding: 7px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+#root .button-list button.option-btn.option-default {
+  background: var(--subnav-active);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+#root .button-list button.option-btn.option-default:hover,
+#root .button-list button.option-btn.option-default:active {
+  background: var(--subnav-active);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.dialog-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}

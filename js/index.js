@@ -42,8 +42,17 @@ function setCourseFusion(fusion) {
     const dayIndex = Number(fusion.dayIndex);
     const start = Number(fusion.start);
     const end = Number(fusion.end);
-    const target = Number(fusion.target);
-    if (![dayIndex, start, end, target].every(Number.isInteger) || start < 0 || end <= start || target < start || target > end) {
+    if (![dayIndex, start, end].every(Number.isInteger) || start < 0 || end <= start) {
+        return;
+    }
+    // target 为“科目名称”配置中的科目简称字符串；兼容旧版本的整数课节索引
+    let target = fusion.target;
+    if (typeof target === 'number') {
+        if (!Number.isInteger(target) || target < 0) return;
+    } else if (typeof target === 'string') {
+        target = target.trim();
+        if (!target) return;
+    } else {
         return;
     }
     runtimeCourseFusion = {
@@ -301,7 +310,10 @@ function getScheduleData() {
     const fusion = runtimeCourseFusion && runtimeCourseFusion.dayIndex === dayIndex
         ? runtimeCourseFusion
         : null;
-    const fusionSubject = fusion && currentSchedule[fusion.target];
+    // target 为科目简称字符串时直接使用；旧版本整数索引则从当天课表中取简称
+    const fusionSubject = fusion && (typeof fusion.target === 'string'
+        ? fusion.target
+        : currentSchedule[fusion.target]);
     let fusionEndTime = null;
     const currentDayTimetable = dayConfig?.timetable && scheduleConfig.timetable?.[dayConfig.timetable];
     if (typeof showNextDayAfterSchool !== 'undefined' && showNextDayAfterSchool && isTimetableFinished(currentDayTimetable, currentTime)) {

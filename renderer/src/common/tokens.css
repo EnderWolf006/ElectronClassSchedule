@@ -1,0 +1,246 @@
+/* ===== Windows 11 Settings design tokens（6 个 Win11 风格窗口共用） ===== */
+:root {
+  color-scheme: light dark;
+  /* 亮色（Win11 设置默认外观） */
+  --bg: #f3f3f3;
+  --titlebar: #f3f3f3;
+  --panel: #ffffff;
+  --panel-strong: #ffffff;
+  --panel-alt: #fafafa;
+  --nav-hover: rgba(0, 0, 0, 0.045);
+  --nav-active: rgba(0, 0, 0, 0.055);
+  --subnav-active: #eaf3fb;
+  --border: #e5e5e5;
+  --divider: #ececec;
+  --control-border: #8a8a8a;
+  --control-border-hover: #000000;
+  --button-border: #d1d1d1;
+  --button-hover: #f5f5f5;
+  --button-active: #e6e6e6;
+  --text: #1b1b1b;
+  --muted: #616161;
+  --accent: #0067c0;
+  --accent-hover: #1975c5;
+  --accent-2: #0067c0;
+  --on-accent: #ffffff;
+  --danger: #c42b1c;
+  --danger-soft: #fdf3f2;
+  --shadow: rgba(0, 0, 0, 0.045);
+  --thumb: #c8c8c8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #202020;
+    --titlebar: #202020;
+    --panel: #2d2d2d;
+    --panel-strong: #383838;
+    --panel-alt: #333333;
+    --nav-hover: rgba(255, 255, 255, 0.06);
+    --nav-active: rgba(255, 255, 255, 0.08);
+    --subnav-active: rgba(76, 194, 255, 0.12);
+    --border: #3b3b3b;
+    --divider: #3a3a3a;
+    --control-border: #6d6d6d;
+    --control-border-hover: #ffffff;
+    --button-border: #4d4d4d;
+    --button-hover: #454545;
+    --button-active: #505050;
+    --text: #ffffff;
+    --muted: #c6c6c6;
+    --accent: #4cc2ff;
+    --accent-hover: #6ccbff;
+    --accent-2: #4cc2ff;
+    --on-accent: #00223c;
+    --danger: #ff99a4;
+    --danger-soft: rgba(196, 43, 28, 0.18);
+    --shadow: rgba(0, 0, 0, 0.22);
+    --thumb: #555555;
+  }
+}
+
+/* 用户强制深色：覆盖系统浅色，使所有自定义 token 变量变深色 */
+:root[data-theme="dark"] {
+  --bg: #202020;
+  --titlebar: #202020;
+  --panel: #2d2d2d;
+  --panel-strong: #383838;
+  --panel-alt: #333333;
+  --nav-hover: rgba(255, 255, 255, 0.06);
+  --nav-active: rgba(255, 255, 255, 0.08);
+  --subnav-active: rgba(76, 194, 255, 0.12);
+  --border: #3b3b3b;
+  --divider: #3a3a3a;
+  --control-border: #6d6d6d;
+  --control-border-hover: #ffffff;
+  --button-border: #4d4d4d;
+  --button-hover: #454545;
+  --button-active: #505050;
+  --text: #ffffff;
+  --muted: #c6c6c6;
+  --accent: #4cc2ff;
+  --accent-hover: #6ccbff;
+  --accent-2: #4cc2ff;
+  --on-accent: #00223c;
+  --danger: #ff99a4;
+  --danger-soft: rgba(196, 43, 28, 0.18);
+  --shadow: rgba(0, 0, 0, 0.22);
+  --thumb: #555555;
+}
+
+/* 用户强制浅色：覆盖系统深色 */
+:root[data-theme="light"] {
+  --bg: #f3f3f3;
+  --titlebar: #f3f3f3;
+  --panel: #ffffff;
+  --panel-strong: #ffffff;
+  --panel-alt: #fafafa;
+  --nav-hover: rgba(0, 0, 0, 0.045);
+  --nav-active: rgba(0, 0, 0, 0.055);
+  --subnav-active: #eaf3fb;
+  --border: #e5e5e5;
+  --divider: #ececec;
+  --control-border: #8a8a8a;
+  --control-border-hover: #000000;
+  --button-border: #d1d1d1;
+  --button-hover: #f5f5f5;
+  --button-active: #e6e6e6;
+  --text: #1b1b1b;
+  --muted: #616161;
+  --accent: #0067c0;
+  --accent-hover: #1975c5;
+  --accent-2: #0067c0;
+  --on-accent: #ffffff;
+  --danger: #c42b1c;
+  --danger-soft: #fdf3f2;
+  --shadow: rgba(0, 0, 0, 0.045);
+  --thumb: #c8c8c8;
+}
+
+/* ===== 亚克力材质层 =====
+   主进程成功应用 DWM Acrylic（Win11）/ user32 Acrylic（Win10）后，
+   由 theme.jsx 为 <html> 添加 .acrylic 类。窗口底色交给系统材质，
+   标题栏与卡片改为半透明叠层，形成 Win11 设置式的层次通透感。
+   未启用材质时不命中这些规则，界面保持上面的不透明外观。 */
+html.acrylic {
+  --bg: transparent;
+  --titlebar: rgba(255, 255, 255, 0.5);
+  --panel: rgba(255, 255, 255, 0.55);
+  --panel-strong: rgba(255, 255, 255, 0.72);
+  --panel-alt: rgba(249, 249, 249, 0.5);
+  --nav-hover: rgba(0, 0, 0, 0.05);
+  --nav-active: rgba(0, 0, 0, 0.035);
+  --subnav-active: rgba(0, 103, 192, 0.1);
+  --border: rgba(0, 0, 0, 0.08);
+  --divider: rgba(0, 0, 0, 0.07);
+  --button-border: rgba(0, 0, 0, 0.13);
+  --button-hover: rgba(0, 0, 0, 0.04);
+  --button-active: rgba(0, 0, 0, 0.07);
+  --danger-soft: rgba(196, 43, 28, 0.08);
+  --shadow: rgba(0, 0, 0, 0.06);
+  --thumb: rgba(120, 120, 120, 0.5);
+}
+
+@media (prefers-color-scheme: dark) {
+  html.acrylic:not([data-theme="light"]) {
+    --bg: transparent;
+    --titlebar: rgba(32, 32, 32, 0.5);
+    --panel: rgba(45, 45, 45, 0.55);
+    --panel-strong: rgba(56, 56, 56, 0.72);
+    --panel-alt: rgba(51, 51, 51, 0.45);
+    --nav-hover: rgba(255, 255, 255, 0.06);
+    --nav-active: rgba(255, 255, 255, 0.04);
+    --subnav-active: rgba(76, 194, 255, 0.12);
+    --border: rgba(255, 255, 255, 0.08);
+    --divider: rgba(255, 255, 255, 0.07);
+    --button-border: rgba(255, 255, 255, 0.13);
+    --button-hover: rgba(255, 255, 255, 0.05);
+    --button-active: rgba(255, 255, 255, 0.08);
+    --danger-soft: rgba(196, 43, 28, 0.16);
+    --shadow: rgba(0, 0, 0, 0.2);
+    --thumb: rgba(160, 160, 160, 0.5);
+  }
+}
+
+/* 用户强制深色（系统为浅色时） */
+html.acrylic[data-theme="dark"] {
+  --bg: transparent;
+  --titlebar: rgba(32, 32, 32, 0.5);
+  --panel: rgba(45, 45, 45, 0.55);
+  --panel-strong: rgba(56, 56, 56, 0.72);
+  --panel-alt: rgba(51, 51, 51, 0.45);
+  --nav-hover: rgba(255, 255, 255, 0.06);
+  --nav-active: rgba(255, 255, 255, 0.04);
+  --subnav-active: rgba(76, 194, 255, 0.12);
+  --border: rgba(255, 255, 255, 0.08);
+  --divider: rgba(255, 255, 255, 0.07);
+  --button-border: rgba(255, 255, 255, 0.13);
+  --button-hover: rgba(255, 255, 255, 0.05);
+  --button-active: rgba(255, 255, 255, 0.08);
+  --danger-soft: rgba(196, 43, 28, 0.16);
+  --shadow: rgba(0, 0, 0, 0.2);
+  --thumb: rgba(160, 160, 160, 0.5);
+}
+
+/* 用户强制浅色（系统为深色时），特异性需压过上面的 media 块 */
+html.acrylic[data-theme="light"] {
+  --bg: transparent;
+  --titlebar: rgba(255, 255, 255, 0.5);
+  --panel: rgba(255, 255, 255, 0.55);
+  --panel-strong: rgba(255, 255, 255, 0.72);
+  --panel-alt: rgba(249, 249, 249, 0.5);
+  --nav-hover: rgba(0, 0, 0, 0.05);
+  --nav-active: rgba(0, 0, 0, 0.035);
+  --subnav-active: rgba(0, 103, 192, 0.1);
+  --border: rgba(0, 0, 0, 0.08);
+  --divider: rgba(0, 0, 0, 0.07);
+  --button-border: rgba(0, 0, 0, 0.13);
+  --button-hover: rgba(0, 0, 0, 0.04);
+  --button-active: rgba(0, 0, 0, 0.07);
+  --danger-soft: rgba(196, 43, 28, 0.08);
+  --shadow: rgba(0, 0, 0, 0.06);
+  --thumb: rgba(120, 120, 120, 0.5);
+}
+
+/* 启用亚克力后页面底色必须完全透明，DWM 材质才能透上来 */
+html.acrylic body {
+  background: transparent;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+}
+
+body {
+  font-family: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+::selection {
+  background: var(--subnav-active);
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--thumb);
+  border: 4px solid transparent;
+  border-radius: 8px;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-clip: content-box;
+  border: 3px solid transparent;
+}

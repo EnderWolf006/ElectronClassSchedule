@@ -1,0 +1,182 @@
+.fusion-app {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 18px 24px 32px;
+}
+
+.fusion-intro {
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0 0 16px;
+  font-size: 14px;
+}
+
+.fusion-panel {
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 1px 2px var(--shadow);
+}
+
+.fusion-field-label {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+/* 当前加载课表信息（不可切换） */
+.fusion-current {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.fusion-current strong {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.fusion-temp-tag {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: var(--subnav-active);
+  color: var(--accent);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.fusion-empty {
+  margin-top: 14px;
+  padding: 18px 12px;
+  text-align: center;
+}
+
+.lessons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.lesson {
+  min-height: 58px;
+  padding: 8px 12px;
+  text-align: left;
+  color: var(--text);
+  background: var(--panel-strong);
+  border: 1px solid var(--button-border);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  cursor: pointer;
+  box-shadow: none;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.lesson:hover { border-color: var(--control-border); background: var(--button-hover); }
+.lesson:active { background: var(--button-active); }
+
+.lesson.selected {
+  border-color: var(--accent);
+  background: var(--subnav-active);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.lesson small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  margin-bottom: 5px;
+}
+
+.lesson.selected small { color: var(--muted); }
+
+.choices {
+  display: none;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--divider);
+}
+
+.choices.visible { display: block; }
+
+.target-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.target {
+  flex: 1 1 180px;
+  min-height: 32px;
+  padding: 6px 12px;
+  color: var(--text);
+  text-align: left;
+  background: var(--panel-strong);
+  border: 1px solid var(--button-border);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  cursor: pointer;
+  box-shadow: none;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.target:hover { border-color: var(--control-border); background: var(--button-hover); }
+
+.target.selected {
+  border-color: var(--accent);
+  background: var(--subnav-active);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.target input {
+  margin-right: 7px;
+  accent-color: var(--accent);
+}
+
+.fusion-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  color: var(--text);
+  font-weight: 400;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.fusion-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+/* 旧版禁用主按钮：品牌色整体半透明，而非 Fluent 默认的中性灰 */
+#root .fusion-actions .fui-Button.fusion-apply[disabled] {
+  background-color: var(--accent);
+  color: var(--on-accent);
+  border-color: transparent;
+  opacity: 0.5;
+}
+
+#fusion-status,
+.fusion-status {
+  min-height: 20px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}

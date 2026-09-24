@@ -1,0 +1,360 @@
+/* ===== 软件设置专属布局 ===== */
+
+.ss-app {
+  max-width: 1180px;
+}
+
+#root .ss-app > .toolbar-sticky {
+  position: static;
+  padding: 0;
+  margin: 0 0 16px;
+  background: transparent;
+}
+
+#root .ss-app .main-content {
+  padding: 4px 0 22px 24px;
+  overflow: auto;
+}
+
+/* 旧版软件设置：选中导航项的文字与图标均为品牌色 */
+#root .ss-app .nav-item.active,
+#root .ss-app .nav-item.active svg {
+  color: var(--accent);
+}
+
+.ss-page {
+  display: none;
+}
+
+.ss-page.active {
+  display: block;
+}
+
+.ss-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.settings-grid .fui-Select {
+  width: 100%;
+}
+
+/* 基础设置 - 时间偏移 */
+.time-offset-field {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.time-offset-field .field {
+  flex: 1;
+  min-width: 0;
+}
+
+#root .time-offset-field .fui-Input {
+  width: 220px;
+  min-width: 0;
+}
+
+input.native-color {
+  width: 72px;
+  height: 34px;
+  padding: 2px 4px;
+  border: 1px solid var(--control-border);
+  border-radius: 4px;
+  background: var(--panel);
+  cursor: pointer;
+}
+
+.status {
+  min-height: 20px;
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+#root .fui-Textarea.style-editor {
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+}
+
+#root .fui-Textarea.style-editor textarea.fui-Textarea__textarea {
+  width: 100%;
+  min-height: 480px;
+  resize: vertical;
+  padding: 12px 14px;
+  color: var(--text);
+  font: 13px/1.55 Consolas, "Microsoft YaHei", monospace;
+  tab-size: 4;
+  white-space: pre;
+}
+
+#root .ss-app .field-help {
+  margin: -8px 0 14px;
+}
+
+#root .field.style-field {
+  margin-top: 20px;
+}
+
+/* ----- 组件设置 ----- */
+.components-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.components-toolbar strong {
+  font-size: 14px;
+}
+
+.component-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.component-row {
+  display: grid;
+  grid-template-columns: 70px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-alt);
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.component-row.drag-over {
+  border-color: var(--accent);
+  background: var(--subnav-active);
+}
+
+.component-row-title {
+  color: var(--muted);
+  font-size: 13px;
+  cursor: grab;
+  user-select: none;
+}
+
+.component-row-title:active { cursor: grabbing; }
+
+.component-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.component-order {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 34px;
+  align-items: center;
+  padding: 4px;
+  border: 1px dashed transparent;
+  border-radius: 6px;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.component-order.drag-over {
+  border-color: var(--accent);
+  background: var(--subnav-active);
+}
+
+.component-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 7px;
+  border: 1px solid var(--button-border);
+  border-radius: 4px;
+  background: var(--panel-strong);
+  color: var(--text);
+  font-size: 13px;
+  cursor: grab;
+}
+
+.component-chip:active { cursor: grabbing; }
+.component-chip.dragging { opacity: 0.45; }
+
+.component-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent);
+  user-select: none;
+  padding: 0 2px;
+}
+
+.component-drag-handle svg {
+  width: 7px;
+  height: 14px;
+}
+
+.component-type-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.component-type-icon svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.component-chip .component-type-icon {
+  color: var(--muted);
+}
+
+.component-chip .chip-remove {
+  min-height: 24px;
+  min-width: 24px;
+  width: 24px;
+  padding: 0;
+  color: var(--danger);
+}
+
+.component-chip .chip-remove:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.component-library {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.component-library-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 64px;
+  padding: 12px;
+  text-align: left;
+  border: 1px solid var(--button-border);
+  border-radius: 4px;
+  background: var(--panel-strong);
+  color: var(--text);
+  font-family: inherit;
+  cursor: grab;
+}
+
+.component-library-card:hover {
+  border-color: var(--control-border-hover);
+  background: var(--button-hover);
+}
+
+.component-library-card:active { cursor: grabbing; }
+
+.component-library-card .component-type-icon {
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.component-library-text {
+  min-width: 0;
+}
+
+.component-library-text strong {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 13px;
+}
+
+.component-library-text span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.component-editor {
+  display: none;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--divider);
+}
+
+.component-editor.active {
+  display: block;
+}
+
+.component-editor-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.component-editor-title strong {
+  font-size: 15px;
+}
+
+.component-editor-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.component-editor-fields .fui-Input,
+.component-editor-fields .fui-Select {
+  width: 100%;
+}
+
+.component-editor-empty {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.color-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.checkbox-row span {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.component-editor .field label + input,
+.component-editor .field label + select {
+  margin-top: 2px;
+}
+
+@media (max-width: 640px) {
+  .ss-app { padding: 20px 14px 24px; }
+  .ss-app .panel { padding: 18px; }
+  .settings-grid { grid-template-columns: 1fr; }
+  .ss-app .nav-sidebar { width: 145px; }
+  #root .ss-app .main-content { padding: 4px 0 14px 14px; }
+}

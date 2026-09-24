@@ -1,0 +1,406 @@
+/* ===== Win11 窗口通用结构：标题栏 / 面板 / 导航 / 表格 ===== */
+
+/* 窗口底色由 body 的 var(--bg) 提供，避免 Provider 白底盖住面板层次。
+   #root 提升特异性以压过 Griffel 运行时注入的原子类。 */
+#root .fui-FluentProvider {
+  background-color: transparent;
+  /* Fluent 基线把行高压成 20px，旧页面均为浏览器 normal，恢复以对齐标题/标签高度 */
+  line-height: normal;
+}
+
+body {
+  padding-top: 40px;
+}
+
+/* ----- 自定义标题栏 ----- */
+.window-titlebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-left: 16px;
+  background: var(--titlebar);
+  border-bottom: 1px solid var(--border);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.window-title {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.window-controls {
+  height: 100%;
+  display: flex;
+  -webkit-app-region: no-drag;
+}
+
+.window-control {
+  width: 46px;
+  height: 100%;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
+  font-size: 0;
+  cursor: default;
+}
+
+.window-control svg {
+  width: 11px;
+  height: 11px;
+  stroke: currentColor;
+  stroke-width: 1;
+  fill: none;
+}
+
+.window-control:hover { background: var(--nav-hover); }
+.window-control:active { background: var(--nav-active); }
+.window-control.close:hover { background: #c42b1c; color: #ffffff; }
+.window-control.close:active { background: #b02012; color: #ffffff; }
+
+/* ----- 布局骨架 ----- */
+.app {
+  margin: 0 auto;
+  padding: 18px 24px 32px;
+  position: relative;
+}
+
+.toolbar-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 6px 0 12px;
+  margin: 0 0 4px;
+  background: var(--bg);
+  border-bottom: 1px solid transparent;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.page-header {
+  margin-bottom: 20px;
+}
+
+.page-header h2,
+.page-title {
+  margin: 0 0 6px;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.page-header p,
+.page-intro {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* ----- Win11 卡片 / 面板 ----- */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px var(--shadow);
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+
+.panel h3 {
+  margin: 0 0 14px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.group-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px var(--shadow);
+  padding: 14px 18px;
+}
+
+.group-card h3 {
+  margin: 0 0 12px;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.field-help {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label,
+.field > label {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.empty {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 8px;
+  padding: 8px 2px;
+}
+
+/* ----- Win11 列表式表格（仅行分隔线） ----- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+}
+
+th, td {
+  padding: 9px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--divider);
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* ----- 左侧导航（Win11 设置风格） ----- */
+.settings-app {
+  display: flex;
+  min-height: calc(100vh - 40px - 86px);
+  background: transparent;
+}
+
+.nav-sidebar {
+  width: 248px;
+  background: transparent;
+  flex-shrink: 0;
+  padding: 4px 8px 12px 0;
+}
+
+.nav-brand {
+  padding: 10px 12px 14px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.2px;
+}
+
+.nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.nav-item svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--muted);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nav-item:hover {
+  background: var(--nav-hover);
+}
+
+.nav-item.active {
+  background: var(--nav-active);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.nav-item.active svg {
+  color: var(--accent);
+}
+
+.nav-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.main-content {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 0 8px 32px;
+  overflow: visible;
+}
+
+/* ----- Fluent 按钮与旧 Win11 尺寸对齐 ----- */
+/* Fluent Button 默认 min-width:96 / semibold，旧 Win11 按钮按内容收缩、常规字重 */
+#root .fui-Button {
+  min-width: 0;
+  padding: 5px 16px;
+  font-weight: 400;
+}
+
+#root .fui-Button.win-primary {
+  font-weight: 600;
+}
+
+#root .fui-Button.win-small {
+  min-height: 28px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+}
+
+#root .fui-Button.win-icon {
+  width: 30px;
+  min-width: 30px;
+  padding: 0 6px;
+}
+
+.fui-Button.win-icon svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#root .fui-Button.danger-outline,
+#root .fui-Button.danger-outline:hover,
+#root .fui-Button.danger-outline:active {
+  color: var(--danger);
+  border-color: var(--button-border);
+  background-color: var(--panel-strong);
+}
+
+#root .fui-Button.danger-outline:hover {
+  background: var(--danger-soft);
+}
+
+/* ----- Fluent 输入控件对齐旧版 Win11：整框灰边、34px 高、聚焦品牌色描边（去掉 Fluent 下划条） ----- */
+#root .fui-Input,
+#root .fui-Textarea,
+#root .fui-Select {
+  min-height: 34px;
+  border-radius: 4px;
+  border: 1px solid var(--control-border);
+  box-shadow: none;
+  background-color: var(--panel);
+  padding: 0;
+}
+
+#root .fui-Input::after,
+#root .fui-Textarea::after,
+#root .fui-Select::after {
+  display: none;
+}
+
+#root .fui-Input:hover,
+#root .fui-Textarea:hover,
+#root .fui-Select:hover {
+  border-color: var(--control-border-hover);
+}
+
+#root .fui-Input:focus-within,
+#root .fui-Textarea:focus-within,
+#root .fui-Select:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+#root .fui-Input input.fui-Input__input,
+#root .fui-Textarea textarea.fui-Textarea__textarea {
+  padding: 6px 11px;
+  font-size: 14px;
+}
+
+#root .fui-Select select.fui-Select__select {
+  padding: 6px 28px 6px 11px;
+  font-size: 14px;
+}
+
+/* 原生下拉箭头按正文色显示 */
+#root .fui-Select .fui-Select__icon,
+#root .fui-Select svg {
+  color: var(--text);
+}
+
+#root .component-chip .fui-Button.chip-remove {
+  min-width: 24px;
+  width: 24px;
+  padding: 0;
+}
+
+/* 无效时间段卡片 */
+.invalid-row {
+  border-color: var(--danger) !important;
+  box-shadow: 0 0 0 1px var(--danger);
+}
+
+/* ----- 亚克力材质增强：固定标题栏与吸顶工具栏加模糊，防止滚动内容穿透 ----- */
+html.acrylic .window-titlebar {
+  backdrop-filter: blur(30px);
+}
+
+/* 吸顶工具栏（如课表配置编辑器顶部的“刷新/导入/保存”按钮栏）：
+   不再叠加额外的半透明底色，只保留模糊层，使其与窗口整体亚克力材质的透明度一致；
+   滚动到其下方的内容仍会被模糊，文字不会穿透干扰。 */
+html.acrylic .toolbar-sticky {
+  background: transparent;
+  backdrop-filter: blur(30px);
+}

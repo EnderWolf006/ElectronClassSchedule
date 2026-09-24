@@ -64,7 +64,9 @@
   let componentRows = document.getElementById('componentRows')
   let isClassCountdown = true
   let isClassHidden = false
-  let showNextDayAfterSchool = false
+  // 从 localStorage 恢复：设置变更触发 reload 后首帧即为正确状态，
+  // 不必等主进程重新下发 IPC，避免“次日课表”闪断
+  let showNextDayAfterSchool = localStorage.getItem('showNextDayAfterSchool') === '1'
   let lastScheduleData = {
     currentHighlight: {
       index: null,
@@ -221,7 +223,8 @@
       return;
     }
     currentFullName.innerText = scheduleData.currentHighlight.fullName;
-    currentFullName.style.color = scheduleData.currentHighlight.type === 'current' ? 'rgba(0, 255, 10, 1)' : 'rgba(255, 255, 5, 1)'
+    // 使用 CSS 变量，使浅色模式下自动应用深绿/深黄（与课表组件一致），深色模式保持亮绿/亮黄
+    currentFullName.style.color = scheduleData.currentHighlight.type === 'current' ? 'var(--col-current)' : 'var(--col-break)'
     countdownText.innerText = scheduleData.currentHighlight.countdownText;
     if (inlineCountdown) {
       inlineCountdown.innerText = scheduleData.currentHighlight.countdownText;
@@ -361,6 +364,7 @@
       setBackgroundDisplay()
     }
     lastScheduleData = $.extend(true, {}, scheduleData)
+    checkReminders(scheduleData)
   }
 
 
@@ -371,14 +375,32 @@
     }
   }
 
+  // ===== 主题切换 =====
+  let themeMediaQuery = null;
+  function applyTheme() {
+    const mode = settings?.theme_mode || 'auto';
+    let actual = mode;
+    if (mode === 'auto') {
+      actual = (window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    }
+    document.documentElement.setAttribute('data-theme', actual);
+    // auto 模式下监听系统变化
+    if (mode === 'auto' && !themeMediaQuery) {
+      themeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      themeMediaQuery.addEventListener('change', () => { if (settings?.theme_mode === 'auto') applyTheme(); });
+    }
+  }
+
   let lastTickTime = new Date().getTime()
   loadScheduleConfig().then(() => {
     renderComponentLayout()
     applyScheduleCss()
+    applyTheme()
     scheduleData = getScheduleData();
     tick(true)
   }).catch(() => {
     applyScheduleCss()
+    applyTheme()
     tick(true)
   })
   setInterval(() => {
@@ -460,11 +482,6 @@
     }
   });
 
-  ipcRenderer.on('getTimeOffset', (e, arg) => {
-    let offset = localStorage.getItem('timeOffset');
-    ipcRenderer.send('getTimeOffset', offset === null ? 0 : Number(offset))
-  })
-
   ipcRenderer.on('setTimeOffset', (e, arg) => {
     timeOffset = arg
     localStorage.setItem('timeOffset', arg.toString())
@@ -482,12 +499,40 @@
 
   ipcRenderer.on('NextDayAfterSchool', (e, arg) => {
     showNextDayAfterSchool = arg === true || arg === 'true' || arg === 1
+    localStorage.setItem('showNextDayAfterSchool', showNextDayAfterSchool ? '1' : '0')
     tick(true)
+  })
+
+  // 主进程每秒心跳：窗口被遮挡、屏幕关闭甚至系统休眠期间，
+  // 渲染进程自己的 setInterval 可能被 Chromium 节流/挂起，
+  // 主进程 IPC 仍会立即派发，保证放学后能准时切到次日课表。
+  ipcRenderer.on('app-heartbeat', () => {
+    tick()
+  })
+
+  // 从遮挡/最小化/锁屏/休眠恢复到可见状态时立即强制刷新一次，
+  // 不用等待下一个周期
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) tick(true)
   })
 
   ipcRenderer.on('courseFusion', (e, fusion) => {
     setCourseFusion(fusion);
     tick(true);
+  })
+
+  ipcRenderer.on('theme-mode-changed', (e, mode) => {
+    // 软件设置中选择深/浅色时立即预览：直接更新内存中的模式并刷新外观（此时文件可能尚未保存）
+    if (mode === 'dark' || mode === 'light' || mode === 'auto') {
+      settings.theme_mode = mode;
+    }
+    applyTheme()
+  })
+
+  ipcRenderer.on('settings-reloaded', () => {
+    applyScheduleCss()
+    applyTheme()
+    tick(true)
   })
 
   ipcRenderer.on('setDayOffset', (e, arg) => {
@@ -511,6 +556,74 @@
       setDayOffsetLastDay = new Date().getDay()
       tick(true)
   })
+
+  // ===== 上下课 / 自定义提醒检测 =====
+  let lastReminderState = { classIndex: null, type: null, fired: {} };
+  let firedCustomDate = {};
+
+  function getTodayKey() {
+    const d = getCurrentEditedDate();
+    return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+  }
+
+  function checkReminders(sd) {
+    const rc = settings?.reminder_class || {};
+    const hl = sd.currentHighlight;
+    if (!hl) return;
+    const dayIdx = getCurrentDayScheduleIndex();
+    const sessionKey = (kind, idx) => `${dayIdx}_${idx}_${kind}`;
+
+    // 即将上课：处于课间（isBreak=true 且 type=upcoming）且倒计时 <= N 秒
+    if (rc.upcoming_enabled && hl.isBreak && hl.type === 'upcoming' && hl.index !== null) {
+      const cd = hl.countdown;
+      const secs = Number(rc.upcoming_seconds) || 300;
+      const key = sessionKey('upcoming', hl.index);
+      if (cd !== null && cd > 0 && cd <= secs && !lastReminderState.fired[key]) {
+        lastReminderState.fired[key] = true;
+        triggerReminderMask({ text: rc.upcoming_text || '即将上课', color: 'rgba(0,200,0,0.85)', duration: 5000 });
+      }
+    }
+
+    // 上课：从非 current 变为 current
+    if (rc.start_enabled && hl.type === 'current' && hl.index !== null) {
+      const key = sessionKey('start', hl.index);
+      if (lastReminderState.type !== 'current' && !lastReminderState.fired[key]) {
+        lastReminderState.fired[key] = true;
+        triggerReminderMask({ text: rc.start_text || '上课', color: 'rgba(0,200,0,0.85)', duration: 5000 });
+      }
+    }
+
+    // 下课：从 current 变为非 current
+    if (rc.end_enabled && lastReminderState.type === 'current' && hl.type !== 'current' && lastReminderState.classIndex !== null) {
+      const key = sessionKey('end', lastReminderState.classIndex);
+      if (!lastReminderState.fired[key]) {
+        lastReminderState.fired[key] = true;
+        triggerReminderMask({ text: rc.end_text || '下课', color: 'rgba(200,180,0,0.85)', duration: 5000 });
+      }
+    }
+
+    lastReminderState.classIndex = hl.index;
+    lastReminderState.type = hl.type;
+
+    // 自定义文本提醒
+    const customs = settings?.reminder_custom || [];
+    if (Array.isArray(customs) && customs.length) {
+      // getCurrentTime() 返回 HH:MM:SS，提醒时间是 HH:MM，取前 5 位按分钟比较
+      const nowMin = getCurrentTime().slice(0, 5);
+      const today = getTodayKey();
+      customs.forEach((item) => {
+        if (!item || !item.time) return;
+        const t = String(item.time).trim().slice(0, 5);
+        if (!/^\d{2}:\d{2}$/.test(t)) return;
+        const id = item.id || item.time;
+        if (firedCustomDate[id] === today) return;
+        if (nowMin === t) {
+          firedCustomDate[id] = today;
+          triggerReminderMask({ text: item.text || '提醒', color: item.color || settings?.reminder_color || '', duration: Number(item.duration) || 5000 });
+        }
+      });
+    }
+  }
 
   // ===== 提醒遮罩 =====
   const reminderMask = document.getElementById('reminderMask');

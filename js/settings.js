@@ -6,6 +6,17 @@ const _settings = {
     },
     "custom_text": "祝老师教师节快乐",
     "reminder_color": "#114514",
+    "reminder_class": {
+        "upcoming_enabled": false,
+        "start_enabled": false,
+        "end_enabled": false,
+        "upcoming_seconds": 300,
+        "upcoming_text": "即将上课",
+        "start_text": "上课",
+        "end_text": "下课"
+    },
+    "reminder_custom": [],
+    "theme_mode": "dark",
     "component_layout": [
         [
             {
