@@ -2,6 +2,7 @@
 
 ![view](image/README/view.png)
 
+
 ## 软件介绍
 
 电子课程表是一款基于 Electron 开发的桌面课程表，适用于学校电子白板、教室电脑等场景。
