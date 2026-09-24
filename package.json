@@ -10,7 +10,7 @@
     "build": "electron-packager . classSchedule --platform=win32 --arch=x64 --out=./out --app-version=0.0.1 --overwrite"
   },
   "devDependencies": {
-    "@electron/rebuild": "^3.6.0",
+    "@electron/rebuild": "^4.2.0",
     "electron-packager": "^17.1.2"
   },
   "dependencies": {
@@ -18,7 +18,7 @@
     "electron-disable-minimize": "^2.1.0",
     "electron-prompt": "^1.7.0",
     "electron-store": "^8.1.0",
-    "node-gyp": "^10.0.1",
+    "node-gyp": "^13.0.2",
     "windows-shortcuts": "^0.1.6"
   }
 }

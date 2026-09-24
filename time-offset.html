@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>计时矫正</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      /* 亮色（Win11 设置默认外观） */
+      --bg: #f3f3f3;
+      --titlebar: #f3f3f3;
+      --panel: #ffffff;
+      --panel-strong: #ffffff;
+      --nav-hover: rgba(0, 0, 0, 0.045);
+      --nav-active: rgba(0, 0, 0, 0.055);
+      --border: #e5e5e5;
+      --control-border: #8a8a8a;
+      --control-border-hover: #000000;
+      --button-border: #d1d1d1;
+      --button-hover: #f5f5f5;
+      --button-active: #e6e6e6;
+      --text: #1b1b1b;
+      --muted: #616161;
+      --accent: #0067c0;
+      --accent-hover: #1975c5;
+      --on-accent: #ffffff;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #202020;
+        --titlebar: #202020;
+        --panel: #2d2d2d;
+        --panel-strong: #383838;
+        --nav-hover: rgba(255, 255, 255, 0.06);
+        --nav-active: rgba(255, 255, 255, 0.08);
+        --border: #3b3b3b;
+        --control-border: #6d6d6d;
+        --control-border-hover: #ffffff;
+        --button-border: #4d4d4d;
+        --button-hover: #454545;
+        --button-active: #505050;
+        --text: #ffffff;
+        --muted: #c6c6c6;
+        --accent: #4cc2ff;
+        --accent-hover: #6ccbff;
+        --on-accent: #00223c;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    .window-titlebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-left: 16px;
+      background: var(--titlebar);
+      border-bottom: 1px solid var(--border);
+      -webkit-app-region: drag;
+      user-select: none;
+    }
+
+    .window-title {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+
+    .window-controls {
+      height: 100%;
+      display: flex;
+      -webkit-app-region: no-drag;
+    }
+
+    .window-control {
+      width: 46px;
+      height: 100%;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: var(--text);
+      box-shadow: none;
+      font-size: 0;
+    }
+
+    .window-control svg {
+      width: 11px;
+      height: 11px;
+      stroke: currentColor;
+      stroke-width: 1;
+      fill: none;
+    }
+
+    .window-control:hover { background: var(--nav-hover); }
+    .window-control:active { background: var(--nav-active); }
+    .window-control.close:hover { background: #c42b1c; color: #ffffff; }
+    .window-control.close:active { background: #b02012; color: #ffffff; }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+    }
+
+    body {
+      font-family: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+      font-size: 14px;
+      background: var(--bg);
+      color: var(--text);
+      padding-top: 40px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .content {
+      flex: 1;
+      padding: 20px 24px 18px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .page-header h2 {
+      margin: 0 0 6px;
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+    }
+
+    .page-header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 18px;
+    }
+
+    .field label {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    input {
+      width: 100%;
+      padding: 6px 11px;
+      min-height: 34px;
+      border-radius: 4px;
+      border: 1px solid var(--control-border);
+      background: var(--panel);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+      transition: border-color 0.12s ease, box-shadow 0.12s ease;
+    }
+
+    input:hover {
+      border-color: var(--control-border-hover);
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent);
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: auto;
+      padding-top: 16px;
+    }
+
+    button {
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 1.4;
+      min-height: 32px;
+      padding: 5px 16px;
+      border: 1px solid var(--button-border);
+      border-radius: 4px;
+      background: var(--panel-strong);
+      color: var(--text);
+      cursor: pointer;
+      box-shadow: none;
+      transition: background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+    }
+
+    button:hover {
+      background: var(--button-hover);
+    }
+
+    button:active {
+      background: var(--button-active);
+    }
+
+    button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+
+    button.primary {
+      background: var(--accent);
+      border-color: transparent;
+      color: var(--on-accent);
+      font-weight: 600;
+    }
+
+    button.primary:hover {
+      background: var(--accent-hover);
+    }
+
+    button.primary:active {
+      filter: brightness(0.92);
+    }
+  </style>
+</head>
+<body>
+  <div class="window-titlebar">
+    <span class="window-title">计时矫正</span>
+    <div class="window-controls">
+      <button class="window-control" data-window-action="minimize" title="最小化" aria-label="最小化">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h8" /></svg>
+      </button>
+      <button class="window-control close" data-window-action="close" title="关闭" aria-label="关闭">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" /></svg>
+      </button>
+    </div>
+  </div>
+
+  <main class="content">
+    <div class="page-header">
+      <h2>计时矫正</h2>
+      <p>设置课表计时与系统时间的偏移秒数。</p>
+    </div>
+
+    <div class="field">
+      <label for="offsetInput">偏移秒数</label>
+      <input id="offsetInput" type="number" step="1" value="0" />
+    </div>
+
+    <div class="toolbar">
+      <button id="cancelBtn" type="button">取消</button>
+      <button id="confirmBtn" class="primary" type="button">确认</button>
+    </div>
+  </main>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+    const params = new URLSearchParams(window.location.search);
+    const offsetInput = document.getElementById('offsetInput');
+
+    const defaultValue = params.get('offset') || '0';
+    offsetInput.value = defaultValue;
+    offsetInput.focus();
+    offsetInput.select();
+
+    document.getElementById('confirmBtn').addEventListener('click', () => {
+      const value = Number(offsetInput.value || 0);
+      ipcRenderer.send('time-offset-result', value);
+      window.close();
+    });
+
+    document.getElementById('cancelBtn').addEventListener('click', () => {
+      ipcRenderer.send('time-offset-result', null);
+      window.close();
+    });
+
+    offsetInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        document.getElementById('confirmBtn').click();
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        document.getElementById('cancelBtn').click();
+      }
+    });
+
+    document.querySelectorAll('.window-control').forEach((button) => {
+      button.addEventListener('click', () => {
+        ipcRenderer.send('window-control', button.dataset.windowAction);
+      });
+    });
+  </script>
+</body>
+</html>

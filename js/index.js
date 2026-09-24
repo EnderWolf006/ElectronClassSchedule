@@ -1,6 +1,93 @@
-var weekIndex = localStorage.getItem('weekIndex')
-if (weekIndex === null) localStorage.setItem('weekIndex', '0')
-weekIndex = Number(localStorage.getItem('weekIndex'))
+let scheduleConfig = {
+    countdown_target: 'hidden',
+    time_source: 'offset',
+    week_display: true,
+    subject_name: {
+        '': '未知课表'
+    },
+    timetable: {
+        workday: {
+            '00:00-23:59': 0
+        }
+    },
+    divider: {
+        workday: []
+    },
+    daily_class: [{
+        Chinese: '今日',
+        English: 'TODAY',
+        classList: [''],
+        timetable: 'workday'
+    }],
+};
+let settings = {
+    rotation_offset: {
+        2: 0,
+        3: 0,
+        4: 0
+    },
+    custom_text: '自定义文本',
+    component_layout: [['schedule', 'week', 'countdown']],
+    css_style: {}
+};
+let runtimeCourseFusion = null;
+window.scheduleConfig = scheduleConfig;
+window.settings = settings;
+
+function setCourseFusion(fusion) {
+    if (!fusion) {
+        runtimeCourseFusion = null;
+        return;
+    }
+    const dayIndex = Number(fusion.dayIndex);
+    const start = Number(fusion.start);
+    const end = Number(fusion.end);
+    const target = Number(fusion.target);
+    if (![dayIndex, start, end, target].every(Number.isInteger) || start < 0 || end <= start || target < start || target > end) {
+        return;
+    }
+    runtimeCourseFusion = {
+        dayIndex,
+        start,
+        end,
+        target,
+        ignoreBreak: fusion.ignoreBreak === true
+    };
+}
+
+async function loadScheduleConfig() {
+    const fallbackConfig = JSON.parse(JSON.stringify(scheduleConfig));
+    const fallbackSettings = JSON.parse(JSON.stringify(settings));
+
+    try {
+        const [configResponse, settingsResponse] = await Promise.all([
+            fetch('js/scheduleConfig.js?_=' + Date.now(), { cache: 'no-store' }),
+            fetch('js/settings.js?_=' + Date.now(), { cache: 'no-store' })
+        ]);
+        const [configCode, settingsCode] = await Promise.all([
+            configResponse.text(),
+            settingsResponse.text()
+        ]);
+        const result = new Function(`${configCode}; ${settingsCode}; return { _scheduleConfig, scheduleConfig, _settings, settings };`)();
+        const loaded = result && (result.scheduleConfig || result._scheduleConfig || fallbackConfig);
+        const loadedSettings = result && (result.settings || result._settings || fallbackSettings);
+        if (!loaded || !Array.isArray(loaded.daily_class)) {
+            throw new Error('Invalid config structure');
+        }
+        scheduleConfig = JSON.parse(JSON.stringify(loaded));
+        settings = JSON.parse(JSON.stringify(loadedSettings));
+        window.scheduleConfig = scheduleConfig;
+        window.settings = settings;
+        return scheduleConfig;
+    } catch (error) {
+        console.error('Failed to load scheduleConfig.js or settings.js, using fallback config:', error);
+        scheduleConfig = JSON.parse(JSON.stringify(fallbackConfig));
+        settings = JSON.parse(JSON.stringify(fallbackSettings));
+        window.scheduleConfig = scheduleConfig;
+        window.settings = settings;
+        return scheduleConfig;
+    }
+}
 
 var timeOffset = localStorage.getItem('timeOffset')
 if (timeOffset === null) localStorage.setItem('timeOffset', '0')
@@ -13,6 +100,41 @@ dayOffset = Number(localStorage.getItem('dayOffset'))
 var setDayOffsetLastDay = localStorage.getItem('setDayOffsetLastDay')
 if (setDayOffsetLastDay === null) localStorage.setItem('setDayOffsetLastDay', '-1')
 setDayOffsetLastDay = Number(localStorage.getItem('setDayOffsetLastDay'))
+
+function readRotationAnchors() {
+    try {
+        const value = JSON.parse(localStorage.getItem('rotationWeekAnchors') || '{}');
+        return value && typeof value === 'object' ? value : {};
+    } catch (error) {
+        return {};
+    }
+}
+
+function getRotationWeekStart(date) {
+    const weekStart = new Date(date);
+    const day = weekStart.getDay();
+    const daysFromMonday = day === 0 ? 6 : day - 1;
+    weekStart.setDate(weekStart.getDate() - daysFromMonday);
+    weekStart.setHours(0, 0, 0, 0);
+    return weekStart;
+}
+
+function getRotationWeekNumber(rotationWeeks) {
+    const anchors = readRotationAnchors();
+    const now = new Date();
+    const currentWeekStart = getRotationWeekStart(now);
+    let anchor = Number(anchors[rotationWeeks]);
+    if (!Number.isFinite(anchor) || anchor > now.getTime()) {
+        anchor = currentWeekStart.getTime();
+    } else {
+        anchor = getRotationWeekStart(new Date(anchor)).getTime();
+    }
+    if (anchors[rotationWeeks] !== anchor) {
+        anchors[rotationWeeks] = anchor;
+        localStorage.setItem('rotationWeekAnchors', JSON.stringify(anchors));
+    }
+    return Math.max(0, Math.round((currentWeekStart.getTime() - anchor) / (7 * 24 * 60 * 60 * 1000)));
+}
 
 
 function getCurrentEditedDate() {
@@ -34,17 +156,17 @@ function getCurrentEditedDay(date) {
     return date.getDay();
 }
 
-// Generated by ChatGPT4 
+function timeToSeconds(time) {
+    const [hours, minutes, seconds = 0] = time.split(':').map(Number);
+    return hours * 3600 + minutes * 60 + seconds;
+}
+
 function isBreakTime(startTime, endTime, currentTime) {
-    const [startH, startM] = startTime.split(':').map(Number);
-    const [endH, endM] = endTime.split(':').map(Number);
-    const [currentH, currentM] = currentTime.split(':').map(Number);
+    const startSeconds = timeToSeconds(startTime);
+    const endSeconds = timeToSeconds(endTime);
+    const currentSeconds = timeToSeconds(currentTime);
 
-    const startMinutes = startH * 60 + startM;
-    const endMinutes = endH * 60 + endM;
-    const currentMinutes = currentH * 60 + currentM;
-
-    return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+    return currentSeconds >= startSeconds && currentSeconds < endSeconds;
 }
 
 // Generated by ChatGPT4 
@@ -60,31 +182,71 @@ function getNextClassIndex(timetable, currentIndex) {
 }
 
 // Generated by ChatGPT4 
-function getCurrentDaySchedule() {
-    const date = getCurrentEditedDate();
-    const dayOfWeek = getCurrentEditedDay(date); // 0 = Sunday, 1 = Monday, ...
-    const weekNumber = weekIndex; // 当前周数
-    const dailyClass = scheduleConfig.daily_class[dayOfWeek];
-    if (!dailyClass) return [];
-    return dailyClass.classList.map(subject => {
-        if (Array.isArray(subject)) {
-            return subject[weekNumber]; // 处理每周不同的课程
-        }
-        return subject;
-    });
+function stripWeekRotationLabel(value) {
+    if (value === undefined || value === null) return '';
+    if (typeof value !== 'string') return String(value);
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    return trimmed.replace(/^\s*[(（][^\)）]*[)）]\s*/, '').trim();
 }
 
-// Generated by ChatGPT4 
+function resolveWeeklySubject(subject, weekNumber) {
+    if (Array.isArray(subject)) {
+        if (!subject.length) return '';
+        const safeWeekNumber = Number.isInteger(weekNumber)
+            ? weekNumber
+            : getRotationWeekNumber(subject.length);
+        const configuredOffset = Number(settings.rotation_offset?.[subject.length]);
+        const offset = Number.isInteger(configuredOffset) ? configuredOffset : 0;
+        const rotationIndex = ((safeWeekNumber + offset) % subject.length + subject.length) % subject.length;
+        return stripWeekRotationLabel(subject[rotationIndex]);
+    }
+    return stripWeekRotationLabel(subject);
+}
+
+function getCurrentDayScheduleConfig(dayOffset = 0) {
+    const date = getCurrentEditedDate();
+    const currentDayOfWeek = getCurrentEditedDay(date); // 0 = Sunday, 1 = Monday, ...
+    const dayOfWeek = (currentDayOfWeek + dayOffset + 7) % 7;
+    const schedules = Array.isArray(scheduleConfig.daily_class) ? scheduleConfig.daily_class : [];
+    const scheduleIndex = Array.isArray(scheduleConfig.daily_schedule) &&
+        scheduleConfig.daily_schedule[dayOfWeek] !== undefined
+        ? Number(scheduleConfig.daily_schedule[dayOfWeek])
+        : dayOfWeek;
+
+    return Number.isInteger(scheduleIndex) ? schedules[scheduleIndex] : null;
+}
+
+function getCurrentDayScheduleIndex(dayOffset = 0) {
+    const date = getCurrentEditedDate();
+    const currentDayOfWeek = getCurrentEditedDay(date);
+    const dayOfWeek = (currentDayOfWeek + dayOffset + 7) % 7;
+    const schedules = Array.isArray(scheduleConfig.daily_class) ? scheduleConfig.daily_class : [];
+    const scheduleIndex = Array.isArray(scheduleConfig.daily_schedule) &&
+        scheduleConfig.daily_schedule[dayOfWeek] !== undefined
+        ? Number(scheduleConfig.daily_schedule[dayOfWeek])
+        : dayOfWeek;
+    return Number.isInteger(scheduleIndex) && schedules[scheduleIndex] ? scheduleIndex : -1;
+}
+
+function getCurrentDaySchedule() {
+    const dailyClass = getCurrentDayScheduleConfig();
+    if (!dailyClass) return [];
+    return dailyClass.classList.map(subject => resolveWeeklySubject(subject));
+}
+
+function getDaySchedule(dayOffset) {
+    const dailyClass = getCurrentDayScheduleConfig(dayOffset);
+    if (!dailyClass) return [];
+    return dailyClass.classList.map(subject => resolveWeeklySubject(subject));
+}
+
 function isClassCurrent(startTime, endTime, currentTime) {
-    const [startH, startM] = startTime.split(':').map(Number);
-    const [endH, endM] = endTime.split(':').map(Number);
-    const [currentH, currentM] = currentTime.split(':').map(Number);
+    const startSeconds = timeToSeconds(startTime);
+    const endSeconds = timeToSeconds(endTime);
+    const currentSeconds = timeToSeconds(currentTime);
 
-    const startMinutes = startH * 60 + startM;
-    const endMinutes = endH * 60 + endM;
-    const currentMinutes = currentH * 60 + currentM;
-
-    return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+    return currentSeconds >= startSeconds && currentSeconds < endSeconds;
 }
 
 // Generated by ChatGPT4 
@@ -97,15 +259,74 @@ function getCurrentTime() {
     ].join(':');
 }
 
+function isTimetableFinished(dayTimetable, currentTime) {
+    const currentSeconds = timeToSeconds(currentTime);
+    const endTimes = Object.keys(dayTimetable || {})
+        .map((timeRange) => String(timeRange).split('-')[1]?.trim())
+        .filter((time) => /^\d{1,2}:\d{2}(?::\d{2})?$/.test(time))
+        .map(timeToSeconds)
+        .filter(Number.isFinite);
+    return endTimes.length > 0 && currentSeconds >= Math.max(...endTimes);
+}
+
+function getNextDayScheduleData() {
+    const dayConfig = getCurrentDayScheduleConfig(1);
+    const currentSchedule = getDaySchedule(1);
+    const timetable = dayConfig?.timetable;
+    const dayTimetable = timetable && scheduleConfig.timetable?.[timetable];
+    const divider = (scheduleConfig.divider?.[timetable] || [])
+        .map(position => Number(position) + 1)
+        .filter(position => Number.isInteger(position));
+    return {
+        scheduleArray: currentSchedule.length ? currentSchedule : [''],
+        currentHighlight: {
+            index: null,
+            type: null,
+            fullName: null,
+            countdown: null,
+            countdownText: null,
+            isNextDay: true
+        },
+        timetable: dayTimetable ? timetable : null,
+        divider
+    };
+}
+
 // Generated by ChatGPT4 
 function getScheduleData() {
     const currentSchedule = getCurrentDaySchedule();
     const currentTime = getCurrentTime();
-    // let currentTime = '07:10:01';
-    const dayOfWeek = getCurrentEditedDay(getCurrentEditedDate());
-    const timetable = scheduleConfig.daily_class[dayOfWeek].timetable
+    const dayConfig = getCurrentDayScheduleConfig();
+    const dayIndex = getCurrentDayScheduleIndex();
+    const fusion = runtimeCourseFusion && runtimeCourseFusion.dayIndex === dayIndex
+        ? runtimeCourseFusion
+        : null;
+    const fusionSubject = fusion && currentSchedule[fusion.target];
+    let fusionEndTime = null;
+    const currentDayTimetable = dayConfig?.timetable && scheduleConfig.timetable?.[dayConfig.timetable];
+    if (typeof showNextDayAfterSchool !== 'undefined' && showNextDayAfterSchool && isTimetableFinished(currentDayTimetable, currentTime)) {
+        return getNextDayScheduleData();
+    }
+    if (!dayConfig || !dayConfig.timetable || !scheduleConfig.timetable || !scheduleConfig.timetable[dayConfig.timetable]) {
+        return {
+            scheduleArray: currentSchedule.length ? currentSchedule : [''],
+            currentHighlight: {
+                index: 0,
+                type: 'upcoming',
+                fullName: scheduleConfig.subject_name?.[''] || '未知课表',
+                countdown: 0,
+                countdownText: '00:00'
+            },
+            timetable: null,
+            divider: [],
+            fusion: null
+        };
+    }
+    const timetable = dayConfig.timetable;
     const dayTimetable = scheduleConfig.timetable[timetable];
-    const divider = scheduleConfig.divider[timetable];
+    const divider = (scheduleConfig.divider[timetable] || [])
+        .map(position => Number(position) + 1)
+        .filter(position => Number.isInteger(position));
     let scheduleArray = [];
     let currentHighlight = { index: null, type: null, fullName: null, countdown: null, countdownText: null };
     Object.keys(dayTimetable).forEach((timeRange, index) => {
@@ -114,8 +335,9 @@ function getScheduleData() {
 
         if (typeof classIndex === 'number') {
             const subjectShortName = currentSchedule[classIndex];
-            const subjectFullName = scheduleConfig.subject_name[subjectShortName];
+            const subjectFullName = scheduleConfig.subject_name?.[subjectShortName] || subjectShortName || '未知课表';
             scheduleArray.push(subjectShortName);
+            if (fusion && scheduleArray.length - 1 === fusion.end) fusionEndTime = endTime;
 
             if (isClassCurrent(startTime, endTime, currentTime)) {
                 currentHighlight.index = scheduleArray.length - 1;
@@ -125,6 +347,8 @@ function getScheduleData() {
                 currentHighlight.countdownText = formatCountdown(currentHighlight.countdown);
             }
         } else if (currentHighlight.index === null && isBreakTime(startTime, endTime, currentTime)) {
+            const breakIndex = scheduleArray.length;
+            if (fusion && fusion.ignoreBreak && breakIndex > fusion.start && breakIndex <= fusion.end) return;
             let highlighted = false;
             for (let i = index + 1; i < Object.keys(dayTimetable).length; i++) {
                 const nextTimeRange = Object.keys(dayTimetable)[i];
@@ -132,8 +356,9 @@ function getScheduleData() {
                 if (typeof nextClassIndex === 'number') {
                     currentHighlight.index = scheduleArray.length;
                     currentHighlight.type = 'upcoming';
+                    currentHighlight.isBreak = true;
                     const nextSubjectShortName = currentSchedule[nextClassIndex];
-                    const nextSubjectFullName = scheduleConfig.subject_name[nextSubjectShortName];
+                    const nextSubjectFullName = scheduleConfig.subject_name?.[nextSubjectShortName] || nextSubjectShortName || '未知课表';
                     currentHighlight.fullName = dayTimetable[timeRange];
                     const [nextStartTime] = nextTimeRange.split('-');
                     currentHighlight.countdown = calculateCountdown(timeRange.split('-')[1], currentTime);
@@ -143,19 +368,29 @@ function getScheduleData() {
                 }
             }
             if (!highlighted) {
-                currentHighlight.index = currentSchedule.length - 1;
+                currentHighlight.index = scheduleArray.length;
                 currentHighlight.type = 'upcoming';
+                currentHighlight.isBreak = true;
                 currentHighlight.fullName = dayTimetable[timeRange];
                 currentHighlight.countdown = calculateCountdown(timeRange.split('-')[1], currentTime);
                 currentHighlight.countdownText = formatCountdown(currentHighlight.countdown);
-                currentHighlight.isEnd = true;
             }
         } else if (currentHighlight.index === null && !dayTimetable[timeRange]) {
             // 当前时间是非课程时间（如课间休息）
             currentHighlight.fullName = currentSchedule[classIndex]; // 使用时间表中的描述
         }
     });
-    return { scheduleArray, currentHighlight, timetable, divider };
+    if (fusion && currentHighlight.index !== null && currentHighlight.index >= fusion.start && currentHighlight.index <= fusion.end) {
+        currentHighlight.displayIndex = fusion.start;
+        if (!currentHighlight.isBreak) {
+            currentHighlight.fullName = scheduleConfig.subject_name?.[fusionSubject] || fusionSubject || currentHighlight.fullName;
+        }
+        if (fusion.ignoreBreak && currentHighlight.type === 'current' && fusionEndTime) {
+            currentHighlight.countdown = calculateCountdown(fusionEndTime, currentTime);
+            currentHighlight.countdownText = formatCountdown(currentHighlight.countdown);
+        }
+    }
+    return { scheduleArray, currentHighlight, timetable, divider, fusion: fusion ? { ...fusion, subject: fusionSubject } : null };
 }
 
 
@@ -164,7 +399,7 @@ function calculateCountdown(targetTime, currentTime) {
     const [targetH, targetM] = targetTime.split(':').map(Number);
     const [currentH, currentM, currentS = '00'] = currentTime.split(':').map(Number);
 
-    const targetTotalSeconds = targetH * 3600 + (targetM + 1) * 60;
+    const targetTotalSeconds = targetH * 3600 + targetM * 60;
     const currentTotalSeconds = currentH * 3600 + currentM * 60 + currentS;
 
     return targetTotalSeconds - currentTotalSeconds;
