@@ -416,36 +416,71 @@
   // 转发的 mousemove 事件有概率长时间收不到（尤其刚启动时），不能依赖。
   // 主进程每 100ms 上报光标相对窗口的位置，这里用 elementFromPoint
   // 定位所在行并只淡化该行；指向空白处/可交互元素/移出窗口时立即恢复。
+  // 粘性：滑动快速穿过行间隙时不闪断，300ms 内回到行上保持淡化。
   const restoreRows = () => {
     componentRows.querySelectorAll('.componentRow.faded').forEach((el) => el.classList.remove('faded'))
   }
-  ipcRenderer.on('cursor-position', (e, pos) => {
-    if (!pos || !pos.inside) { restoreRows(); return }
-    let row = null
-    const el = document.elementFromPoint(pos.x, pos.y)
-    if (el && el.closest) row = el.closest('.componentRow')
-    // elementFromPoint 可能因光标落在子元素间隙（margin/gap）而找不到行，
-    // 此时遍历行 bounding rect 手动命中，避免滑动过程中误恢复
-    if (!row) {
-      const rows = componentRows.querySelectorAll('.componentRow')
-      for (const r of rows) {
-        const rect = r.getBoundingClientRect()
-        if (pos.x >= rect.left && pos.x <= rect.right && pos.y >= rect.top && pos.y <= rect.bottom) {
-          row = r
-          break
-        }
+  let lastFadedRow = null
+  let lastFadeTime = 0
+
+  // 统一命中检测：elementFromPoint 优先，失败时遍历行 rect（含 gap 扩展）
+  function findRowAt(x, y) {
+    const el = document.elementFromPoint(x, y)
+    if (el && el.closest) {
+      const row = el.closest('.componentRow')
+      if (row) return { row, el }
+    }
+    const rows = componentRows.querySelectorAll('.componentRow')
+    const gap = parseFloat(getComputedStyle(componentRows).gap) || 0
+    for (let i = 0; i < rows.length; i++) {
+      const rect = rows[i].getBoundingClientRect()
+      const expandTop = i > 0 ? gap / 2 : 0
+      const expandBottom = i < rows.length - 1 ? gap / 2 : 0
+      if (x >= rect.left && x <= rect.right
+        && y >= rect.top - expandTop && y <= rect.bottom + expandBottom) {
+        return { row: rows[i], el }
       }
     }
+    return { row: null, el }
+  }
+
+  function fadeRow(row) {
+    componentRows.querySelectorAll('.componentRow.faded').forEach((f) => {
+      if (f !== row) f.classList.remove('faded')
+    })
+    row.classList.add('faded')
+    lastFadedRow = row
+    lastFadeTime = Date.now()
+  }
+
+  function handleCursorAt(x, y) {
+    const { row, el } = findRowAt(x, y)
     const className = el && typeof el.className === 'string' ? el.className : ''
     if (row && className.indexOf('notIgnoreClick') === -1) {
-      componentRows.querySelectorAll('.componentRow.faded').forEach((f) => {
-        if (f !== row) f.classList.remove('faded')
-      })
-      row.classList.add('faded')
+      fadeRow(row)
+    } else if (lastFadedRow && Date.now() - lastFadeTime < 300) {
+      // 粘性：刚离开行不到 300ms，保持淡化（穿过 gap 或快速滑动）
     } else {
       restoreRows()
+      lastFadedRow = null
     }
+  }
+
+  ipcRenderer.on('cursor-position', (e, pos) => {
+    if (!pos || !pos.inside) {
+      restoreRows()
+      lastFadedRow = null
+      return
+    }
+    handleCursorAt(pos.x, pos.y)
   })
+
+  // pointermove 补充：如果 forward 转发 pointer events（部分设备/驱动），
+  // 它比 100ms 轮询更及时，直接驱动淡化
+  window.addEventListener('pointermove', (e) => {
+    handleCursorAt(e.clientX, e.clientY)
+  })
+
   // 穿透被临时关闭（悬停在可交互元素上）时窗口能收到真实事件，补一条保险
   document.addEventListener('mouseleave', restoreRows)
   // mousemove 仅用于可交互元素的点击穿透切换
