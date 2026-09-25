@@ -1,3 +1,6 @@
+# ElectronClassSchedule
+该版本为1.0版本。如需体验2.0，请访问[ECS2.0](https://github.com/aawwaaa/ElectronClassSchedule2)。
+
 # 电子课程表
 
 ![view](image/README/view.png)
