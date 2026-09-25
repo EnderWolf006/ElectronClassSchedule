@@ -414,14 +414,15 @@
   // ===== 行级淡化 =====
   // 淡化由主进程光标轮询（cursor-position）驱动：forward 穿透模式下
   // 转发的 mousemove 事件有概率长时间收不到（尤其刚启动时），不能依赖。
-  // 主进程每 100ms 上报光标相对窗口的位置，这里用 elementFromPoint
+  // 主进程每 50ms 上报光标相对窗口的位置，这里用 elementFromPoint
   // 定位所在行并只淡化该行；指向空白处/可交互元素/移出窗口时立即恢复。
-  // 粘性：滑动快速穿过行间隙时不闪断，300ms 内回到行上保持淡化。
+  // 粘性：独立 300ms 定时器，滑动快速穿过行间隙或坐标抖动时不闪断。
   const restoreRows = () => {
     componentRows.querySelectorAll('.componentRow.faded').forEach((el) => el.classList.remove('faded'))
   }
   let lastFadedRow = null
   let lastFadeTime = 0
+  let stickyTimer = null
 
   // 统一命中检测：elementFromPoint 优先，失败时遍历行 rect（含 gap 扩展）
   function findRowAt(x, y) {
@@ -445,6 +446,7 @@
   }
 
   function fadeRow(row) {
+    if (stickyTimer) { clearTimeout(stickyTimer); stickyTimer = null }
     componentRows.querySelectorAll('.componentRow.faded').forEach((f) => {
       if (f !== row) f.classList.remove('faded')
     })
@@ -453,16 +455,22 @@
     lastFadeTime = Date.now()
   }
 
+  function scheduleRestore() {
+    if (stickyTimer) clearTimeout(stickyTimer)
+    stickyTimer = setTimeout(() => {
+      restoreRows()
+      lastFadedRow = null
+      stickyTimer = null
+    }, 300)
+  }
+
   function handleCursorAt(x, y) {
     const { row, el } = findRowAt(x, y)
     const className = el && typeof el.className === 'string' ? el.className : ''
     if (row && className.indexOf('notIgnoreClick') === -1) {
       fadeRow(row)
-    } else if (lastFadedRow && Date.now() - lastFadeTime < 300) {
-      // 粘性：刚离开行不到 300ms，保持淡化（穿过 gap 或快速滑动）
     } else {
-      restoreRows()
-      lastFadedRow = null
+      scheduleRestore()
     }
   }
 
@@ -470,13 +478,14 @@
     if (!pos || !pos.inside) {
       restoreRows()
       lastFadedRow = null
+      if (stickyTimer) { clearTimeout(stickyTimer); stickyTimer = null }
       return
     }
     handleCursorAt(pos.x, pos.y)
   })
 
   // pointermove 补充：如果 forward 转发 pointer events（部分设备/驱动），
-  // 它比 100ms 轮询更及时，直接驱动淡化
+  // 它比 50ms 轮询更及时，直接驱动淡化
   window.addEventListener('pointermove', (e) => {
     handleCursorAt(e.clientX, e.clientY)
   })

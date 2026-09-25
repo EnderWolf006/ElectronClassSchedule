@@ -97,22 +97,26 @@ const createWindow = () => {
     setInterval(heartbeat, 1000)
     // 光标轮询驱动行级淡化：forward 穿透模式下转发的 mousemove 事件不可靠
     // （有概率长时间收不到，刚启动时尤其明显），渲染进程无法稳定感知光标。
-    // 主进程每 100ms 上报光标相对窗口的位置，仅在移入/移出或位置明显变化时发送。
+    // 主进程每 50ms 上报光标相对窗口的位置。
+    // hit-test 增加 30px margin：穿透模式下 GetCursorPos 可能因系统 hit-test
+    // 延迟而返回窗口 rect 外的坐标，扩大检测区域确保滑动经过时也能命中。
     let lastCursorState = { inside: false, x: -1, y: -1 }
     setInterval(() => {
         if (!win || win.isDestroyed()) return
         const point = screen.getCursorScreenPoint()
         const bounds = win.getBounds()
-        const inside = point.x >= bounds.x && point.x < bounds.x + bounds.width
-            && point.y >= bounds.y && point.y < bounds.y + bounds.height
+        const margin = 30
+        const inside = point.x >= bounds.x - margin && point.x < bounds.x + bounds.width + margin
+            && point.y >= bounds.y - margin && point.y < bounds.y + bounds.height + margin
         const x = Math.round(point.x - bounds.x)
         const y = Math.round(point.y - bounds.y)
-        if (inside !== lastCursorState.inside
-            || (inside && (Math.abs(x - lastCursorState.x) > 2 || Math.abs(y - lastCursorState.y) > 2))) {
+        // 始终发送：移除 dx/dy 过滤，确保渲染进程在滑动过程中也能收到心跳
+        //（系统可能在滑动时节流坐标更新，缩短轮询间隔+持续发送能提高捕获率）
+        if (inside !== lastCursorState.inside || inside) {
             lastCursorState = { inside, x, y }
             win.webContents.send('cursor-position', lastCursorState)
         }
-    }, 100)
+    }, 50)
     // 系统休眠唤醒、解锁屏幕后立即补一次刷新
     powerMonitor.on('resume', heartbeat)
     powerMonitor.on('unlock-screen', heartbeat)
