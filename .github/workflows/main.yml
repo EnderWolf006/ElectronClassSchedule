@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Set up VS
         uses: seanmiddleditch/gha-setup-vsdevenv@master
@@ -27,13 +27,14 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          # node-gyp@13 依赖 undici@8，要求 Node >= 22.19；统一用 24（与本地一致）
+          # node-gyp@13 要求 Node ^22.22.2 || ^24.15.0；统一用 24（与本地一致）
           node-version: '24'
-      
+
       - name: Install dependencies
-        # 必须 --ignore-scripts：原生模块的编译统一交给下面的 electron-rebuild，
+        # npm ci 保证按 lockfile 可复现安装；必须 --ignore-scripts：
+        # 原生模块的编译统一交给下面的 electron-rebuild，
         # 否则 install 阶段会按 Node 头文件错误地触发 node-gyp
-        run: npm install --ignore-scripts
+        run: npm ci --ignore-scripts
 
       - name: Rebuild dependencies
         run: node_modules/.bin/electron-rebuild
