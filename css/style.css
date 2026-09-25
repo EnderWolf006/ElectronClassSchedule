@@ -100,6 +100,86 @@
     margin-top: var(--second-component-row-offset, 20px);
 }
 
+/* ===== 位置模式：顶部靠右（窗口仍全宽，容器锚定屏幕右缘 + 内容右对齐） ===== */
+[data-position="top-right"] .globalContainer {
+    /* 基础规则是 left:50%+translateX(-50%) 居中锚定，内容超宽时会左右对称溢出，
+       右缘超出屏幕导致右侧组件被裁；改为锚定右缘，保证任何宽度下都真正靠右 */
+    left: auto;
+    right: var(--top-space);
+    transform: none;
+}
+
+[data-position="top-right"] .componentRows {
+    align-items: flex-end;
+}
+
+[data-position="top-right"] .componentRow {
+    justify-content: flex-end;
+}
+
+/* ===== 位置模式：右侧竖排（窗口收窄贴右，行变列、第 1 行最右，行内组件自上而下） ===== */
+[data-position="right"] .globalContainer {
+    left: auto;
+    right: var(--top-space);
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+[data-position="right"] .componentRows {
+    flex-direction: row-reverse;
+    align-items: stretch;
+}
+
+[data-position="right"] .componentRow {
+    flex-direction: column;
+    /* 各列统一宽度：由渲染层测量最宽列后写入 --right-column-width，未设置时保持自然宽度 */
+    width: var(--right-column-width, auto);
+}
+
+[data-position="right"] .componentRow[data-component-row="1"] {
+    /* 第二行（列）的水平间距由 --component-row-gap 承担，垂直 margin 在竖排下无意义 */
+    margin-top: 0;
+}
+
+/* right 模式下课表组件内部：每节课从上到下排列；divider 由垂直线变为水平线 */
+[data-position="right"] .classContainer {
+    flex-direction: column;
+    align-items: center;
+}
+
+/* 组件块占满统一列宽（--right-column-width），各列视觉对齐 */
+[data-position="right"] .componentRow > * {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+[data-position="right"] .componentRow .classContainer {
+    width: 100%;
+}
+
+[data-position="right"] .componentRow .sidebar,
+[data-position="right"] .componentRow .customText {
+    text-align: center;
+}
+
+[data-position="right"] .classContainer .class {
+    margin: 1px 0;
+}
+
+[data-position="right"] .classContainer .divider {
+    width: 1.6em;
+    height: var(--divider-width);
+    margin: 4px 0;
+}
+
+/* right 模式下展开的课程/课间格子改为纵向排列（全称在上，倒计时在下） */
+[data-position="right"] .classContainer .currentClassExpanded,
+[data-position="right"] .classContainer .breakClassExpanded {
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
 .scheduleComponent {
     position: relative;
 }

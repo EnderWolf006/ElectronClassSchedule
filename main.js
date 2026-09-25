@@ -53,11 +53,11 @@ if (!app.requestSingleInstanceLock({ key: 'classSchedule' })) {
     app.quit();
 }
 const createWindow = () => {
+    // 按位置模式确定初始 bounds（top/top-right 全宽置顶，right 贴右垂直居中）；
+    // 渲染层加载后会异步测量内容并再次上报精确尺寸
+    const initialPositionMode = readWindowPositionMode();
     win = new BrowserWindow({
-        x: 0,
-        y: 0,
-        width: screen.getPrimaryDisplay().workAreaSize.width,
-        height: 200,
+        ...getMainWindowBounds(initialPositionMode, null),
         frame: false,
         transparent: true,
         alwaysOnTop: store.get('isWindowAlwaysOnTop', true),
@@ -76,6 +76,7 @@ const createWindow = () => {
             backgroundThrottling: false
         },
     })
+    win.__positionMode = initialPositionMode;
     win.setIgnoreMouseEvents(true, { forward: true });
     // win.webContents.openDevTools()
     win.loadFile('index.html')
@@ -187,6 +188,52 @@ function readThemeMode() {
     } catch (error) {
         return 'auto';
     }
+}
+
+// 主窗口位置模式：top（顶部居中，默认）/ top-right（顶部靠右）/ right（右侧竖排）
+function readWindowPositionMode() {
+    try {
+        const settingsPath = path.join(__dirname, 'js', 'settings.js');
+        const code = fs.readFileSync(settingsPath, 'utf8').replace(/^﻿/, '');
+        const reader = new Function(`${code}; return { _settings, settings };`);
+        const result = reader();
+        const loaded = result && (result._settings || result.settings);
+        const mode = loaded && loaded.window_position;
+        return (mode === 'top-right' || mode === 'right') ? mode : 'top';
+    } catch (error) {
+        return 'top';
+    }
+}
+
+// 按位置模式计算主窗口 bounds。
+// top / top-right：全宽置顶（top-right 的右对齐由渲染层 CSS 实现，窗口仍全宽）；
+// right：按内容尺寸贴屏幕右侧并垂直居中。
+function getMainWindowBounds(mode, contentSize) {
+    const workArea = screen.getPrimaryDisplay().workArea;
+    if (mode === 'right') {
+        const width = Math.max(80, Math.min(Math.round(Number(contentSize?.width) || 420), workArea.width));
+        const height = Math.max(40, Math.min(Math.round(Number(contentSize?.height) || 200), workArea.height));
+        return {
+            x: workArea.x + workArea.width - width,
+            y: workArea.y + Math.round((workArea.height - height) / 2),
+            width,
+            height
+        };
+    }
+    const height = Math.max(40, Math.min(Math.round(Number(contentSize?.height) || 200), workArea.height));
+    return { x: workArea.x, y: workArea.y, width: workArea.width, height };
+}
+
+// 保存设置/配置后统一走这里 reload：reload 前从磁盘同步最新位置模式，
+// 模式变化时立刻重定位，避免新页面异步测量期间窗口位置/尺寸错乱
+function reloadMainWindow() {
+    if (!win || win.isDestroyed()) return;
+    const nextMode = readWindowPositionMode();
+    if (nextMode !== win.__positionMode) {
+        win.__positionMode = nextMode;
+        win.setBounds(getMainWindowBounds(nextMode, null));
+    }
+    win.reload();
 }
 
 // 把 auto 解析为当前实际的深/浅色（user32 亚克力需要自行给 tint，系统不会自动配色）
@@ -571,15 +618,23 @@ ipcMain.on('setIgnore', (e, arg) => {
         win.setIgnoreMouseEvents(false);
 })
 
-// 主界面高度自适应：渲染进程测量内容（组件行 + 课程下方倒计时框等）
-// 实际视口高度后上报，窗口随之调整，避免多行组件被固定高度裁剪。
+// 主界面尺寸自适应：渲染进程测量内容（组件行 + 课程下方倒计时框等）后上报。
+// top / top-right 只用高度（窗口全宽置顶）；right 同时使用宽度（贴右垂直居中）。
 ipcMain.on('main-window-height', (e, arg) => {
     if (!win || win.isDestroyed()) return;
-    const maxHeight = screen.getPrimaryDisplay().workAreaSize.height;
-    const height = Math.max(40, Math.min(Math.round(Number(arg) || 0), maxHeight));
-    const bounds = win.getBounds();
-    if (bounds.height !== height) {
-        win.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height });
+    const mode = win.__positionMode || 'top';
+    // 兼容旧调用（纯数字高度）与新调用（{width, height}）
+    const size = (arg && typeof arg === 'object')
+        ? { width: Number(arg.width) || 0, height: Number(arg.height) || 0 }
+        : { width: 0, height: Number(arg) || 0 };
+    const current = win.getBounds();
+    const next = getMainWindowBounds(mode, {
+        width: size.width || current.width,
+        height: size.height || current.height
+    });
+    if (current.x !== next.x || current.y !== next.y
+        || current.width !== next.width || current.height !== next.height) {
+        win.setBounds(next);
     }
 })
 
@@ -621,6 +676,16 @@ ipcMain.on('acrylic-theme-changed', (event, mode) => {
 // 基础设置中选择深/浅色后立即预览（尚未保存到文件）：主界面与所有窗口即刻切换
 ipcMain.on('theme-mode-preview', (event, mode) => {
     broadcastThemeMode(mode);
+});
+
+// 基础设置中选择窗口位置后立即预览（尚未保存到文件）：主窗口即刻重排
+ipcMain.on('window-position-preview', (event, mode) => {
+    const normalized = (mode === 'top-right' || mode === 'right') ? mode : 'top';
+    if (!win || win.isDestroyed()) return;
+    win.__positionMode = normalized;
+    // 不立即按默认尺寸 setBounds：渲染层同步重排后会上报精确内容尺寸，
+    // 由 main-window-height 一次性调整到位，避免“先小窗再大窗”的多次跳变
+    win.webContents.send('position-mode-changed', normalized);
 })
 
 let scheduleDialog = null;
@@ -794,7 +859,7 @@ ipcMain.handle('save-config-file', async (event, config) => {
                 if (!sourceWindow.isDestroyed()) sourceWindow.focus();
             });
         }
-        win.reload();
+        reloadMainWindow();
     }
     if (sourceWindow && !sourceWindow.isDestroyed()) {
         sourceWindow.focus();
@@ -811,7 +876,7 @@ ipcMain.handle('save-settings-file', async (event, settings) => {
         broadcastThemeMode(settings.theme_mode);
     }
     if (win && !win.isDestroyed()) {
-        win.reload();
+        reloadMainWindow();
     }
     const sourceWindow = BrowserWindow.fromWebContents(event.sender);
     if (sourceWindow && !sourceWindow.isDestroyed()) {
@@ -824,7 +889,7 @@ ipcMain.handle('save-main-css-file', async (event, css) => {
     const cssPath = path.join(__dirname, 'css', 'style.css');
     fs.writeFileSync(cssPath, String(css ?? ''), 'utf8');
     if (win && !win.isDestroyed()) {
-        win.reload();
+        reloadMainWindow();
     }
     return true;
 })

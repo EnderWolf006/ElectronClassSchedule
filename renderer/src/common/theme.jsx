@@ -73,9 +73,15 @@ export function AppTheme({ variant, mode, children }) {
     const cleanup = [];
     import('../common/electron.js').then(({ ipcRenderer }) => {
       if (cancelled) return;
-      ipcRenderer.invoke('read-settings-file').then((s) => {
-        if (!cancelled) setResolvedMode(s?.theme_mode || 'auto');
-      }).catch(() => {});
+      // URL 参数（?themeMode=）由主进程读磁盘配置注入，已经可靠；
+      // 若无条件再异步读一次 read-settings-file，其回包可能基于"预览中尚未落盘"的
+      // 旧文件内容，把已被 settings-theme-changed 广播修正的主题错误地覆盖回去
+      //（暗色模式下偶发残留浅色打底的竞态根因）。仅当 URL 参数缺失时才异步读取。
+      if (!initialThemeFromQuery()) {
+        ipcRenderer.invoke('read-settings-file').then((s) => {
+          if (!cancelled) setResolvedMode(s?.theme_mode || 'auto');
+        }).catch(() => {});
+      }
       // 其他窗口（软件设置）保存主题后，主进程广播：已打开的本窗口立即跟随切换
       const onThemeChanged = (_event, nextMode) => {
         if (!cancelled && (nextMode === 'dark' || nextMode === 'light' || nextMode === 'auto')) {

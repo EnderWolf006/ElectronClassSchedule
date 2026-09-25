@@ -85,7 +85,10 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
   const [reminderClass, setReminderClass] = useState({});
   const [reminderCustom, setReminderCustom] = useState([]);
   const [timeOffsetText, setTimeOffsetText] = useState('0');
-  const [themeMode, setThemeMode] = useState('auto');
+  // 首帧与 URL 参数（主进程读磁盘注入）保持一致，避免挂载时 effect 先把 auto
+  // 推给 Root 造成浅色闪帧；若之后 loadSettings 回包慢/失败，窗口就会残留浅色
+  const [themeMode, setThemeMode] = useState(() => initialThemeFromQuery() || 'auto');
+  const [positionMode, setPositionMode] = useState('top');
 
   const settings = settingsRef.current;
   const config = configRef.current;
@@ -105,6 +108,7 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
       setReminderClass(settingsData?.reminder_class || {});
       setReminderCustom(Array.isArray(settingsData?.reminder_custom) ? settingsData.reminder_custom : []);
       setThemeMode(settingsData?.theme_mode || 'auto');
+      setPositionMode(settingsData?.window_position || 'top');
       setTimeOffsetText(String(Number(localStorage.getItem('timeOffset') || 0)));
       setStatus('');
       bump();
@@ -172,6 +176,7 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
       4: Number(nextSettings.rotation_offset?.[4] ?? 0),
     };
     nextSettings.theme_mode = themeMode;
+    nextSettings.window_position = positionMode;
     ipcRenderer.invoke('save-settings-file', nextSettings).then(() => {
       settingsRef.current = nextSettings;
       setStatus('设置已保存');
@@ -373,6 +378,28 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
                     />
                     <p className="field-help">设置课表计时与系统时间的偏移秒数，正数加快、负数减慢；输入后点击其他地方或按回车即生效，重启仍然保留。</p>
                   </div>
+                </div>
+              </div>
+
+              <div className="panel">
+                <h3>窗口位置</h3>
+                <div className="field">
+                  <label htmlFor="positionModeSelect">排列方式</label>
+                  <Select
+                    id="positionModeSelect"
+                    value={positionMode}
+                    onChange={(event) => {
+                      const nextMode = event.target.value;
+                      setPositionMode(nextMode);
+                      // 选择后立即在主界面课表条预览，无需等待保存
+                      ipcRenderer.send('window-position-preview', nextMode);
+                    }}
+                  >
+                    <option value="top">顶部居中</option>
+                    <option value="top-right">顶部靠右</option>
+                    <option value="right">右侧竖排</option>
+                  </Select>
+                  <p className="field-help">控制课表条在屏幕上的排列位置：顶部居中、顶部靠右（每行右对齐），或右侧竖排（各行从右到左、行内组件自上而下）。选择后立即生效，点击"保存设置"可永久保留。</p>
                 </div>
               </div>
 
@@ -609,6 +636,9 @@ function SoftwareSettingsRoot() {
   // 首帧优先使用主进程通过 URL 参数注入的已保存主题模式，避免窗口打开瞬间闪现浅色
   const [mode, setMode] = useState(() => initialThemeFromQuery() || 'auto');
   useEffect(() => {
+    // URL 参数已由主进程读磁盘注入，足够可靠；若无条件异步读取，回包可能基于
+    // 预览前的旧文件内容把主题错误覆盖回去（暗色残留浅色打底的竞态根因）
+    if (initialThemeFromQuery()) return;
     ipcRenderer.invoke('read-settings-file').then((s) => {
       setMode(s?.theme_mode || 'auto');
     }).catch(() => {});
