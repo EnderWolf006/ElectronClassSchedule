@@ -412,24 +412,21 @@
   }, 20);
 
   // ===== 行级淡化 =====
-  // 淡化由主进程光标轮询（cursor-position）驱动：forward 穿透模式下
-  // 转发的 mousemove 事件有概率长时间收不到（尤其刚启动时），不能依赖。
-  // 主进程每 50ms 上报光标相对窗口的位置，这里用 elementFromPoint
-  // 定位所在行并只淡化该行；指向空白处/可交互元素/移出窗口时立即恢复。
-  // 粘性：独立 300ms 定时器，滑动快速穿过行间隙或坐标抖动时不闪断。
+  // 淡化由主进程光标轮询（cursor-position，50ms）驱动：forward 穿透模式下
+  // 转发的 mousemove 事件不可靠（有概率长时间收不到），不能依赖。
+  // 恢复统一走 300ms 粘性定时器：光标在窗口区域内时轮询心跳会持续重置它，
+  // 只有真正离开超过 300ms 才恢复，滑动穿过行间隙/事件流抖动不会闪断。
   const restoreRows = () => {
     componentRows.querySelectorAll('.componentRow.faded').forEach((el) => el.classList.remove('faded'))
   }
-  let lastFadedRow = null
-  let lastFadeTime = 0
   let stickyTimer = null
 
-  // 统一命中检测：elementFromPoint 优先，失败时遍历行 rect（含 gap 扩展）
+  // 命中检测：elementFromPoint 优先；失败（子元素间隙等）遍历行 rect（gap 均分给相邻行）
   function findRowAt(x, y) {
     const el = document.elementFromPoint(x, y)
     if (el && el.closest) {
       const row = el.closest('.componentRow')
-      if (row) return { row, el }
+      if (row) return row
     }
     const rows = componentRows.querySelectorAll('.componentRow')
     const gap = parseFloat(getComputedStyle(componentRows).gap) || 0
@@ -439,10 +436,10 @@
       const expandBottom = i < rows.length - 1 ? gap / 2 : 0
       if (x >= rect.left && x <= rect.right
         && y >= rect.top - expandTop && y <= rect.bottom + expandBottom) {
-        return { row: rows[i], el }
+        return rows[i]
       }
     }
-    return { row: null, el }
+    return null
   }
 
   function fadeRow(row) {
@@ -451,47 +448,34 @@
       if (f !== row) f.classList.remove('faded')
     })
     row.classList.add('faded')
-    lastFadedRow = row
-    lastFadeTime = Date.now()
   }
 
   function scheduleRestore() {
     if (stickyTimer) clearTimeout(stickyTimer)
     stickyTimer = setTimeout(() => {
       restoreRows()
-      lastFadedRow = null
       stickyTimer = null
     }, 300)
   }
 
   function handleCursorAt(x, y) {
-    const { row, el } = findRowAt(x, y)
-    const className = el && typeof el.className === 'string' ? el.className : ''
-    if (row && className.indexOf('notIgnoreClick') === -1) {
-      fadeRow(row)
-    } else {
-      scheduleRestore()
-    }
+    const row = findRowAt(x, y)
+    if (row) fadeRow(row)
+    else scheduleRestore()
   }
 
   ipcRenderer.on('cursor-position', (e, pos) => {
-    if (!pos || !pos.inside) {
-      restoreRows()
-      lastFadedRow = null
-      if (stickyTimer) { clearTimeout(stickyTimer); stickyTimer = null }
-      return
-    }
+    if (!pos || !pos.inside) { scheduleRestore(); return }
     handleCursorAt(pos.x, pos.y)
   })
 
-  // pointermove 补充：如果 forward 转发 pointer events（部分设备/驱动），
-  // 它比 50ms 轮询更及时，直接驱动淡化
-  window.addEventListener('pointermove', (e) => {
-    handleCursorAt(e.clientX, e.clientY)
-  })
+  // 补充通道：forward 若能转发 pointer/wheel 事件（部分设备/驱动），
+  // 直接驱动淡化；wheel 覆盖触控板双指滚动等不移动光标的滑动手势
+  window.addEventListener('pointermove', (e) => handleCursorAt(e.clientX, e.clientY))
+  window.addEventListener('wheel', (e) => handleCursorAt(e.clientX, e.clientY), { passive: true })
 
-  // 穿透被临时关闭（悬停在可交互元素上）时窗口能收到真实事件，补一条保险
-  document.addEventListener('mouseleave', restoreRows)
+  // 注意：不要监听 document mouseleave 做即时恢复——setIgnore 切换点击
+  // 穿透时会产生合成 mouseleave，立刻打掉淡化正是滑动闪烁的根源之一。
   // mousemove 仅用于可交互元素的点击穿透切换
   window.addEventListener("mousemove", event => {
     const className = typeof event.target.className === 'string' ? event.target.className : ''

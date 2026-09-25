@@ -557,8 +557,15 @@ ipcMain.on('log', (e, arg) => {
     console.log(arg);
 })
 
+// 仅在实际变化时才调用原生 API：滑动过程中渲染进程会按悬停元素频繁
+// 发送 setIgnore，重复设置会触发 Windows 重新 hit-test、打断转发事件流
+// 并产生合成 mouseleave，是低速滑动闪烁/高速滑动不淡化的根源之一。
+let lastIgnoreState = null
 ipcMain.on('setIgnore', (e, arg) => {
-    if (arg)
+    const next = !!arg
+    if (next === lastIgnoreState) return
+    lastIgnoreState = next
+    if (next)
         win.setIgnoreMouseEvents(true, { forward: true });
     else
         win.setIgnoreMouseEvents(false);
