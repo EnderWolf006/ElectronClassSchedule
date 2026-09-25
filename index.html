@@ -407,29 +407,77 @@
     if (new Date().getTime() - lastTickTime >= 1000) {
       lastTickTime = new Date().getTime()
       tick()
+      reportWindowHeight()
     }
   }, 20);
 
-  let timer = undefined
+  // ===== 行级淡化 =====
+  // 淡化由主进程光标轮询（cursor-position）驱动：forward 穿透模式下
+  // 转发的 mousemove 事件有概率长时间收不到（尤其刚启动时），不能依赖。
+  // 主进程每 100ms 上报光标相对窗口的位置，这里用 elementFromPoint
+  // 定位所在行并只淡化该行；指向空白处/可交互元素/移出窗口时立即恢复。
+  const restoreRows = () => {
+    componentRows.querySelectorAll('.componentRow.faded').forEach((el) => el.classList.remove('faded'))
+  }
+  ipcRenderer.on('cursor-position', (e, pos) => {
+    if (!pos || !pos.inside) { restoreRows(); return }
+    let row = null
+    const el = document.elementFromPoint(pos.x, pos.y)
+    if (el && el.closest) row = el.closest('.componentRow')
+    // elementFromPoint 可能因光标落在子元素间隙（margin/gap）而找不到行，
+    // 此时遍历行 bounding rect 手动命中，避免滑动过程中误恢复
+    if (!row) {
+      const rows = componentRows.querySelectorAll('.componentRow')
+      for (const r of rows) {
+        const rect = r.getBoundingClientRect()
+        if (pos.x >= rect.left && pos.x <= rect.right && pos.y >= rect.top && pos.y <= rect.bottom) {
+          row = r
+          break
+        }
+      }
+    }
+    const className = el && typeof el.className === 'string' ? el.className : ''
+    if (row && className.indexOf('notIgnoreClick') === -1) {
+      componentRows.querySelectorAll('.componentRow.faded').forEach((f) => {
+        if (f !== row) f.classList.remove('faded')
+      })
+      row.classList.add('faded')
+    } else {
+      restoreRows()
+    }
+  })
+  // 穿透被临时关闭（悬停在可交互元素上）时窗口能收到真实事件，补一条保险
+  document.addEventListener('mouseleave', restoreRows)
+  // mousemove 仅用于可交互元素的点击穿透切换
   window.addEventListener("mousemove", event => {
-    if (event.target.className && event.target.className.indexOf('notIgnoreClick') == -1) {
-      root.style.opacity = '0.2'
-      clearTimeout(timer)
-      timer = setTimeout(() => {
-        root.style.opacity = '1'
-      }, 5000);
-    } else {
-      clearTimeout(timer)
-      root.style.opacity = '1'
-    }
-    if (event.target.className.indexOf('notIgnoreClick') == -1) {
-      ipcRenderer.send('setIgnore', true)
-    } else {
-      ipcRenderer.send('setIgnore', false)
-    }
-
+    const className = typeof event.target.className === 'string' ? event.target.className : ''
+    ipcRenderer.send('setIgnore', className.indexOf('notIgnoreClick') === -1)
   });
   ipcRenderer.send('setIgnore', true)
+
+  // ===== 窗口高度自适应 =====
+  // 内容高度 = 组件行区域与课程下方倒计时框（绝对定位、不计入行高）
+  // 以及迷你倒计时中视口底部的最大值；行数/字号/布局变化都会触发重测，
+  // 避免行数较多时窗口仍是固定 200px 导致内容被裁掉。
+  let lastReportedHeight = 0
+  function reportWindowHeight() {
+    if (!componentRows) return
+    let bottom = componentRows.getBoundingClientRect().bottom
+    document.querySelectorAll('.countdownContainer').forEach((el) => {
+      const rect = el.getBoundingClientRect()
+      if (rect.height > 0 && rect.bottom > bottom) bottom = rect.bottom
+    })
+    if (miniCountdown && getComputedStyle(miniCountdown).display !== 'none') {
+      const rect = miniCountdown.getBoundingClientRect()
+      if (rect.bottom > bottom) bottom = rect.bottom
+    }
+    const height = Math.ceil(bottom + 2)
+    if (height > 20 && height !== lastReportedHeight) {
+      lastReportedHeight = height
+      ipcRenderer.send('main-window-height', height)
+    }
+  }
+  new ResizeObserver(() => reportWindowHeight()).observe(componentRows)
 
   function setScheduleDialog() {
     ipcRenderer.send('dialog', {

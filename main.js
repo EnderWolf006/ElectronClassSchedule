@@ -95,6 +95,24 @@ const createWindow = () => {
         if (win && !win.isDestroyed()) win.webContents.send('app-heartbeat')
     }
     setInterval(heartbeat, 1000)
+    // 光标轮询驱动行级淡化：forward 穿透模式下转发的 mousemove 事件不可靠
+    // （有概率长时间收不到，刚启动时尤其明显），渲染进程无法稳定感知光标。
+    // 主进程每 100ms 上报光标相对窗口的位置，仅在移入/移出或位置明显变化时发送。
+    let lastCursorState = { inside: false, x: -1, y: -1 }
+    setInterval(() => {
+        if (!win || win.isDestroyed()) return
+        const point = screen.getCursorScreenPoint()
+        const bounds = win.getBounds()
+        const inside = point.x >= bounds.x && point.x < bounds.x + bounds.width
+            && point.y >= bounds.y && point.y < bounds.y + bounds.height
+        const x = Math.round(point.x - bounds.x)
+        const y = Math.round(point.y - bounds.y)
+        if (inside !== lastCursorState.inside
+            || (inside && (Math.abs(x - lastCursorState.x) > 2 || Math.abs(y - lastCursorState.y) > 2))) {
+            lastCursorState = { inside, x, y }
+            win.webContents.send('cursor-position', lastCursorState)
+        }
+    }, 100)
     // 系统休眠唤醒、解锁屏幕后立即补一次刷新
     powerMonitor.on('resume', heartbeat)
     powerMonitor.on('unlock-screen', heartbeat)
@@ -540,6 +558,18 @@ ipcMain.on('setIgnore', (e, arg) => {
         win.setIgnoreMouseEvents(true, { forward: true });
     else
         win.setIgnoreMouseEvents(false);
+})
+
+// 主界面高度自适应：渲染进程测量内容（组件行 + 课程下方倒计时框等）
+// 实际视口高度后上报，窗口随之调整，避免多行组件被固定高度裁剪。
+ipcMain.on('main-window-height', (e, arg) => {
+    if (!win || win.isDestroyed()) return;
+    const maxHeight = screen.getPrimaryDisplay().workAreaSize.height;
+    const height = Math.max(40, Math.min(Math.round(Number(arg) || 0), maxHeight));
+    const bounds = win.getBounds();
+    if (bounds.height !== height) {
+        win.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height });
+    }
 })
 
 ipcMain.on('reminder-trigger', (e, payload) => {

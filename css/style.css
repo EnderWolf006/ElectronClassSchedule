@@ -30,7 +30,6 @@
 }
 
 :root {
-    transition: opacity .5s .2s;
     --col-text: rgba(255, 255, 255, 1);
     --col-current: rgba(0, 255, 10, 1);
     --col-break: rgba(255, 255, 5, 1);
@@ -89,6 +88,12 @@
     justify-content: center;
     min-height: var(--component-row-min-height, 0px);
     gap: var(--component-gap, 10px);
+    /* 行级淡化：快速响应鼠标移入/移出（原 :root 整体淡化是 .5s+.2s 延迟） */
+    transition: opacity .18s ease-out;
+}
+
+.componentRow.faded {
+    opacity: 0.2;
 }
 
 .componentRow[data-component-row="1"] {
