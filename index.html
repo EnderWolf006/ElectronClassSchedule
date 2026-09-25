@@ -64,7 +64,12 @@
   let componentRows = document.getElementById('componentRows')
   let isClassCountdown = true
   let isClassHidden = false
-  let showNextDayAfterSchool = false
+  // 从 localStorage 恢复：设置变更触发 reload 后首帧即为正确状态，
+  // 不必等主进程重新下发 IPC，避免“次日课表”闪断
+  let showNextDayAfterSchool = localStorage.getItem('showNextDayAfterSchool') === '1'
+  // 位置模式首帧：同步读 localStorage 缓存（loadScheduleConfig 是异步的），
+  // 避免 reload 后异步加载配置期间按旧位置渲染一帧
+  document.documentElement.dataset.position = localStorage.getItem('windowPositionMode') || 'top'
   let lastScheduleData = {
     currentHighlight: {
       index: null,
@@ -136,7 +141,10 @@
     let classHtml = '';
     const fusion = scheduleData.fusion;
     const highlightedIndex = scheduleData.currentHighlight.displayIndex ?? scheduleData.currentHighlight.index;
-    const showInlineCountdown = hasComponentBelowSchedule() && isClassCountdown;
+    // 右侧竖排模式下行已变为列，没有“下方组件”的概念：
+    // 高亮课程/课间始终展开为“全称 + 内联倒计时”，变色规则不变
+    const isRightLayout = document.documentElement.dataset.position === 'right';
+    const showInlineCountdown = (isRightLayout || hasComponentBelowSchedule()) && isClassCountdown;
     if (scheduleData.currentHighlight.isNextDay) {
       classHtml += '<div class="class breakClassExpanded stateTransition">明天</div>';
     }
@@ -154,6 +162,20 @@
       if (isFusionStart && fusion.subject) inner = fusion.subject;
       if (inner === undefined || inner === null) inner = ''
       inner = String(inner)
+      // 右侧竖排模式下每个格子空间充足，简称经 subject_name 映射为全称显示。
+      // 先按完整 key 查（角标课程如“周练@物”→“物理周练”直接命中），
+      // 未命中再退化为只映射主名、保留 @ 后缀的小字部分
+      if (isRightLayout) {
+        const mappedFull = window.scheduleConfig?.subject_name?.[inner];
+        if (mappedFull) {
+          inner = mappedFull;
+        } else {
+          const atIndex = inner.indexOf('@');
+          const shortName = atIndex === -1 ? inner : inner.slice(0, atIndex);
+          const mappedFullName = window.scheduleConfig?.subject_name?.[shortName];
+          if (mappedFullName) inner = atIndex === -1 ? mappedFullName : `${mappedFullName}@${inner.slice(atIndex + 1)}`;
+        }
+      }
       if (inner.indexOf('@') != -1) {
         inner = `<div><div style="display:inline">${inner.split('@')[0]}</div><div class="subClass">${inner.split('@')[1]}</div></div>`
       }
@@ -221,21 +243,24 @@
       return;
     }
     currentFullName.innerText = scheduleData.currentHighlight.fullName;
-    currentFullName.style.color = scheduleData.currentHighlight.type === 'current' ? 'rgba(0, 255, 10, 1)' : 'rgba(255, 255, 5, 1)'
+    // 使用 CSS 变量，使浅色模式下自动应用深绿/深黄（与课表组件一致），深色模式保持亮绿/亮黄
+    currentFullName.style.color = scheduleData.currentHighlight.type === 'current' ? 'var(--col-current)' : 'var(--col-break)'
     countdownText.innerText = scheduleData.currentHighlight.countdownText;
     if (inlineCountdown) {
       inlineCountdown.innerText = scheduleData.currentHighlight.countdownText;
       inlineCountdown.style.display = isClassCountdown ? 'inline' : 'none';
     }
+    const isRightLayout = document.documentElement.dataset.position === 'right';
     if (scheduleData.currentHighlight.type === 'current') {
       if (isClassCountdown) {
-        if (hasComponentBelowSchedule()) {
-          countdownContainer.style.display = 'none';
-          miniCountdown.style.display = 'none';
-        } else if (isClassHidden) { // 无下方组件且上课隐藏 -> 显示顶部小窗口
+        if (isClassHidden) { // 上课隐藏 -> 显示顶部小窗口（与布局模式无关）
           countdownContainer.style.display = 'none'
           miniCountdown.style.display = 'block'
           miniCountdown.innerHTML = `<div class="currentClass">${currentFullName.innerText = scheduleData.currentHighlight.fullName}</div><div class="countdown" style="margin-left:5px">${scheduleData.currentHighlight.countdownText}</div>`
+        } else if (isRightLayout || hasComponentBelowSchedule()) {
+          // 倒计时已内联在高亮格子中（right 模式始终内联），不重复显示倒计时框
+          countdownContainer.style.display = 'none';
+          miniCountdown.style.display = 'none';
         } else {
           countdownContainer.style.display = 'block';
           miniCountdown.style.display = 'none';
@@ -246,14 +271,14 @@
       }
     }
     else if (scheduleData.currentHighlight.isBreak) {
-      if (isClassCountdown && !hasComponentBelowSchedule()) {
+      if (isClassCountdown && !isRightLayout && !hasComponentBelowSchedule()) {
         countdownContainer.style.display = 'block';
       } else {
         countdownContainer.style.display = 'none';
       }
       miniCountdown.style.display = 'none';
     }
-    else { // 下课正常显示
+    else { // 下课/下一节课预告：倒计时框正常显示（right 模式下定位在课程列底部）
       countdownContainer.style.display = 'block';
       miniCountdown.style.display = 'none'
     }
@@ -361,6 +386,7 @@
       setBackgroundDisplay()
     }
     lastScheduleData = $.extend(true, {}, scheduleData)
+    checkReminders(scheduleData)
   }
 
 
@@ -371,43 +397,219 @@
     }
   }
 
+  // ===== 主题切换 =====
+  let themeMediaQuery = null;
+  function applyTheme() {
+    const mode = settings?.theme_mode || 'auto';
+    let actual = mode;
+    if (mode === 'auto') {
+      actual = (window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    }
+    document.documentElement.setAttribute('data-theme', actual);
+    // auto 模式下监听系统变化
+    if (mode === 'auto' && !themeMediaQuery) {
+      themeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      themeMediaQuery.addEventListener('change', () => { if (settings?.theme_mode === 'auto') applyTheme(); });
+    }
+  }
+
+  // ===== 位置模式 =====
+  // top（顶部居中，默认）/ top-right（顶部靠右）/ right（右侧竖排），
+  // 通过 <html data-position> 钩子交给 CSS 实现布局差异
+  function applyPositionMode() {
+    const mode = settings?.window_position || 'top';
+    document.documentElement.dataset.position = mode;
+    try { localStorage.setItem('windowPositionMode', mode); } catch (error) { /* 忽略 */ }
+  }
+
   let lastTickTime = new Date().getTime()
   loadScheduleConfig().then(() => {
     renderComponentLayout()
     applyScheduleCss()
+    applyTheme()
+    applyPositionMode()
     scheduleData = getScheduleData();
     tick(true)
   }).catch(() => {
     applyScheduleCss()
+    applyTheme()
+    applyPositionMode()
     tick(true)
   })
   setInterval(() => {
     if (new Date().getTime() - lastTickTime >= 1000) {
       lastTickTime = new Date().getTime()
       tick()
+      reportWindowBounds()
     }
   }, 20);
 
-  let timer = undefined
-  window.addEventListener("mousemove", event => {
-    if (event.target.className && event.target.className.indexOf('notIgnoreClick') == -1) {
-      root.style.opacity = '0.2'
-      clearTimeout(timer)
-      timer = setTimeout(() => {
-        root.style.opacity = '1'
-      }, 5000);
-    } else {
-      clearTimeout(timer)
-      root.style.opacity = '1'
-    }
-    if (event.target.className.indexOf('notIgnoreClick') == -1) {
-      ipcRenderer.send('setIgnore', true)
-    } else {
-      ipcRenderer.send('setIgnore', false)
-    }
+  // ===== 行级淡化 =====
+  // 淡化由主进程光标轮询（cursor-position，50ms）驱动：forward 穿透模式下
+  // 转发的 mousemove 事件不可靠（有概率长时间收不到），不能依赖。
+  // 恢复统一走 300ms 粘性定时器：光标在窗口区域内时轮询心跳会持续重置它，
+  // 只有真正离开超过 300ms 才恢复，滑动穿过行间隙/事件流抖动不会闪断。
+  const restoreRows = () => {
+    componentRows.querySelectorAll('.componentRow.faded').forEach((el) => el.classList.remove('faded'))
+  }
+  let stickyTimer = null
 
+  // 命中检测：elementFromPoint 优先；失败（子元素间隙等）遍历行 rect（gap 均分给相邻行）
+  function findRowAt(x, y) {
+    const el = document.elementFromPoint(x, y)
+    if (el && el.closest) {
+      const row = el.closest('.componentRow')
+      if (row) return row
+    }
+    const rows = componentRows.querySelectorAll('.componentRow')
+    const gap = parseFloat(getComputedStyle(componentRows).gap) || 0
+    for (let i = 0; i < rows.length; i++) {
+      const rect = rows[i].getBoundingClientRect()
+      const expandTop = i > 0 ? gap / 2 : 0
+      const expandBottom = i < rows.length - 1 ? gap / 2 : 0
+      if (x >= rect.left && x <= rect.right
+        && y >= rect.top - expandTop && y <= rect.bottom + expandBottom) {
+        return rows[i]
+      }
+    }
+    return null
+  }
+
+  function fadeRow(row) {
+    if (stickyTimer) { clearTimeout(stickyTimer); stickyTimer = null }
+    componentRows.querySelectorAll('.componentRow.faded').forEach((f) => {
+      if (f !== row) f.classList.remove('faded')
+    })
+    row.classList.add('faded')
+  }
+
+  function scheduleRestore() {
+    if (stickyTimer) clearTimeout(stickyTimer)
+    stickyTimer = setTimeout(() => {
+      restoreRows()
+      stickyTimer = null
+    }, 300)
+  }
+
+  function handleCursorAt(x, y) {
+    const row = findRowAt(x, y)
+    if (row) fadeRow(row)
+    else scheduleRestore()
+  }
+
+  ipcRenderer.on('cursor-position', (e, pos) => {
+    if (!pos || !pos.inside) { scheduleRestore(); return }
+    handleCursorAt(pos.x, pos.y)
+  })
+
+  // 补充通道：forward 若能转发 pointer/wheel 事件（部分设备/驱动），
+  // 直接驱动淡化；wheel 覆盖触控板双指滚动等不移动光标的滑动手势
+  window.addEventListener('pointermove', (e) => handleCursorAt(e.clientX, e.clientY))
+  window.addEventListener('wheel', (e) => handleCursorAt(e.clientX, e.clientY), { passive: true })
+
+  // 注意：不要监听 document mouseleave 做即时恢复——setIgnore 切换点击
+  // 穿透时会产生合成 mouseleave，立刻打掉淡化正是滑动闪烁的根源之一。
+  // mousemove 仅用于可交互元素的点击穿透切换
+  window.addEventListener("mousemove", event => {
+    const className = typeof event.target.className === 'string' ? event.target.className : ''
+    ipcRenderer.send('setIgnore', className.indexOf('notIgnoreClick') === -1)
   });
   ipcRenderer.send('setIgnore', true)
+
+  // ===== 窗口尺寸自适应 =====
+  // 内容高度 = 组件行区域与课程下方倒计时框（绝对定位、不计入行高）
+  // 以及迷你倒计时中视口底部的最大值；行数/字号/布局变化都会触发重测。
+  // right 模式还需测量内容宽度：内容是右锚定的，所需窗口宽 =
+  // 当前视口宽 - 内容最左缘 + 左边距（缩放后内容左缘稳定落在边距处，不震荡）。
+  let lastReportedBounds = { width: 0, height: 0 }
+
+  // right 模式（行变列）下统一各列宽度：先清除约束测出各列自然宽度，
+  // 取最大值写入 --right-column-width，所有列等宽、组件在列内居中。
+  // 返回值：true = 列宽刚变化，布局尚未稳定；reportWindowBounds 应跳过本次 IPC，
+  // 由 ResizeObserver 下一帧自然触发，避免“先窄后宽”的两次跳变。
+  function syncRightColumnWidth() {
+    if (!componentRows) return false
+    if (document.documentElement.dataset.position !== 'right') {
+      componentRows.style.removeProperty('--right-column-width')
+      return false
+    }
+    // 先读当前值再清除约束测量自然宽度；目标值相同则恢复原值（帧内无净变化，不触发 RO）
+    const current = componentRows.style.getPropertyValue('--right-column-width')
+    componentRows.style.removeProperty('--right-column-width')
+    let max = 0
+    componentRows.querySelectorAll('.componentRow').forEach((row) => {
+      const w = row.getBoundingClientRect().width
+      if (w > max) max = w
+    })
+    const target = max > 0 ? Math.ceil(max) + 'px' : ''
+    if (target && target !== current) {
+      componentRows.style.setProperty('--right-column-width', target)
+      return true
+    }
+    if (current) componentRows.style.setProperty('--right-column-width', current)
+    return false
+  }
+
+  function reportWindowBounds() {
+    if (!componentRows) return
+    if (positionSwitchAnimating) return
+    const mode = settings?.window_position || 'top';
+    // 列宽刚统一时布局尚未稳定，跳过本次 IPC；rAF 兜底下一帧补报
+    //（列宽变化会触发 RO，但单列等场景尺寸可能恰好不变，RO 不保证触发）
+    if (mode === 'right' && syncRightColumnWidth()) {
+      requestAnimationFrame(() => reportWindowBounds())
+      return
+    }
+    const rowsRect = componentRows.getBoundingClientRect()
+    let bottom = rowsRect.bottom
+    let left = rowsRect.left
+    document.querySelectorAll('.countdownContainer').forEach((el) => {
+      const rect = el.getBoundingClientRect()
+      if (rect.height > 0) {
+        if (rect.bottom > bottom) bottom = rect.bottom
+        if (rect.left < left) left = rect.left
+      }
+    })
+    const miniRect = (miniCountdown && getComputedStyle(miniCountdown).display !== 'none')
+      ? miniCountdown.getBoundingClientRect() : null
+    if (miniRect) {
+      if (miniRect.bottom > bottom) bottom = miniRect.bottom
+      if (miniRect.left < left) left = miniRect.left
+    }
+    const height = Math.ceil(bottom + 2)
+    if (mode === 'right') {
+      // right 模式内容垂直居中，bottom/left 随当前视口变化，直接用视口坐标上报会
+      // 形成“窗口变大→居中后 bottom 更大→再上报更大”的正反馈爬升。
+      // 改为测量与视口无关的内容包围盒（相对 componentRows 原点归一化）+ 四边边距。
+      const edgeMargin = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--top-space')) || 4
+      let contentW = rowsRect.width
+      let contentH = rowsRect.height
+      document.querySelectorAll('.countdownContainer').forEach((el) => {
+        const rect = el.getBoundingClientRect()
+        if (rect.height <= 0) return
+        const relBottom = rect.bottom - rowsRect.top
+        const relRight = rect.right - rowsRect.left
+        if (relBottom > contentH) contentH = relBottom
+        if (relRight > contentW) contentW = relRight
+      })
+      // miniCountdown 是 fixed 居中元素，与内容流无关；显示时其自身尺寸作为下限即可
+      if (miniRect) {
+        if (miniRect.height > contentH) contentH = miniRect.height
+        if (miniRect.width > contentW) contentW = miniRect.width
+      }
+      const height = Math.ceil(contentH + edgeMargin * 2)
+      const width = Math.ceil(contentW + edgeMargin * 2)
+      if (height > 20 && width > 40
+        && (height !== lastReportedBounds.height || width !== lastReportedBounds.width)) {
+        lastReportedBounds = { width, height }
+        ipcRenderer.send('main-window-height', { width, height })
+      }
+    } else if (height > 20 && height !== lastReportedBounds.height) {
+      lastReportedBounds = { width: 0, height }
+      ipcRenderer.send('main-window-height', height)
+    }
+  }
+  new ResizeObserver(() => reportWindowBounds()).observe(componentRows)
 
   function setScheduleDialog() {
     ipcRenderer.send('dialog', {
@@ -460,11 +662,6 @@
     }
   });
 
-  ipcRenderer.on('getTimeOffset', (e, arg) => {
-    let offset = localStorage.getItem('timeOffset');
-    ipcRenderer.send('getTimeOffset', offset === null ? 0 : Number(offset))
-  })
-
   ipcRenderer.on('setTimeOffset', (e, arg) => {
     timeOffset = arg
     localStorage.setItem('timeOffset', arg.toString())
@@ -482,12 +679,80 @@
 
   ipcRenderer.on('NextDayAfterSchool', (e, arg) => {
     showNextDayAfterSchool = arg === true || arg === 'true' || arg === 1
+    localStorage.setItem('showNextDayAfterSchool', showNextDayAfterSchool ? '1' : '0')
     tick(true)
+  })
+
+  // 主进程每秒心跳：窗口被遮挡、屏幕关闭甚至系统休眠期间，
+  // 渲染进程自己的 setInterval 可能被 Chromium 节流/挂起，
+  // 主进程 IPC 仍会立即派发，保证放学后能准时切到次日课表。
+  ipcRenderer.on('app-heartbeat', () => {
+    tick()
+  })
+
+  // 从遮挡/最小化/锁屏/休眠恢复到可见状态时立即强制刷新一次，
+  // 不用等待下一个周期
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) tick(true)
   })
 
   ipcRenderer.on('courseFusion', (e, fusion) => {
     setCourseFusion(fusion);
     tick(true);
+  })
+
+  ipcRenderer.on('theme-mode-changed', (e, mode) => {
+    // 软件设置中选择深/浅色时立即预览：直接更新内存中的模式并刷新外观（此时文件可能尚未保存）
+    if (mode === 'dark' || mode === 'light' || mode === 'auto') {
+      settings.theme_mode = mode;
+    }
+    applyTheme()
+  })
+
+  // 位置模式切换动画：逐行交错淡入 + 轻微上浮，配合窗口 resize 形成整体“流动”感。
+  // 动画只播一次，避免与淡化 opacity 过渡冲突；目标为 .componentRow（不影响 .globalContainer 的定位 transform）。
+  // 动画期间 transform 逐帧变化会污染布局测量（宽度震荡），此时挂起尺寸上报，结束后补报终态。
+  let positionSwitchAnimating = false
+  function animatePositionSwitch() {
+    if (!componentRows) return;
+    const rows = componentRows.querySelectorAll('.componentRow');
+    const total = 380 + (rows.length - 1) * 65;
+    positionSwitchAnimating = true;
+    rows.forEach((row, i) => {
+      row.animate(
+        [
+          { opacity: 0, transform: 'translateY(10px) scale(.97)' },
+          { opacity: 1, transform: 'translateY(0) scale(1)' }
+        ],
+        {
+          duration: 380,
+          delay: i * 65,
+          easing: 'cubic-bezier(.22,.9,.26,1.08)',
+          fill: 'backwards'
+        }
+      );
+    });
+    // 同时覆盖课表高亮格子的 0.45s 入场动画（enterCurrentClass/enterBreakClass）
+    setTimeout(() => { positionSwitchAnimating = false; reportWindowBounds() }, Math.max(total, 450) + 80);
+  }
+
+  ipcRenderer.on('position-mode-changed', (e, mode) => {
+    // 软件设置中选择窗口位置后立即预览（尚未保存到文件）
+    if (mode === 'top-right' || mode === 'right' || mode === 'top') {
+      settings.window_position = mode;
+    }
+    applyPositionMode()
+    // right 模式下课表格子要切换全称/简称与内联倒计时，强制重渲染
+    //（tick 有数据对比缓存，数据不变时不会重绘）
+    tick(true)
+    reportWindowBounds()
+    animatePositionSwitch()
+  })
+
+  ipcRenderer.on('settings-reloaded', () => {
+    applyScheduleCss()
+    applyTheme()
+    tick(true)
   })
 
   ipcRenderer.on('setDayOffset', (e, arg) => {
@@ -511,6 +776,74 @@
       setDayOffsetLastDay = new Date().getDay()
       tick(true)
   })
+
+  // ===== 上下课 / 自定义提醒检测 =====
+  let lastReminderState = { classIndex: null, type: null, fired: {} };
+  let firedCustomDate = {};
+
+  function getTodayKey() {
+    const d = getCurrentEditedDate();
+    return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+  }
+
+  function checkReminders(sd) {
+    const rc = settings?.reminder_class || {};
+    const hl = sd.currentHighlight;
+    if (!hl) return;
+    const dayIdx = getCurrentDayScheduleIndex();
+    const sessionKey = (kind, idx) => `${dayIdx}_${idx}_${kind}`;
+
+    // 即将上课：处于课间（isBreak=true 且 type=upcoming）且倒计时 <= N 秒
+    if (rc.upcoming_enabled && hl.isBreak && hl.type === 'upcoming' && hl.index !== null) {
+      const cd = hl.countdown;
+      const secs = Number(rc.upcoming_seconds) || 300;
+      const key = sessionKey('upcoming', hl.index);
+      if (cd !== null && cd > 0 && cd <= secs && !lastReminderState.fired[key]) {
+        lastReminderState.fired[key] = true;
+        triggerReminderMask({ text: rc.upcoming_text || '即将上课', color: 'rgba(0,200,0,0.85)', duration: 5000 });
+      }
+    }
+
+    // 上课：从非 current 变为 current
+    if (rc.start_enabled && hl.type === 'current' && hl.index !== null) {
+      const key = sessionKey('start', hl.index);
+      if (lastReminderState.type !== 'current' && !lastReminderState.fired[key]) {
+        lastReminderState.fired[key] = true;
+        triggerReminderMask({ text: rc.start_text || '上课', color: 'rgba(0,200,0,0.85)', duration: 5000 });
+      }
+    }
+
+    // 下课：从 current 变为非 current
+    if (rc.end_enabled && lastReminderState.type === 'current' && hl.type !== 'current' && lastReminderState.classIndex !== null) {
+      const key = sessionKey('end', lastReminderState.classIndex);
+      if (!lastReminderState.fired[key]) {
+        lastReminderState.fired[key] = true;
+        triggerReminderMask({ text: rc.end_text || '下课', color: 'rgba(200,180,0,0.85)', duration: 5000 });
+      }
+    }
+
+    lastReminderState.classIndex = hl.index;
+    lastReminderState.type = hl.type;
+
+    // 自定义文本提醒
+    const customs = settings?.reminder_custom || [];
+    if (Array.isArray(customs) && customs.length) {
+      // getCurrentTime() 返回 HH:MM:SS，提醒时间是 HH:MM，取前 5 位按分钟比较
+      const nowMin = getCurrentTime().slice(0, 5);
+      const today = getTodayKey();
+      customs.forEach((item) => {
+        if (!item || !item.time) return;
+        const t = String(item.time).trim().slice(0, 5);
+        if (!/^\d{2}:\d{2}$/.test(t)) return;
+        const id = item.id || item.time;
+        if (firedCustomDate[id] === today) return;
+        if (nowMin === t) {
+          firedCustomDate[id] = today;
+          triggerReminderMask({ text: item.text || '提醒', color: item.color || settings?.reminder_color || '', duration: Number(item.duration) || 5000 });
+        }
+      });
+    }
+  }
 
   // ===== 提醒遮罩 =====
   const reminderMask = document.getElementById('reminderMask');

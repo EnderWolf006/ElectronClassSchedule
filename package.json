@@ -7,17 +7,27 @@
   "license": "GPLv3",
   "scripts": {
     "start": "electron .",
-    "build": "electron-packager . classSchedule --platform=win32 --arch=x64 --out=./out --app-version=0.0.1 --overwrite"
+    "build:renderer": "node scripts/build-renderer.mjs",
+    "build": "npm run build:renderer && electron-packager . classSchedule --platform=win32 --arch=x64 --out=./out --app-version=0.0.1 --overwrite"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.0",
-    "electron-packager": "^17.1.2"
+    "@fluentui/react-components": "^9.74.7",
+    "@fluentui/react-icons": "^2.0.341",
+    "@vitejs/plugin-react": "^4.7.0",
+    "electron-packager": "^17.1.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^6.4.3",
+    "vite-plugin-singlefile": "^2.3.3"
   },
   "dependencies": {
     "electron": "^29.1.5",
     "electron-disable-minimize": "^2.1.0",
     "electron-prompt": "^1.7.0",
     "electron-store": "^8.1.0",
+    "js-yaml": "^5.4.2",
+    "mica-electron": "^1.5.17",
     "node-gyp": "^13.0.2",
     "windows-shortcuts": "^0.1.6"
   }

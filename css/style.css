@@ -30,12 +30,30 @@
 }
 
 :root {
-    transition: opacity .5s .2s;
+    --col-text: rgba(255, 255, 255, 1);
+    --col-current: rgba(0, 255, 10, 1);
+    --col-break: rgba(255, 255, 5, 1);
+    --col-ended: rgba(188, 188, 188, 1);
+    --col-right: #FF3a3a;
+    --col-left: rgb(0, 238, 255);
+    --col-divider: #aaa;
+    --bg-base: rgba(0, 0, 0, var(--global-bg-opacity));
+}
+
+[data-theme="light"] {
+    --col-text: #1a1a1a;
+    --col-current: #0a7d0a;
+    --col-break: #b8860b;
+    --col-ended: #888;
+    --col-right: #c0392b;
+    --col-left: #0277bd;
+    --col-divider: #ccc;
+    --bg-base: rgba(255, 255, 255, var(--global-bg-opacity));
 }
 
 .background {
     border-radius: var(--global-border-radius);
-    background-color: rgba(0, 0, 0, var(--global-bg-opacity));
+    background-color: var(--bg-base);
     padding: var(--container-bg-padding);
     font-size: var(--center-font-size);
     font-weight: 600;
@@ -70,10 +88,96 @@
     justify-content: center;
     min-height: var(--component-row-min-height, 0px);
     gap: var(--component-gap, 10px);
+    /* 行级淡化：快速响应鼠标移入/移出（原 :root 整体淡化是 .5s+.2s 延迟） */
+    transition: opacity .18s ease-out;
+}
+
+.componentRow.faded {
+    opacity: 0.2;
 }
 
 .componentRow[data-component-row="1"] {
     margin-top: var(--second-component-row-offset, 20px);
+}
+
+/* ===== 位置模式：顶部靠右（窗口仍全宽，容器锚定屏幕右缘 + 内容右对齐） ===== */
+[data-position="top-right"] .globalContainer {
+    /* 基础规则是 left:50%+translateX(-50%) 居中锚定，内容超宽时会左右对称溢出，
+       右缘超出屏幕导致右侧组件被裁；改为锚定右缘，保证任何宽度下都真正靠右 */
+    left: auto;
+    right: var(--top-space);
+    transform: none;
+}
+
+[data-position="top-right"] .componentRows {
+    align-items: flex-end;
+}
+
+[data-position="top-right"] .componentRow {
+    justify-content: flex-end;
+}
+
+/* ===== 位置模式：右侧竖排（窗口收窄贴右，行变列、第 1 行最右，行内组件自上而下） ===== */
+[data-position="right"] .globalContainer {
+    left: auto;
+    right: var(--top-space);
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+[data-position="right"] .componentRows {
+    flex-direction: row-reverse;
+    align-items: stretch;
+}
+
+[data-position="right"] .componentRow {
+    flex-direction: column;
+    /* 各列统一宽度：由渲染层测量最宽列后写入 --right-column-width，未设置时保持自然宽度 */
+    width: var(--right-column-width, auto);
+}
+
+[data-position="right"] .componentRow[data-component-row="1"] {
+    /* 第二行（列）的水平间距由 --component-row-gap 承担，垂直 margin 在竖排下无意义 */
+    margin-top: 0;
+}
+
+/* right 模式下课表组件内部：每节课从上到下排列；divider 由垂直线变为水平线 */
+[data-position="right"] .classContainer {
+    flex-direction: column;
+    align-items: center;
+}
+
+/* 组件块占满统一列宽（--right-column-width），各列视觉对齐 */
+[data-position="right"] .componentRow > * {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+[data-position="right"] .componentRow .classContainer {
+    width: 100%;
+}
+
+[data-position="right"] .componentRow .sidebar,
+[data-position="right"] .componentRow .customText {
+    text-align: center;
+}
+
+[data-position="right"] .classContainer .class {
+    margin: 1px 0;
+}
+
+[data-position="right"] .classContainer .divider {
+    width: 1.6em;
+    height: var(--divider-width);
+    margin: 4px 0;
+}
+
+/* right 模式下展开的课程/课间格子改为纵向排列（全称在上，倒计时在下） */
+[data-position="right"] .classContainer .currentClassExpanded,
+[data-position="right"] .classContainer .breakClassExpanded {
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
 }
 
 .scheduleComponent {
@@ -81,12 +185,12 @@
 }
 
 .class {
-    color: rgba(255, 255, 255, 1);
+    color: var(--col-text);
     margin: 0 var(--main-horizontal-space);
 }
 
 .current {
-    color: rgba(0, 255, 10, 1);
+    color: var(--col-current);
 }
 
 .currentClassExpanded {
@@ -101,7 +205,7 @@
     align-items: baseline;
     gap: 8px;
     white-space: nowrap;
-    color: rgba(255, 255, 5, 1);
+    color: var(--col-break);
 }
 
 .stateTransition {
@@ -125,7 +229,7 @@
         transform: translateY(-3px) scale(.98);
     }
     to {
-        color: rgba(0, 255, 10, 1);
+        color: var(--col-current);
         opacity: 1;
         transform: translateY(0) scale(1);
     }
@@ -138,7 +242,11 @@
         transform: translateY(3px) scale(.98);
     }
     to {
-        color: rgba(255, 255, 5, 1);
+        color: var(--col-break);
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
         opacity: 1;
         transform: translateY(0) scale(1);
     }
@@ -150,32 +258,32 @@
 }
 
 .inlineCountdown {
-    color: rgba(255, 255, 255, 1);
+    color: var(--col-text);
     font-family: JETB;
     font-size: var(--countdown-font-size);
 }
 
 .ended {
-    color: rgba(188, 188, 188, 1);
+    color: var(--col-ended);
 }
 
 .upcoming {
-    color: rgba(0, 255, 10, 1);
+    color: var(--col-current);
     animation: highlightUpcoming 1.5s;
     animation-iteration-count: infinite;
 }
 
 @keyframes highlightUpcoming {
     0% {
-        color: rgba(255, 255, 255, 1)
+        color: var(--col-text)
     }
 
     50% {
-        color: rgba(0, 255, 10, 1);
+        color: var(--col-current);
     }
 
     100% {
-        color: rgba(255, 255, 255, 1)
+        color: var(--col-text)
     }
 
 }
@@ -191,28 +299,28 @@
 
 .rightSidebar {
     right: auto;
-    color: #FF3a3a;
+    color: var(--col-right);
 }
 
 .timeSidebar {
-    color: #FFF;
+    color: var(--col-text);
 }
 
 .customText {
-    color: #FFF;
+    color: var(--col-text);
     font-family: JETB;
     font-size: var(--center-font-size);
 }
 
 .leftSidebar {
     left: auto;
-    color: rgb(0, 238, 255);
+    color: var(--col-left);
 }
 
 .corner {
     display: inline;
     font-size: var(--corner-font-size);
-    color: rgba(255, 255, 255, 1);
+    color: var(--col-text);
     font-family: Sou;
 }
 
@@ -226,14 +334,14 @@
     height: 0;
     border-style: solid;
     border-width: 0 var(--triangle-size) var(--triangle-size);
-    border-color: transparent transparent rgba(0, 0, 0, var(--global-bg-opacity));
+    border-color: transparent transparent var(--bg-base);
     position: relative;
     left: 50%;
     transform: translateX(-50%);
 }
 
 .countdowner {
-    background-color: rgba(0, 0, 0, var(--global-bg-opacity));
+    background-color: var(--bg-base);
     border-radius: var(--global-border-radius);
     padding: var(--countdown-bg-padding);
     font-size: var(--countdown-font-size);
@@ -241,7 +349,7 @@
 }
 
 .currentClass {
-    color: rgba(0, 255, 10, 1);
+    color: var(--col-current);
     display: inline;
     font-family: Sou;
     transition: all 2s;
@@ -249,7 +357,7 @@
 }
 
 .countdown {
-    color: rgba(255, 255, 255, 1);
+    color: var(--col-text);
     display: inline;
     font-family: JETB;
 }
@@ -260,17 +368,17 @@
     transform: translateX(-50%);
     top: var(--top-space);
     border-radius: var(--global-border-radius);
-    background-color: rgba(0, 0, 0, var(--global-bg-opacity));
+    background-color: var(--bg-base);
     padding: var(--countdown-bg-padding);
     font-size: var(--countdown-font-size);
     font-family: JETB;
-    color: #FFF;
+    color: var(--col-text);
     display: none;
 }
 
 .divider {
     width: var(--divider-width);
-    background-color: #aaa;
+    background-color: var(--col-divider);
     border-radius: calc(var(--divider-width) / 2);
     margin: var(--divider-margin);
 }
@@ -310,7 +418,7 @@
     font-family: JETB, "Microsoft YaHei", sans-serif;
     font-size: var(--countdown-font-size, 25px);
     font-weight: 700;
-    color: #ffffff;
+    color: var(--col-text);
     text-align: center;
     text-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
     max-width: 100%;

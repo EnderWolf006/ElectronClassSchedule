@@ -27,10 +27,14 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.22.2'
-      
+          # node-gyp@13 要求 Node ^22.22.2 || ^24.15.0；统一用 24（与本地一致）
+          node-version: '24'
+
       - name: Install dependencies
-        run: npm ci
+        # npm ci 保证按 lockfile 可复现安装；必须 --ignore-scripts：
+        # 原生模块的编译统一交给下面的 electron-rebuild，
+        # 否则 install 阶段会按 Node 头文件错误地触发 node-gyp
+        run: npm ci --ignore-scripts
 
       - name: Rebuild dependencies
         run: node_modules/.bin/electron-rebuild
@@ -93,7 +97,7 @@ jobs:
           asset_content_type: application/zip
 
       - name: Install specific Electron version
-        run: npm install electron@22.3.27
+        run: npm install electron@22.3.27 --ignore-scripts
 
       - name: Rebuild dependencies for specific Electron version
         run: node_modules/.bin/electron-rebuild
