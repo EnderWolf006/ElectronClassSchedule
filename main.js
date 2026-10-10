@@ -1,7 +1,9 @@
-const { app, BrowserWindow, Menu, ipcMain, dialog, screen, Tray, shell, powerMonitor, nativeTheme, net } = require('electron')
+const { app, BrowserWindow, Menu, ipcMain, dialog, screen, Tray, shell, powerMonitor, nativeTheme, net, safeStorage } = require('electron')
 const path = require('path');
 const fs = require('fs')
 const os = require('os')
+const crypto = require('crypto')
+const { execFile } = require('child_process')
 const createShortcut = require('windows-shortcuts')
 const yaml = require('js-yaml')
 const { parseTableFile, parseImageFile } = require('./schedule-import');
@@ -59,6 +61,9 @@ const createWindow = () => {
         ...getMainWindowBounds(initialPositionMode, null),
         frame: false,
         transparent: true,
+        // 透明窗口在首帧前默认是白底，21H2 等环境启动时会闪白：
+        // 显式把预渲染底色设为全透明，配合窗口自身的透明属性消除闪白
+        backgroundColor: '#00000000',
         alwaysOnTop: store.get('isWindowAlwaysOnTop', true),
         minimizable: false,
         maximizable: false,
@@ -122,6 +127,7 @@ const createWindow = () => {
     powerMonitor.on('unlock-screen', heartbeat)
     if (store.get('isWindowAlwaysOnTop', true))
         win.setAlwaysOnTop(true, 'screen-saver', 9999999999999)
+    guardRepaint(win)
 }
 // 构造快捷方式参数。
 // 打包后 app.getPath('exe') 即 eSchedule.exe，可直接作为目标；
@@ -157,6 +163,48 @@ function setAutoLaunch() {
         fs.unlink(startupFolderPath + '/' + shortcutName, () => { })
     }
 
+}
+
+// ===== 高优先级启动 =====
+// 用任务计划程序创建“登录时”任务（ONLOGON），在进入桌面（Explorer 加载完成）前就启动本程序，
+// /RL HIGHEST 以最高权限运行；比“启动”文件夹快捷方式更早。
+const HIGH_PRIORITY_TASK_NAME = 'eSchedule_HighPriority';
+
+function highPriorityTaskCommand() {
+    const options = buildShortcutOptions();
+    const quotedTarget = `"${options.target}"`;
+    return options.args ? `${quotedTarget} ${options.args}` : quotedTarget;
+}
+
+function runSchtasks(args, silent = false) {
+    return new Promise((resolve) => {
+        execFile('schtasks', args, { windowsHide: true }, (error, stdout, stderr) => {
+            if (error) {
+                if (!silent) console.log('schtasks 执行失败:', String(stderr || error.message || '').trim());
+                resolve(false);
+            } else {
+                resolve(true);
+            }
+        });
+    });
+}
+
+function setHighPriorityLaunch() {
+    if (store.get('isHighPriorityLaunch', false) && store.get('isAutoLaunch', true)) {
+        return runSchtasks([
+            '/Create', '/TN', HIGH_PRIORITY_TASK_NAME,
+            '/TR', highPriorityTaskCommand(),
+            '/SC', 'ONLOGON', '/RL', 'HIGHEST', '/F'
+        ]);
+    }
+    // 未启用（或开机启动已关闭）时删除任务；任务不存在属于正常情况，不打印错误
+    return runSchtasks(['/Delete', '/TN', HIGH_PRIORITY_TASK_NAME, '/F'], true);
+}
+
+// 同步“开机启动 + 高优先级启动”两项设置（高优先级依赖开机启动）
+function applyLaunchSettings() {
+    setAutoLaunch();
+    return setHighPriorityLaunch();
 }
 
 // 窗口尺寸记忆：打开时恢复上次关闭前的宽高，关闭时保存
@@ -442,8 +490,12 @@ function createPluginApi(plugin, instance) {
             });
         },
         createWindow: (options) => {
-            const winObj = new BrowserWindow(options);
+            const winObj = new BrowserWindow(options && options.transparent
+                // 插件创建的透明窗口同样指定全透明预渲染底色，避免显示时闪白
+                ? { backgroundColor: '#00000000', ...options }
+                : options);
             instance.windows.push(winObj);
+            guardRepaint(winObj);
             winObj.on('closed', () => {
                 instance.windows = instance.windows.filter((item) => item !== winObj);
             });
@@ -608,6 +660,231 @@ ipcMain.on('open-plugins-folder', async () => {
 
 // （插件系统代码结束）
 
+// ===== 安全设置：独立密码保护 =====
+// 开启后：打开“软件设置 / 课表配置编辑器”需要验证密码；托盘菜单里的程序控制项
+// （退出、重启、上课隐藏、窗口置顶、课上计时、显示次日课程）也要先验证。
+// 密码不写入 settings.js：加盐 scrypt 哈希后用系统级加密（Electron safeStorage，
+// Windows 下即 DPAPI，绑定当前系统用户）整体加密，保存到用户数据目录下的密钥文件，
+// 删除该文件即可重置为无密码状态（忘记密码时的兜底）。
+// 可单独开关密码保护的模块（页面 + 托盘控制项）。
+// 开关键值保存在 settings.js 的 security_protect（不是机密数据）；
+// 密码哈希仍只存在于加密的密钥文件中。
+const SECURITY_MODULES = [
+    { id: 'settings', label: '打开“软件设置”', group: 'page' },
+    { id: 'editor', label: '打开“课表配置编辑器”', group: 'page' },
+    { id: 'quit', label: '退出程序', group: 'tray' },
+    { id: 'restart', label: '重启', group: 'tray' },
+    { id: 'hidden', label: '上课隐藏', group: 'tray' },
+    { id: 'ontop', label: '窗口置顶', group: 'tray' },
+    { id: 'countdown', label: '课上计时', group: 'tray' },
+    { id: 'nextday', label: '显示次日课程', group: 'tray' },
+];
+const SECURITY_MODULE_IDS = new Set(SECURITY_MODULES.map((item) => item.id));
+
+// 读取各模块的保护开关（缺省全部保护，保持与旧行为一致）
+function readSecurityModules() {
+    const settings = readSettingsObject();
+    const saved = settings && settings.security_protect && typeof settings.security_protect === 'object'
+        ? settings.security_protect
+        : {};
+    const result = {};
+    SECURITY_MODULES.forEach((module) => {
+        result[module.id] = saved[module.id] !== false;
+    });
+    return result;
+}
+
+// 某模块是否受保护：必须先启用密码保护，且该模块开关为开
+function isModuleProtected(moduleId) {
+    if (!SECURITY_MODULE_IDS.has(moduleId)) return false;
+    if (!isSecurityEnabled()) return false;
+    return readSecurityModules()[moduleId] === true;
+}
+
+function getSecurityFilePath() {
+    return path.join(app.getPath('userData'), '.eschedule-lock.dat');
+}
+
+function hashSecurityPassword(password, salt) {
+    return crypto.scryptSync(String(password), salt, 32).toString('hex');
+}
+
+function readSecurityRecord() {
+    try {
+        const raw = fs.readFileSync(getSecurityFilePath());
+        if (!raw || !raw.length) return null;
+        if (!safeStorage.isEncryptionAvailable()) return null;
+        const record = JSON.parse(safeStorage.decryptString(raw));
+        return record && record.hash && record.salt ? record : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+function isSecurityEnabled() {
+    return !!readSecurityRecord();
+}
+
+// 简易防爆破：连续 5 次错误后静置 10 秒
+let securityFailures = 0;
+let securityBlockedUntil = 0;
+
+function verifySecurityPassword(password) {
+    if (Date.now() < securityBlockedUntil) return { ok: false, error: '尝试次数过多，请稍后再试' };
+    const record = readSecurityRecord();
+    if (!record) return { ok: true };
+    const candidate = Buffer.from(hashSecurityPassword(password, record.salt), 'hex');
+    const expected = Buffer.from(record.hash, 'hex');
+    const ok = candidate.length === expected.length && crypto.timingSafeEqual(candidate, expected);
+    if (ok) {
+        securityFailures = 0;
+        return { ok: true };
+    }
+    securityFailures += 1;
+    if (securityFailures >= 5) {
+        securityBlockedUntil = Date.now() + 10 * 1000;
+        securityFailures = 0;
+    }
+    return { ok: false, error: '密码不正确' };
+}
+
+let securityPromptWin = null;
+let securityPromptResolve = null;
+
+function finishSecurityPrompt(result) {
+    const winObj = securityPromptWin;
+    securityPromptWin = null;
+    const resolve = securityPromptResolve;
+    securityPromptResolve = null;
+    if (winObj && !winObj.isDestroyed()) winObj.close();
+    if (resolve) resolve(result);
+}
+
+// 弹出密码验证窗；返回 Promise<boolean>（验证通过 / 取消）
+function promptSecurityPassword(reason) {
+    return new Promise((resolve) => {
+        if (securityPromptWin && !securityPromptWin.isDestroyed()) {
+            securityPromptWin.focus();
+            resolve(false);
+            return;
+        }
+        securityPromptResolve = resolve;
+        const mainWin = (win && !win.isDestroyed()) ? win : null;
+        const restoreTop = () => {
+            if (mainWin && store.get('isWindowAlwaysOnTop', true)) {
+                mainWin.setAlwaysOnTop(true, 'screen-saver', 9999999999999);
+            }
+        };
+        if (mainWin) mainWin.setAlwaysOnTop(false);
+        securityPromptWin = new BrowserWindow({
+            width: 380,
+            height: 250,
+            frame: false,
+            transparent: true,
+            backgroundColor: '#00000000',
+            resizable: false,
+            minimizable: false,
+            maximizable: false,
+            skipTaskbar: true,
+            alwaysOnTop: true,
+            show: false,
+            center: true,
+            webPreferences: {
+                nodeIntegration: true,
+                contextIsolation: false,
+                backgroundThrottling: false,
+            },
+        });
+        securityPromptWin.setAlwaysOnTop(true, 'screen-saver');
+        guardRepaint(securityPromptWin);
+        securityPromptWin.loadFile('security-prompt.html', { query: { reason: String(reason || '') } });
+        securityPromptWin.once('ready-to-show', () => {
+            if (securityPromptWin && !securityPromptWin.isDestroyed()) securityPromptWin.show();
+        });
+        securityPromptWin.on('closed', () => {
+            securityPromptWin = null;
+            restoreTop();
+            if (securityPromptResolve === resolve) {
+                securityPromptResolve = null;
+                resolve(false);
+            }
+        });
+    });
+}
+
+// 已启用密码保护时先验证；未启用直接放行
+function withSecurity(reason) {
+    if (!isSecurityEnabled()) return Promise.resolve(true);
+    return promptSecurityPassword(reason);
+}
+
+ipcMain.on('security-attempt', (event, payload) => {
+    const result = verifySecurityPassword(String((payload && payload.password) || ''));
+    if (result.ok) {
+        finishSecurityPrompt(true);
+        return;
+    }
+    const sender = event.sender;
+    if (sender && !sender.isDestroyed()) sender.send('security-attempt-result', result);
+})
+
+ipcMain.on('security-prompt-cancel', () => finishSecurityPrompt(false))
+
+ipcMain.handle('security-status', async () => ({
+    enabled: isSecurityEnabled(),
+    encryptionAvailable: safeStorage.isEncryptionAvailable(),
+    file: getSecurityFilePath(),
+}))
+
+ipcMain.handle('security-set-password', async (event, payload) => {
+    const current = String((payload && payload.currentPassword) || '');
+    const next = String((payload && payload.password) || '');
+    if (next.length < 4) return { ok: false, error: '密码至少 4 位' };
+    if (isSecurityEnabled()) {
+        const verified = verifySecurityPassword(current);
+        if (!verified.ok) return verified;
+    }
+    if (!safeStorage.isEncryptionAvailable()) {
+        return { ok: false, error: '当前系统不支持安全存储（safeStorage 不可用），无法启用密码保护' };
+    }
+    try {
+        const salt = crypto.randomBytes(16).toString('hex');
+        const record = { v: 1, salt, hash: hashSecurityPassword(next, salt), updatedAt: Date.now() };
+        fs.writeFileSync(getSecurityFilePath(), safeStorage.encryptString(JSON.stringify(record)));
+    } catch (error) {
+        return { ok: false, error: (error && error.message) || '写入密钥文件失败' };
+    }
+    securityFailures = 0;
+    securityBlockedUntil = 0;
+    return { ok: true };
+})
+
+ipcMain.handle('security-remove-password', async (event, payload) => {
+    if (!isSecurityEnabled()) return { ok: true };
+    const verified = verifySecurityPassword(String((payload && payload.currentPassword) || ''));
+    if (!verified.ok) return verified;
+    try { fs.unlinkSync(getSecurityFilePath()); } catch (error) { /* 忽略 */ }
+    return { ok: true };
+})
+
+// 各模块的保护开关（安全设置页使用）
+ipcMain.handle('security-modules-get', async () => ({
+    modules: SECURITY_MODULES,
+    values: readSecurityModules(),
+}))
+
+ipcMain.handle('security-modules-set', async (event, payload) => {
+    const moduleId = String((payload && payload.module) || '');
+    if (!SECURITY_MODULE_IDS.has(moduleId)) return { ok: false, error: '未知的模块' };
+    const settingsPath = path.join(__dirname, 'js', 'settings.js');
+    const settings = readSettingsObject();
+    if (!settings.security_protect || typeof settings.security_protect !== 'object') settings.security_protect = {};
+    settings.security_protect[moduleId] = payload.enabled !== false;
+    const formatted = `const _settings = ${JSON.stringify(settings, null, 4)}\n\nvar settings = JSON.parse(JSON.stringify(_settings))\n`;
+    fs.writeFileSync(settingsPath, formatted, 'utf8');
+    return { ok: true, values: readSecurityModules() };
+})
+
 // 主窗口位置模式：top（顶部居中，默认）/ top-right（顶部靠右）/ right（右侧竖排）
 function readWindowPositionMode() {
     try {
@@ -711,12 +988,52 @@ function broadcastThemeMode(mode) {
 
 // 创建带 Win11 Mica 材质的设置窗口。
 // 非 Windows 或 mica-electron 不可用时静默降级为普通 BrowserWindow（渲染层保持不透明外观）。
+// 21H2 等环境下，透明/亚克力窗口在最小化还原或重新显示后可能整窗变白
+// （DWM 表面丢失且不再重绘）。统一在 show / restore 时让渲染层失效重绘，
+// 并给 user32 亚克力窗口补一次 tint，尽可能恢复到正常画面。
+function guardRepaint(winObj) {
+    if (!winObj || winObj.__repaintGuarded) return;
+    winObj.__repaintGuarded = true;
+    const repaint = () => {
+        if (winObj.isDestroyed()) return;
+        try {
+            const contents = winObj.webContents;
+            if (contents && !contents.isDestroyed()) contents.invalidate();
+        } catch (error) { /* 忽略 */ }
+        if (winObj.__acrylicBackend === 'user32') {
+            try { applyAcrylicTheme(winObj, winObj.__themeMode || readThemeMode()); } catch (error) { /* 忽略 */ }
+        }
+    };
+    winObj.on('restore', repaint);
+    winObj.on('maximize', repaint);
+    winObj.on('show', () => setTimeout(repaint, 60));
+}
+
+// 首帧渲染完成后再显示（ready-to-show），并保留 2.5s 兜底，
+// 避免加载失败时窗口永不出现；透明/Mica 窗口在首帧前显示会闪一下白底
+function scheduleFirstShow(winObj, deferShow) {
+    if (!deferShow) return;
+    let shown = false;
+    const show = () => {
+        if (shown || winObj.isDestroyed()) return;
+        shown = true;
+        winObj.show();
+    };
+    winObj.once('ready-to-show', show);
+    setTimeout(show, 2500);
+}
+
 function createSettingsWindow(options) {
+    const deferShow = options.show !== true;
+    const windowOptions = deferShow ? { ...options, show: false } : options;
     if (!acrylicAvailable) {
-        return new BrowserWindow(options);
+        const winObj = new BrowserWindow(windowOptions);
+        scheduleFirstShow(winObj, deferShow);
+        guardRepaint(winObj);
+        return winObj;
     }
     // MicaBrowserWindow 构造函数会强制 transparent=true（Electron 27-40）与透明 backgroundColor
-    const winObj = new micaElectron.MicaBrowserWindow(options);
+    const winObj = new micaElectron.MicaBrowserWindow(windowOptions);
     winObj.__acrylic = true;
     try {
         if (dwmBackdropSupported) {
@@ -784,10 +1101,18 @@ function createSettingsWindow(options) {
     };
     winObj.on('show', restoreInitialBounds);
 
+    scheduleFirstShow(winObj, deferShow);
+    guardRepaint(winObj);
+
     return winObj;
 }
 
-function openConfigEditorWindow() {
+function openConfigEditorWindow(unlocked) {
+    // 启用密码保护且“课表配置编辑器”模块受保护时：打开前需验证
+    if (isModuleProtected('editor') && unlocked !== true) {
+        withSecurity('打开课表配置编辑器需要验证密码').then((ok) => { if (ok) openConfigEditorWindow(true); });
+        return;
+    }
     if (configEditorWin && !configEditorWin.isDestroyed()) {
         configEditorWin.focus();
         return;
@@ -814,7 +1139,12 @@ function openConfigEditorWindow() {
     })
 }
 
-function openSoftwareSettingsWindow(page) {
+function openSoftwareSettingsWindow(page, unlocked) {
+    // 启用密码保护且“软件设置”模块受保护时：打开前需验证
+    if (isModuleProtected('settings') && unlocked !== true) {
+        withSecurity('打开软件设置需要验证密码').then((ok) => { if (ok) openSoftwareSettingsWindow(page, true); });
+        return;
+    }
     const targetPage = typeof page === 'string' && page ? page : null;
     if (softwareSettingsWin && !softwareSettingsWin.isDestroyed()) {
         softwareSettingsWin.focus();
@@ -907,10 +1237,20 @@ app.whenReady().then(() => {
     loadActivePlugins()
     createWindow()
     createTrayMenu()
+    // 天气设置：开启“自动获取位置”且未指定城市时，启动后后台刷新一次坐标
+    const weatherStartup = readWeatherSettings();
+    if (weatherStartup.autoLocate && !weatherStartup.city) {
+        setTimeout(() => {
+            resolveGeoByIp(weatherStartup.allowInsecureHttp).then((geo) => {
+                writeWeatherSettings({ latitude: geo.latitude, longitude: geo.longitude, city_name: geo.cityName || '' });
+            }).catch(() => { /* 启动定位失败时沿用原坐标 */ });
+        }, 4000);
+    }
     Menu.setApplicationMenu(null)
     const handle = win.getNativeWindowHandle();
     DisableMinimize(handle); // Thank to peter's project https://github.com/tbvjaos510/electron-disable-minimize
     setAutoLaunch()
+    setHighPriorityLaunch()
 })
 
 function createTrayMenu() {
@@ -932,6 +1272,8 @@ let trayMenuWin = undefined;
 let trayMenuReady = false;
 // true 表示本次收到尺寸后需要定位并弹出窗口；勾选状态刷新时只更新尺寸
 let trayMenuPendingShow = false;
+// 组件角标点击时的弹出锚点：{ x, top, bottom, preferBelow }
+let trayMenuAnchor = null;
 // 最近一次实际弹出的时间戳，用于屏蔽 showInactive 瞬间的失焦抖动
 let trayMenuShownAt = 0;
 
@@ -947,7 +1289,6 @@ function buildTrayMenuModel() {
         { id: 'ontop', label: '窗口置顶', type: 'checkbox', checked: store.get('isWindowAlwaysOnTop', true) },
         { id: 'hidden', label: '上课隐藏', type: 'checkbox', checked: store.get('isDuringClassHidden', false) },
         { id: 'nextday', label: '显示次日课程（测试）', type: 'checkbox', checked: store.get('showNextDayAfterSchool', false) },
-        { id: 'autostart', label: '开机启动', type: 'checkbox', checked: store.get('isAutoLaunch', true) },
         { type: 'separator' },
         { id: 'editor', label: '课表配置编辑器', icon: iconUrl('editor.png') },
         { id: 'settings', label: '软件设置', icon: iconUrl('setting.png') },
@@ -989,6 +1330,7 @@ function ensureTrayMenuWindow() {
         height: 120,
         frame: false,
         transparent: true,
+        backgroundColor: '#00000000',
         resizable: false,
         movable: false,
         minimizable: false,
@@ -1005,6 +1347,7 @@ function ensureTrayMenuWindow() {
         }
     });
     trayMenuWin.loadFile('tray-menu.html');
+    guardRepaint(trayMenuWin);
     // 点击菜单外任意区域触发失焦，自动收起
     trayMenuWin.on('blur', () => {
         closeTrayMenu();
@@ -1041,11 +1384,17 @@ function closeTrayMenu() {
     }
 }
 
-// 执行菜单项动作；返回 true 表示菜单保持打开（勾选类）
-function executeTrayAction(id) {
+// 执行菜单项动作；返回 true 表示菜单保持打开（勾选类）。
+// unlocked=true 表示已通过密码验证（内部重入时使用）
+function executeTrayAction(id, unlocked = false) {
     // 插件扩展项：plugin:<插件id>:<动作id>
     if (typeof id === 'string' && id.startsWith('plugin:')) {
         return executePluginTrayAction(id);
+    }
+    // 启用密码保护后，程序控制类开关需要先验证密码（按模块开关逐项判断）
+    if (!unlocked && SECURITY_MODULE_IDS.has(id) && isModuleProtected(id)) {
+        withSecurity('执行该操作需要验证密码').then((ok) => { if (ok) executeTrayAction(id, true); });
+        return false;
     }
     switch (id) {
         case 'adjust':
@@ -1082,12 +1431,6 @@ function executeTrayAction(id) {
             const checked = !store.get('showNextDayAfterSchool', false);
             store.set('showNextDayAfterSchool', checked);
             win.webContents.send('NextDayAfterSchool', checked);
-            return true;
-        }
-        case 'autostart': {
-            const checked = !store.get('isAutoLaunch', true);
-            store.set('isAutoLaunch', checked);
-            setAutoLaunch();
             return true;
         }
         case 'editor':
@@ -1137,14 +1480,29 @@ ipcMain.on('tray-menu-size', (event, size) => {
     if (!trayMenuPendingShow) return;
     trayMenuPendingShow = false;
 
-    // 贴近托盘图标上方显示（空间不足时显示在下方），并限制在显示器工作区内
+    // 弹出锚点：组件角标点击（向下弹）优先；否则用托盘图标（优先向上弹）
+    const anchor = trayMenuAnchor;
+    trayMenuAnchor = null;
     const tb = tray.getBounds();
-    const display = screen.getDisplayNearestPoint({ x: tb.x, y: tb.y });
+    const anchorX = anchor ? anchor.x : Math.round(tb.x + tb.width / 2);
+    const anchorTop = anchor ? anchor.top : tb.y;
+    const anchorBottom = anchor ? anchor.bottom : tb.y + tb.height;
+    const display = screen.getDisplayNearestPoint({ x: anchorX, y: anchorTop });
     const wa = display.workArea;
-    let x = Math.round(tb.x + tb.width / 2 - TRAY_MENU_WIDTH / 2);
+    let x = Math.round(anchorX - TRAY_MENU_WIDTH / 2);
     x = Math.max(wa.x + 4, Math.min(x, wa.x + wa.width - TRAY_MENU_WIDTH - 4));
-    let y = Math.round(tb.y - height - 8);
-    if (y < wa.y + 4) y = tb.y + tb.height + 8;
+    // 方向选择：足够空间时按偏好方向（角标=向下、托盘图标=向上）；
+    // 不足时换向；两侧都不足时选空间更大的一侧，最后统一钳制在工作区内，
+    // 避免出现“明明上方有空间却向下弹出”或菜单跑出屏幕的情况
+    const gap = 8;
+    const spaceAbove = anchorTop - (wa.y + 4);
+    const spaceBelow = (wa.y + wa.height - 4) - anchorBottom;
+    const preferBelow = !!anchor && anchor.preferBelow === true;
+    const below = preferBelow
+        ? (spaceBelow >= height + gap || spaceBelow >= spaceAbove)
+        : !(spaceAbove >= height + gap || spaceAbove >= spaceBelow);
+    let y = below ? anchorBottom + gap : anchorTop - height - gap;
+    y = Math.max(wa.y + 4, Math.min(y, wa.y + wa.height - height - 4));
     trayMenuWin.setBounds({ x, y, width: TRAY_MENU_WIDTH, height });
     trayMenuShownAt = Date.now();
     trayMenuWin.show();
@@ -1228,17 +1586,10 @@ async function localizeCityName(cityName) {
     return cityName;
 }
 
-// 自动定位：多供应商兜底。ip-api 为明文 HTTP 免费接口，国内偶发被重置或
-// 触发限流（45 次/分钟），失败时依次改用 HTTPS 的 ipinfo.io、geojs.io
-async function resolveGeoByIp() {
-    try {
-        const geo = await fetchWeatherJson('http://ip-api.com/json/?lang=zh-CN');
-        if (geo.status === 'success' && typeof geo.lat === 'number') {
-            return { latitude: geo.lat, longitude: geo.lon, cityName: geo.city || geo.regionName || '' };
-        }
-    } catch (error) {
-        console.log('[weather] ip-api 定位失败:', error && error.message ? error.message : error);
-    }
+// 自动定位：多供应商兜底，默认全部使用 HTTPS（TLS）。
+// 天气设置页提供“不使用 TLS 协议获取天气”开关（默认关）：开启后才追加明文 HTTP 的
+// ip-api 作为最后兜底，兼容无法访问 HTTPS 定位接口的网络环境。
+async function resolveGeoByIp(allowInsecure = false) {
     try {
         const geo = await fetchWeatherJson('https://ipinfo.io/json');
         if (typeof geo.loc === 'string') {
@@ -1251,6 +1602,16 @@ async function resolveGeoByIp() {
         console.log('[weather] ipinfo.io 定位失败:', error && error.message ? error.message : error);
     }
     try {
+        const geo = await fetchWeatherJson('https://ipwho.is/');
+        const lat = Number(geo.latitude);
+        const lon = Number(geo.longitude);
+        if (geo.success !== false && Number.isFinite(lat) && Number.isFinite(lon)) {
+            return { latitude: lat, longitude: lon, cityName: await localizeCityName(geo.city || '') };
+        }
+    } catch (error) {
+        console.log('[weather] ipwho.is 定位失败:', error && error.message ? error.message : error);
+    }
+    try {
         const geo = await fetchWeatherJson('https://get.geojs.io/v1/ip/geo.json');
         const lat = Number(geo.latitude);
         const lon = Number(geo.longitude);
@@ -1260,11 +1621,55 @@ async function resolveGeoByIp() {
     } catch (error) {
         console.log('[weather] geojs.io 定位失败:', error && error.message ? error.message : error);
     }
+    // 仅在用户明确允许时使用明文 HTTP 供应商
+    if (allowInsecure) {
+        try {
+            const geo = await fetchWeatherJson('http://ip-api.com/json/?lang=zh-CN');
+            if (geo.status === 'success' && typeof geo.lat === 'number') {
+                return { latitude: geo.lat, longitude: geo.lon, cityName: geo.city || geo.regionName || '' };
+            }
+        } catch (error) {
+            console.log('[weather] ip-api（明文 HTTP）定位失败:', error && error.message ? error.message : error);
+        }
+    }
     throw new Error('all geo providers failed');
 }
 
+// ===== 天气设置（settings.weather）=====
+// 城市、坐标、自动定位、图标包、排除的气象预警、是否允许明文 HTTP。
+// 组件与提醒的天气都使用这里的城市：优先组件自身的城市设置，其次全局城市，最后自动定位。
+function readWeatherSettings() {
+    const settings = readSettingsObject();
+    const value = settings && settings.weather && typeof settings.weather === 'object' ? settings.weather : {};
+    const latitude = Number(value.latitude);
+    const longitude = Number(value.longitude);
+    return {
+        city: typeof value.city === 'string' ? value.city : '',
+        cityName: typeof value.city_name === 'string' ? value.city_name : '',
+        latitude: Number.isFinite(latitude) ? latitude : null,
+        longitude: Number.isFinite(longitude) ? longitude : null,
+        autoLocate: value.auto_locate !== false,
+        iconPack: value.icon_pack === 'text' ? 'text' : 'emoji',
+        excludedAlerts: Array.isArray(value.excluded_alerts)
+            ? value.excluded_alerts.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim())
+            : [],
+        allowInsecureHttp: value.allow_insecure_http === true,
+    };
+}
+
+function writeWeatherSettings(patch) {
+    const settingsPath = path.join(__dirname, 'js', 'settings.js');
+    const settings = readSettingsObject();
+    const current = settings && settings.weather && typeof settings.weather === 'object' ? settings.weather : {};
+    settings.weather = { ...current, ...(patch || {}) };
+    const formatted = `const _settings = ${JSON.stringify(settings, null, 4)}\n\nvar settings = JSON.parse(JSON.stringify(_settings))\n`;
+    fs.writeFileSync(settingsPath, formatted, 'utf8');
+    return readWeatherSettings();
+}
+
 ipcMain.handle('get-weather', async (event, cityInput) => {
-    const key = String(cityInput || '').trim() || 'auto';
+    const weatherSettings = readWeatherSettings();
+    const key = String(cityInput || '').trim() || String(weatherSettings.city || '').trim() || 'auto';
     const cached = weatherCache.get(key);
     if (cached && Date.now() - cached.at < WEATHER_TTL) return cached.data;
     try {
@@ -1272,7 +1677,15 @@ ipcMain.handle('get-weather', async (event, cityInput) => {
         let longitude;
         let cityName;
         if (key === 'auto') {
-            ({ latitude, longitude, cityName } = await resolveGeoByIp());
+            // 已保存过坐标时直接复用（避免每次刷新都请求定位接口）
+            if (weatherSettings.latitude !== null && weatherSettings.longitude !== null) {
+                latitude = weatherSettings.latitude;
+                longitude = weatherSettings.longitude;
+                cityName = weatherSettings.cityName;
+            } else {
+                ({ latitude, longitude, cityName } = await resolveGeoByIp(weatherSettings.allowInsecureHttp));
+                writeWeatherSettings({ latitude, longitude, city_name: cityName || '' });
+            }
         } else {
             const found = await fetchWeatherJson(
                 `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(key)}&count=1&language=zh&format=json`
@@ -1289,15 +1702,26 @@ ipcMain.handle('get-weather', async (event, cityInput) => {
             try {
                 weather = await fetchWeatherJson(
                     `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}`
-                    + '&current=temperature_2m,weather_code&timezone=auto'
+                    + '&current=temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m&timezone=auto'
                 );
                 break;
             } catch (error) {
                 if (attempt >= 1) throw error;
             }
         }
+        // 空气质量单独接口，失败不影响天气主体
+        let aqi = null;
+        try {
+            const air = await fetchWeatherJson(
+                `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${latitude}&longitude=${longitude}&current=us_aqi`
+            );
+            const value = Number(air?.current?.us_aqi);
+            if (Number.isFinite(value)) aqi = Math.round(value);
+        } catch (error) { /* 忽略空气质量失败 */ }
         const code = weather?.current?.weather_code;
         const temp = Number(weather?.current?.temperature_2m);
+        const humidity = Number(weather?.current?.relative_humidity_2m);
+        const wind = Number(weather?.current?.wind_speed_10m);
         const [text, emoji] = WEATHER_CODE_MAP[code] || ['未知', '🌡️'];
         const data = {
             city: cityName,
@@ -1305,6 +1729,10 @@ ipcMain.handle('get-weather', async (event, cityInput) => {
             text,
             emoji,
             code: Number.isFinite(Number(code)) ? Number(code) : null,
+            humidity: Number.isFinite(humidity) ? Math.round(humidity) : null,
+            wind: Number.isFinite(wind) ? Math.round(wind * 10) / 10 : null,
+            aqi,
+            updatedAt: Date.now(),
         };
         weatherCache.set(key, { at: Date.now(), data });
         const diskCache = readWeatherDiskCache();
@@ -1318,6 +1746,54 @@ ipcMain.handle('get-weather', async (event, cityInput) => {
         if (stale && stale.data) return Object.assign({ stale: true }, stale.data);
         return { error: true };
     }
+})
+
+// 立即重新定位（天气设置页的“坐标定位”），并把坐标写回 settings.weather
+ipcMain.handle('weather-locate', async () => {
+    const weatherSettings = readWeatherSettings();
+    try {
+        const geo = await resolveGeoByIp(weatherSettings.allowInsecureHttp);
+        writeWeatherSettings({
+            latitude: geo.latitude,
+            longitude: geo.longitude,
+            city_name: geo.cityName || '',
+        });
+        weatherCache.clear();
+        return { ok: true, latitude: geo.latitude, longitude: geo.longitude, cityName: geo.cityName || '' };
+    } catch (error) {
+        return { ok: false, error: (error && error.message) || '定位失败' };
+    }
+})
+
+// 城市搜索（天气设置页的“选择城市”）
+ipcMain.handle('weather-search-city', async (event, keyword) => {
+    const query = String(keyword || '').trim();
+    if (!query) return { results: [] };
+    try {
+        const found = await fetchWeatherJson(
+            `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=6&language=zh&format=json`
+        );
+        return {
+            results: (found?.results || []).map((place) => ({
+                name: place.name,
+                admin1: place.admin1 || '',
+                country: place.country || '',
+                latitude: place.latitude,
+                longitude: place.longitude,
+            })),
+        };
+    } catch (error) {
+        return { error: (error && error.message) || '搜索失败' };
+    }
+})
+
+ipcMain.handle('weather-settings-get', async () => readWeatherSettings())
+
+ipcMain.handle('weather-settings-save', async (event, patch) => {
+    const next = writeWeatherSettings(patch || {});
+    weatherCache.clear();
+    if (win && !win.isDestroyed()) reloadMainWindow();
+    return { ok: true, settings: next };
 })
 
 // ===== 地震速报：聚合中国地震台网正式测定（wolfx 镜像），渲染进程每分钟轮询，
@@ -1425,6 +1901,7 @@ function ensureReminderWindow() {
         height: bounds.height,
         frame: false,
         transparent: true,
+        backgroundColor: '#00000000',
         resizable: false,
         movable: false,
         minimizable: false,
@@ -1441,6 +1918,7 @@ function ensureReminderWindow() {
         }
     });
     reminderWin.setAlwaysOnTop(true, 'screen-saver', 9999999999999);
+    guardRepaint(reminderWin);
     reminderWin.loadFile('reminder.html');
     reminderWin.once('ready-to-show', () => reminderWinReady = true);
     reminderWin.webContents.on('did-finish-load', () => {
@@ -1830,6 +2308,10 @@ ipcMain.on('open-theme-folder', async () => {
 })
 
 ipcMain.on('pop', (e, arg) => {
+    // 组件角标（星期/日期的小字）点击：按点击位置向下弹出；无参时按托盘图标定位
+    trayMenuAnchor = (arg && Number.isFinite(arg.x) && Number.isFinite(arg.bottom))
+        ? { x: arg.x, top: Number(arg.top) || arg.bottom, bottom: arg.bottom, preferBelow: true }
+        : null;
     openTrayMenu()
 })
 
@@ -1849,6 +2331,31 @@ ipcMain.handle('create-desktop-shortcut', async () => {
         });
     });
 });
+
+// 启动设置（开机启动 / 高优先级启动）：高优先级启动依赖开机启动
+ipcMain.handle('launch-settings-get', async () => ({
+    autoLaunch: store.get('isAutoLaunch', true),
+    highPriority: store.get('isHighPriorityLaunch', false)
+}))
+
+ipcMain.handle('launch-settings-set', async (event, payload) => {
+    if (payload && typeof payload.autoLaunch === 'boolean') {
+        store.set('isAutoLaunch', payload.autoLaunch);
+        // 关闭开机启动时，高优先级启动一并关闭
+        if (!payload.autoLaunch) store.set('isHighPriorityLaunch', false);
+    }
+    if (payload && typeof payload.highPriority === 'boolean') {
+        // 高优先级启动必须在开机启动开启后才能设置
+        store.set('isHighPriorityLaunch', payload.highPriority && store.get('isAutoLaunch', true));
+    }
+    const applied = await applyLaunchSettings();
+    return {
+        autoLaunch: store.get('isAutoLaunch', true),
+        highPriority: store.get('isHighPriorityLaunch', false),
+        // 高优先级任务创建失败（如系统策略限制）时为 false，供设置页提示
+        applied: applied !== false
+    };
+})
 
 ipcMain.on('course-fusion-result', (event, fusion) => {
     if (win && !win.isDestroyed()) win.webContents.send('courseFusion', fusion || null);

@@ -555,6 +555,9 @@ export default function ComponentsPage({
 
 function ComponentEditorFields({ component, onOption, pluginSchema }) {
   const options = component.options || {};
+  // 取色草稿：取色过程中只更新界面不落盘，失焦（关闭取色器 / 点击其它位置）后才保存
+  const [colorDraft, setColorDraft] = useState(null);
+  const draftActive = colorDraft && colorDraft.id === component.id;
   // 插件组件：按清单声明的 options 模式渲染通用表单
   if (Array.isArray(pluginSchema) && pluginSchema.length) {
     return (
@@ -634,8 +637,15 @@ function ComponentEditorFields({ component, onOption, pluginSchema }) {
         <input
           type="color"
           className="native-color"
-          value={/^#[0-9a-fA-F]{6}$/i.test(options.color || '') ? options.color : '#ff3a3a'}
-          onChange={(event) => onOption('color', event.target.value)}
+          title="取色过程中不会保存，关闭取色器或点击其它位置后才保存"
+          value={draftActive
+            ? colorDraft.value
+            : (/^#[0-9a-fA-F]{6}$/i.test(options.color || '') ? options.color : '#ff3a3a')}
+          onChange={(event) => setColorDraft({ id: component.id, value: event.target.value })}
+          onBlur={() => {
+            if (draftActive && colorDraft.value !== options.color) onOption('color', colorDraft.value);
+            setColorDraft(null);
+          }}
         />
       </div>
     );

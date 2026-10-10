@@ -176,11 +176,13 @@ function getCurrentEditedDay(date) {
 
 // 解析当前应加载的 daily_class 索引。
 // weekdayDelta 仅在自动模式下有效（“显示次日课程”按自然日 +1）；
-// 手动切换时锁定用户选定的索引，不做星期取模。
+// 手动“切换日程/加载临时课表”只作用于今天（weekdayDelta=0），
+// 次日视图始终按自然日的星期映射取课表——否则“显示次日课程”会重复显示
+// 今天临时加载的那份课表（尤其是索引 ≥ 5 的临时课表）。
 function resolveScheduleIndex(weekdayDelta = 0) {
     const schedules = Array.isArray(scheduleConfig.daily_class) ? scheduleConfig.daily_class : [];
     const manualIndex = getManualDayIndex();
-    if (manualIndex !== -1) {
+    if (manualIndex !== -1 && weekdayDelta === 0) {
         return schedules[manualIndex] ? manualIndex : -1;
     }
     const date = getCurrentEditedDate();

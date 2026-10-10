@@ -60,6 +60,21 @@
     }
     input[type="number"]:focus { border-color: #4cc2ff; }
     .hint { font-size: 12px; color: #9a9a9a; }
+    .repeat-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #d8d8d8;
+      cursor: pointer;
+      user-select: none;
+    }
+    .repeat-row input[type="checkbox"] {
+      width: 15px;
+      height: 15px;
+      accent-color: #0f6cbd;
+      cursor: pointer;
+    }
     .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: auto; }
     button.action {
       height: 32px;
@@ -87,6 +102,10 @@
       <label for="count">抽取人数</label>
       <input type="number" id="count" min="1" step="1">
     </div>
+    <label class="repeat-row">
+      <input type="checkbox" id="repeat">
+      <span>允许重复（不受“本节内每人最多一次”限制）</span>
+    </label>
     <div class="hint" id="hint"></div>
     <div class="actions">
       <button class="action" id="cancel">取消</button>
@@ -99,15 +118,17 @@
     const max = Math.max(1, Number(params.get('max')) || 1);
     const last = Math.max(1, Number(params.get('last')) || 1);
     const input = document.getElementById('count');
+    const repeat = document.getElementById('repeat');
     input.max = String(max);
     input.value = String(Math.min(last, max));
-    document.getElementById('hint').textContent = `候选人数：${max}（本节内每人最多被抽到一次）`;
+    repeat.checked = params.get('repeat') === '1';
+    document.getElementById('hint').textContent = `候选人数：${max}`;
     input.focus();
     input.select();
 
     function submit() {
       const value = Math.max(1, Math.min(max, Math.floor(Number(input.value) || 1)));
-      ipcRenderer.send('plugin:rollcall:prompt-result', { count: value });
+      ipcRenderer.send('plugin:rollcall:prompt-result', { count: value, allowRepeat: repeat.checked });
     }
     function cancel() {
       ipcRenderer.send('plugin:rollcall:prompt-result', null);

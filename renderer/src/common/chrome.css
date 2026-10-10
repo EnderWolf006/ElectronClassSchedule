@@ -119,12 +119,10 @@ body {
   font-size: 14px;
 }
 
-/* ----- Win11 卡片 / 面板 ----- */
+/* ----- 卡片 / 面板（无边框填充式，参考 ClassIsland / Material 3） ----- */
 .panel {
   background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 1px 2px var(--shadow);
+  border-radius: 12px;
   padding: 18px 20px;
   margin-bottom: 16px;
 }
@@ -137,10 +135,66 @@ body {
 
 .group-card {
   background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 1px 2px var(--shadow);
+  border-radius: 12px;
   padding: 14px 18px;
+}
+
+/* 其余卡片类容器统一改为无边框填充式：
+   去掉描边与投影，用填充色 + 12px 圆角区分层次；
+   输入控件、时间线方块等功能块不受影响 */
+.day-table-panel,
+.property-panel,
+.day-nav,
+.timetable-nav,
+.component-row,
+.component-library-card,
+.theme-pack-card,
+.import-option,
+.timetable-card,
+.ce-modal-dialog {
+  border: none;
+  border-radius: 12px;
+}
+
+.day-table-panel,
+.property-panel,
+.day-nav,
+.timetable-nav,
+.component-row,
+.component-library-card,
+.theme-pack-card,
+.import-option,
+.timetable-card {
+  box-shadow: none;
+}
+
+/* 悬停/选中态改用填充或描环表达，不再依赖描边 */
+.theme-pack-card:hover,
+.component-library-card:hover,
+.import-option:hover,
+.timetable-card:hover,
+.component-row.drag-over {
+  border: none;
+}
+
+.theme-pack-card.active,
+.component-row.drag-over {
+  box-shadow: none;
+  background: var(--colorBrandBackground2, var(--subnav-active));
+}
+
+.theme-pack-card.active .theme-pack-name {
+  color: var(--colorBrandForeground1, var(--text));
+}
+
+/* 分割线卡片：去掉虚线描边，保留浅色底 + 内部灰线标识 */
+.timetable-card.divider-card {
+  border: none;
+}
+
+/* 弹窗保留悬浮感：无描边 + 仅投影 */
+.ce-modal-dialog {
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
 }
 
 .group-card h3 {

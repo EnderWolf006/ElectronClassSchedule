@@ -504,6 +504,83 @@ function TimelineView({ cards, groupName, onAddClass, onAddBreak, onAddDivider, 
     setTimeout(() => { suppressClickRef.current = false; }, 0);
   };
 
+  // ===== 键盘微调（点击选中方块/分割线后） =====
+  // ↑/↓：整体平移 5 分钟（时长不变）；Shift+↑/↓：仅移动上边界（开始）；
+  // Ctrl+↑/↓：仅移动下边界（结束）。边界移动与拖拽一致，相邻共享边界联动伙伴；分割线仅支持 ↑/↓。
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (!selectedId) return;
+      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+      const tag = (event.target?.tagName || '').toUpperCase();
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      const card = cards.find((item) => item.id === selectedId);
+      if (!card) return;
+      const delta = event.key === 'ArrowUp' ? -SNAP_MINUTES : SNAP_MINUTES;
+      if (card.type === 'divider') {
+        // 分割线是单点时间：Ctrl / Shift / Alt 组合键均无效
+        if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+        const current = timeToMinutes(card.start);
+        if (current < 0) return;
+        const next = Math.min(Math.max(current + delta, 0), DAY_MAX_MINUTES);
+        if (next === current) return;
+        event.preventDefault();
+        onChangeCard(card.id, { start: minutesToTimeText(next) });
+        setDraft((prev) => (prev ? { ...prev, start: minutesToTimeText(next) } : prev));
+        return;
+      }
+      const item = items.find((entry) => entry.card.id === selectedId);
+      if (!item || !item.valid) return;
+      const shift = event.shiftKey;
+      const ctrl = event.ctrlKey || event.metaKey;
+      if (shift && ctrl) return;
+      event.preventDefault();
+      if (shift) {
+        // 上边界：与上一时间段共享边界时，其结束时间跟随移动
+        const adjacent = findAdjacentPartner(item, 'start');
+        const lower = adjacent ? timeToMinutes(adjacent.card.end) + MIN_SLOT_MINUTES : 0;
+        const value = Math.min(Math.max(snapMinutes(item.start + delta), lower), item.end - MIN_SLOT_MINUTES);
+        if (value === item.start) return;
+        const patch = { start: minutesToTimeText(value) };
+        if (adjacent) {
+          onPatchCards({ [item.card.id]: patch, [adjacent.card.id]: { end: minutesToTimeText(value) } });
+        } else {
+          onChangeCard(item.card.id, patch);
+        }
+        setDraft((prev) => (prev ? { ...prev, start: minutesToTimeText(value) } : prev));
+        return;
+      }
+      if (ctrl) {
+        // 下边界：与下一时间段共享边界时，其开始时间跟随移动
+        const adjacent = findAdjacentPartner(item, 'end');
+        const upper = adjacent ? timeToMinutes(adjacent.card.start) - MIN_SLOT_MINUTES : DAY_MAX_MINUTES;
+        const value = Math.max(Math.min(snapMinutes(item.end + delta), upper), item.start + MIN_SLOT_MINUTES);
+        if (value === item.end) return;
+        const patch = { end: minutesToTimeText(value) };
+        if (adjacent) {
+          onPatchCards({ [item.card.id]: patch, [adjacent.card.id]: { start: minutesToTimeText(value) } });
+        } else {
+          onChangeCard(item.card.id, patch);
+        }
+        setDraft((prev) => (prev ? { ...prev, end: minutesToTimeText(value) } : prev));
+        return;
+      }
+      // 整体平移：起止时间同向移动，时长不变
+      const duration = item.end - item.start;
+      const value = Math.min(Math.max(snapMinutes(item.start + delta), 0), DAY_MAX_MINUTES - duration);
+      if (value === item.start) return;
+      onChangeCard(item.card.id, {
+        start: minutesToTimeText(value),
+        end: minutesToTimeText(value + duration),
+      });
+      setDraft((prev) => (prev
+        ? { ...prev, start: minutesToTimeText(value), end: minutesToTimeText(value + duration) }
+        : prev));
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, draft, cards]);
+
   // ===== 点击内联编辑 =====
   const selectedCard = selectedId ? cards.find((card) => card.id === selectedId) : null;
 
@@ -627,7 +704,7 @@ function TimelineView({ cards, groupName, onAddClass, onAddBreak, onAddDivider, 
           <span className="timeline-hint">{invalidCount} 个时间段时间无效，未在时间线中显示</span>
         )}
       </div>
-      <p className="timeline-tip">拖动方块中间可整体移动，拖动上/下边缘修改时间；两个时间段相邻时，拖动共用边界会一起移动；灰色横线为分割线，上下拖动调整时间、点击编辑；Ctrl + 滚轮（或 +/- 键）纵向放缩。</p>
+      <p className="timeline-tip">拖动方块中间可整体移动，拖动上/下边缘修改时间；两个时间段相邻时，拖动共用边界会一起移动；灰色横线为分割线，上下拖动调整时间、点击编辑；点击方块后按 ↑/↓ 整体平移 5 分钟、Shift+↑/↓ 调整开始时间、Ctrl+↑/↓ 调整结束时间（分割线仅支持 ↑/↓）；Ctrl + 滚轮（或 +/- 键）纵向放缩。</p>
       <div className={`timeline-scroll${drag ? ' dragging' : ''}`} ref={scrollRef}>
         {validItems.length === 0 && validDividers.length === 0 ? (
           <div className="empty">暂无可显示的时间段，点击上方“上课 / 课间 / 分割线”添加。</div>

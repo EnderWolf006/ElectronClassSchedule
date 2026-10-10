@@ -571,6 +571,267 @@ input.native-color {
   font-size: 13px;
 }
 
+/* ===== 安全设置页 ===== */
+.security-badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--colorNeutralStroke2);
+  color: var(--colorNeutralForeground3);
+}
+
+.security-badge.on {
+  border-color: var(--colorCompoundBrandStroke);
+  color: var(--colorNeutralForeground1);
+  background: var(--colorNeutralBackground3);
+}
+
+.security-warning {
+  color: var(--colorPaletteRedForeground1, #d13438);
+}
+
+.security-module-group {
+  margin-top: 10px;
+}
+
+.security-module-group-title {
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--colorNeutralForeground3);
+}
+
+.security-module-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--colorNeutralStroke3, rgba(0, 0, 0, 0.05));
+}
+
+.security-module-row:last-child {
+  border-bottom: none;
+}
+
+.security-module-label {
+  font-size: 13.5px;
+  color: var(--colorNeutralForeground1);
+}
+
+/* ===== 提醒页：提供方列表（参考 ClassIsland 的提供方列表） ===== */
+.reminder-provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.reminder-provider-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.reminder-provider-row:hover {
+  background: var(--colorNeutralBackground2Hover);
+}
+
+.reminder-provider-icon {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--colorNeutralBackground3);
+  font-size: 17px;
+}
+
+.reminder-provider-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.reminder-provider-text strong {
+  display: block;
+  font-size: 14px;
+  color: var(--colorNeutralForeground1);
+}
+
+.reminder-provider-text span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--colorNeutralForeground3);
+  line-height: 1.5;
+}
+
+.reminder-provider-meta {
+  flex: 0 0 auto;
+  font-size: 12.5px;
+  color: var(--colorNeutralForeground3);
+}
+
+/* ===== 天气页（参考 ClassIsland 的天气页） ===== */
+.weather-preview {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.weather-preview-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.weather-preview-line {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.weather-preview-emoji {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.weather-preview-text {
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--colorNeutralForeground1);
+}
+
+.weather-preview-temp {
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--colorNeutralForeground1);
+}
+
+.weather-preview-city {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--colorNeutralForeground3);
+}
+
+.weather-preview-meta {
+  display: flex;
+  gap: 26px;
+}
+
+.weather-preview-meta div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12.5px;
+  color: var(--colorNeutralForeground3);
+}
+
+.weather-preview-meta b {
+  font-size: 15px;
+  color: var(--colorNeutralForeground1);
+}
+
+.weather-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px 2px;
+}
+
+.weather-row + .weather-row {
+  border-top: 1px solid var(--colorNeutralStroke3, rgba(0, 0, 0, 0.05));
+}
+
+.weather-row-stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.weather-row-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.weather-row-text strong {
+  display: block;
+  font-size: 14px;
+  color: var(--colorNeutralForeground1);
+}
+
+.weather-row-text span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--colorNeutralForeground3);
+  line-height: 1.5;
+}
+
+.weather-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.weather-row-actions .fui-Input {
+  width: 220px;
+  min-width: 160px;
+}
+
+.weather-row-select {
+  flex: 0 0 auto;
+  min-width: 140px;
+}
+
+.weather-city-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 2px 10px;
+}
+
+.weather-city-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 10px;
+  background: var(--colorNeutralBackground3);
+  color: var(--colorNeutralForeground1);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weather-city-option:hover {
+  background: var(--colorNeutralBackground3Hover, var(--colorNeutralBackground2Hover));
+}
+
+.weather-city-option span {
+  font-size: 12px;
+  color: var(--colorNeutralForeground3);
+}
+
+.weather-exclude-input {
+  width: 100%;
+  min-height: 84px;
+  resize: vertical;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 10px;
+  background: var(--colorNeutralBackground3);
+  color: var(--colorNeutralForeground1);
+  font: 13px/1.5 Consolas, "Microsoft YaHei", monospace;
+  outline: none;
+}
+
 /* ===== 主题页：自定义样式 ===== */
 .custom-css-panel {
   margin-top: 16px;

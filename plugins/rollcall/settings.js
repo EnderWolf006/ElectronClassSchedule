@@ -108,20 +108,24 @@
             });
         });
 
-        // 颜色即时生效（防抖保存到插件侧，不触发主窗口重载）；恢复默认 = 清空自定义颜色
+        // 颜色保存到插件侧（不触发主窗口重载）
         function saveColor() {
             return api.invoke('set-reminder-color', { color: state.reminderColor });
         }
 
+        // 取色过程中只更新界面不落盘；关闭取色器（change）或失焦后才保存，
+        // 避免“刚动一下颜色就被保存”导致取色器被关闭
         colorInput.addEventListener('input', function () {
             state.reminderColor = isValidColor(colorInput.value) ? colorInput.value.toLowerCase() : '';
             updateColorHint();
-            clearTimeout(colorTimer);
-            colorTimer = setTimeout(function () {
-                saveColor().catch(function () {
-                    colorHint.textContent = '颜色保存失败。';
-                });
-            }, 250);
+        });
+
+        colorInput.addEventListener('change', function () {
+            state.reminderColor = isValidColor(colorInput.value) ? colorInput.value.toLowerCase() : '';
+            updateColorHint();
+            saveColor().catch(function () {
+                colorHint.textContent = '颜色保存失败。';
+            });
         });
 
         container.querySelector('#rcColorReset').addEventListener('click', function () {

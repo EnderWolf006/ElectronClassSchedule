@@ -62,8 +62,8 @@ module.exports = function activate(api) {
         };
     };
 
-    // 抽取：从本节候选中等概率取 count 人（Fisher-Yates 洗牌，抽样均匀）
-    const draw = async (count) => {
+    // 抽取：allowRepeat=true 时不做本节去重（每次都能抽到任何人，用于“快速点名”等场景）
+    const draw = async (count, allowRepeat) => {
         const names = getNames();
         if (!names.length) {
             return { error: '尚未导入名单，请在“软件设置 → 插件 → 点名”中导入 txt 名单。' };
@@ -73,7 +73,7 @@ module.exports = function activate(api) {
         const today = String(period.key).split('#')[0];
         drawnMap = pruneDrawn(drawnMap, today);
         const drawn = Array.isArray(drawnMap[period.key]) ? drawnMap[period.key] : [];
-        const pool = names.filter((name) => !drawn.includes(name));
+        const pool = allowRepeat ? names : names.filter((name) => !drawn.includes(name));
         if (!pool.length) {
             return {
                 empty: true,
@@ -87,12 +87,15 @@ module.exports = function activate(api) {
             [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
         const picked = shuffled.slice(0, take);
-        drawnMap[period.key] = [...drawn, ...picked];
-        storage.set('drawn', drawnMap);
+        if (!allowRepeat) {
+            drawnMap[period.key] = [...drawn, ...picked];
+            storage.set('drawn', drawnMap);
+        }
         return {
             picked,
             total: names.length,
-            remaining: pool.length - take,
+            remaining: allowRepeat ? null : pool.length - take,
+            allowRepeat: allowRepeat === true,
         };
     };
 
@@ -107,8 +110,8 @@ module.exports = function activate(api) {
     };
 
     // 抽取并显示提醒
-    const drawAndNotify = async (count) => {
-        const result = await draw(count);
+    const drawAndNotify = async (count, allowRepeat) => {
+        const result = await draw(count, allowRepeat);
         if (result.error) {
             showReminder(result.error, 5200);
             return result;
@@ -117,7 +120,7 @@ module.exports = function activate(api) {
             showReminder(result.message, 4200);
             return result;
         }
-        const suffix = result.remaining > 0 ? '' : '（本节已抽完）';
+        const suffix = !allowRepeat && result.remaining === 0 ? '（本节已抽完）' : '';
         showReminder(result.picked.join('　') + suffix, 6000);
         api.broadcast('plugin:rollcall:changed', { picked: result.picked });
         return result;
@@ -147,8 +150,8 @@ module.exports = function activate(api) {
         };
         if (mainWin && !mainWin.isDestroyed()) mainWin.setAlwaysOnTop(false);
         const promptWin = api.createWindow({
-            width: 340,
-            height: 210,
+            width: 380,
+            height: 260,
             frame: false,
             transparent: true,
             resizable: false,
@@ -169,6 +172,7 @@ module.exports = function activate(api) {
             query: {
                 max: String(Math.max(1, maxCount)),
                 last: String(Math.max(1, Math.floor(Number(storage.get('lastCount', 1)) || 1))),
+                repeat: storage.get('lastAllowRepeat', false) === true ? '1' : '0',
             },
         });
         promptWin.once('ready-to-show', () => {
@@ -190,9 +194,11 @@ module.exports = function activate(api) {
         const count = payload && Number(payload.count) > 0
             ? Math.max(1, Math.floor(Number(payload.count)))
             : null;
+        // 结果形如 { count, allowRepeat }；取消/关闭返回 null
+        const answer = count ? { count, allowRepeat: payload.allowRepeat === true } : null;
         // 先关闭窗口（其 closed 处理器恢复主窗口置顶；promptResolver 已清空，不会重复 resolve）
         closePromptWindow();
-        if (resolve) resolve(count);
+        if (resolve) resolve(answer);
     });
 
     api.registerIpc('get-state', async () => currentState());
@@ -233,12 +239,30 @@ module.exports = function activate(api) {
         return { reminderColor: next.reminderColor || '' };
     });
 
-    api.registerIpc('draw', async (payload) => drawAndNotify(Number(payload && payload.count) || 1));
+    api.registerIpc('draw', async (payload) => drawAndNotify(
+        Number(payload && payload.count) || 1,
+        payload && payload.allowRepeat === true,
+    ));
 
-    // 托盘菜单“点名”：先选人数再抽取
+    // 托盘菜单：快速点名（直接抽 1 人，允许重复）+ 自定义点名（选人数与是否允许重复）
+    api.addTrayAction({
+        id: 'rollcall-quick',
+        label: '快速点名',
+        svgText: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M4.8 20c.6-3.6 3.6-5.6 7.2-5.6s6.6 2 7.2 5.6"/><path d="M17.5 5.5 20 8l2.5-2.5"/></svg>',
+        onClick: async () => {
+            const names = getNames();
+            if (!names.length) {
+                showReminder('尚未导入名单，请在“软件设置 → 插件 → 点名”中导入 txt 名单。', 5200);
+                return;
+            }
+            // 快速点名：直接抽取 1 人，且允许重复（不做本节去重）
+            await drawAndNotify(1, true);
+        },
+    });
+
     api.addTrayAction({
         id: 'rollcall',
-        label: '点名',
+        label: '自定义点名',
         svgText: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M4.8 20c.6-3.6 3.6-5.6 7.2-5.6s6.6 2 7.2 5.6"/></svg>',
         onClick: async () => {
             const names = getNames();
@@ -246,10 +270,11 @@ module.exports = function activate(api) {
                 showReminder('尚未导入名单，请在“软件设置 → 插件 → 点名”中导入 txt 名单。', 5200);
                 return;
             }
-            const count = await askCount(names.length);
-            if (!count) return;
-            storage.set('lastCount', count);
-            await drawAndNotify(count);
+            const answer = await askCount(names.length);
+            if (!answer || !answer.count) return;
+            storage.set('lastCount', answer.count);
+            storage.set('lastAllowRepeat', answer.allowRepeat === true);
+            await drawAndNotify(answer.count, answer.allowRepeat === true);
         },
     });
 

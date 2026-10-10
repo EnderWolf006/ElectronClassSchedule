@@ -211,7 +211,11 @@
     // 高亮课程/课间始终展开为“全称 + 内联倒计时”，变色规则不变
     const isRightLayout = document.documentElement.dataset.position === 'right';
     // “课上计时”只控制上课中的倒计时；课间倒计时始终显示
-    const showInlineCountdown = (isRightLayout || hasComponentBelowSchedule())
+    // “倒计时样式”：顶部居中 / 顶部靠右时可由用户在“软件设置 → 基础设置”中选择
+    // “下方悬浮”或“内嵌”；右侧竖排（行即列）与“课表行下方还有组件”时始终内嵌，
+    // 避免悬浮倒计时框遮挡下方组件
+    const wantInlineCountdown = settings?.countdown_style === 'inline';
+    const showInlineCountdown = (isRightLayout || wantInlineCountdown || hasComponentBelowSchedule())
       && (isClassCountdown || scheduleData.currentHighlight.isBreak);
     if (scheduleData.currentHighlight.isNextDay) {
       classHtml += '<div class="class breakClassExpanded stateTransition">明天</div>';
@@ -455,14 +459,17 @@
     }
     const isRightLayout = document.documentElement.dataset.position === 'right';
     let popupVisible = true;
+    // 用户在“软件设置 → 基础设置”里显式选择“内嵌倒计时”时，
+    // 任何模式下都不再弹出下方悬浮倒计时框（即使课表行下方没有组件）
+    const inlineChosen = settings?.countdown_style === 'inline';
     if (scheduleData.currentHighlight.type === 'current') {
       if (isClassCountdown) {
         if (isClassHidden) { // 上课隐藏 -> 显示顶部小窗口（与布局模式无关）
           popupVisible = false;
           miniCountdown.style.display = 'block'
           miniCountdown.innerHTML = `<div class="currentClass">${currentFullName.innerText = scheduleData.currentHighlight.fullName}</div><div class="countdown" style="margin-left:5px">${scheduleData.currentHighlight.countdownText}</div><div class="miniProgress"><i></i></div>`
-        } else if (isRightLayout || hasComponentBelowSchedule()) {
-          // 倒计时已内联在高亮格子中（right 模式始终内联），不重复显示倒计时框
+        } else if (isRightLayout || inlineChosen || hasComponentBelowSchedule()) {
+          // 倒计时已内联在高亮格子中（right 模式/用户选择内嵌），不重复显示倒计时框
           popupVisible = false;
           miniCountdown.style.display = 'none';
         } else {
@@ -475,12 +482,12 @@
       }
     }
     else if (scheduleData.currentHighlight.isBreak) {
-      // 课间倒计时窗口始终显示，与“课上计时”开关无关
-      popupVisible = !isRightLayout && !hasComponentBelowSchedule();
+      // 课间倒计时窗口始终显示，与“课上计时”开关无关；选择内嵌时同样不弹出
+      popupVisible = !isRightLayout && !inlineChosen && !hasComponentBelowSchedule();
       miniCountdown.style.display = 'none';
     }
     else { // 下一节课预告：倒计时框正常显示（right 模式下定位在课程列底部）
-      popupVisible = true;
+      popupVisible = !inlineChosen;
       miniCountdown.style.display = 'none'
     }
     document.querySelectorAll('.scheduleComponent .countdowner').forEach((element) => {
@@ -540,11 +547,16 @@
       const tempEl = element.querySelector('.weatherTemp');
       const cityEl = element.querySelector('.weatherCity');
       if (data && !data.error) {
-        if (emojiEl) emojiEl.innerText = data.emoji || '🌡️';
+        // 天气设置 → 天气图标包：选择“纯文本”时隐藏图标，只显示文字与温度
+        const iconTextOnly = settings?.weather?.icon_pack === 'text';
+        if (emojiEl) {
+          emojiEl.innerText = data.emoji || '🌡️';
+          emojiEl.style.display = iconTextOnly ? 'none' : '';
+        }
         if (tempEl) tempEl.innerText = data.temp === null ? '--°' : `${data.temp}°`;
         if (cityEl) cityEl.innerText = data.text ? `${data.city || ''} ${data.text}`.trim() : (data.city || '天气');
       } else if (data && data.error) {
-        if (emojiEl) emojiEl.innerText = '🌡️';
+        if (emojiEl) { emojiEl.innerText = '🌡️'; emojiEl.style.display = ''; }
         if (tempEl) tempEl.innerText = '--°';
         if (cityEl) cityEl.innerText = '天气不可用';
       }
@@ -743,25 +755,15 @@
   }
   let stickyTimer = null
 
-  // 命中检测：elementFromPoint 优先；失败（子元素间隙等）遍历行 rect（gap 均分给相邻行）
+  // 命中检测：只有光标落在真实组件（[data-component-slot]）上才算命中。
+  // 早先按“行矩形（全宽）+ gap 均分”兜底，导致行内空白/组件间隙也算命中，
+  // 鼠标移到窗口空白处无法解除淡化；现在空白处明确返回 null（未命中）。
   function findRowAt(x, y) {
     const el = document.elementFromPoint(x, y)
-    if (el && el.closest) {
-      const row = el.closest('.componentRow')
-      if (row) return row
-    }
-    const rows = componentRows.querySelectorAll('.componentRow')
-    const gap = parseFloat(getComputedStyle(componentRows).gap) || 0
-    for (let i = 0; i < rows.length; i++) {
-      const rect = rows[i].getBoundingClientRect()
-      const expandTop = i > 0 ? gap / 2 : 0
-      const expandBottom = i < rows.length - 1 ? gap / 2 : 0
-      if (x >= rect.left && x <= rect.right
-        && y >= rect.top - expandTop && y <= rect.bottom + expandBottom) {
-        return rows[i]
-      }
-    }
-    return null
+    if (!el || !el.closest) return null
+    const component = el.closest('[data-component-slot]')
+    if (!component) return null
+    return component.closest('.componentRow')
   }
 
   function fadeRow(row) {
@@ -772,18 +774,20 @@
     row.classList.add('faded')
   }
 
-  function scheduleRestore() {
+  // delay：离开窗口/失去光标时用 300ms 粘性（避免滑动穿过间隙闪断）；
+  // 光标仍在窗口内但没落在组件上时用更短的延迟，快速恢复淡化
+  function scheduleRestore(delay = 300) {
     if (stickyTimer) clearTimeout(stickyTimer)
     stickyTimer = setTimeout(() => {
       restoreRows()
       stickyTimer = null
-    }, 300)
+    }, delay)
   }
 
   function handleCursorAt(x, y) {
     const row = findRowAt(x, y)
     if (row) fadeRow(row)
-    else scheduleRestore()
+    else scheduleRestore(120)
   }
 
   ipcRenderer.on('cursor-position', (e, pos) => {
@@ -966,10 +970,17 @@
     setScheduleDialog()
   })
 
+  // 点击“星期 / 日期”组件角标（小字）：把点击位置一并告知主进程，
+  // 让托盘菜单在该位置向下弹出（原先固定在托盘图标处、且在窗口右下角弹出）
   document.addEventListener("click", function (event) {
-    if (event.target.className.indexOf('options') != -1) {
-      ipcRenderer.send('pop')
-    }
+    const className = typeof event.target.className === 'string' ? event.target.className : ''
+    if (className.indexOf('options') === -1) return
+    const rect = event.target.getBoundingClientRect()
+    ipcRenderer.send('pop', {
+      x: Math.round(window.screenX + rect.left + rect.width / 2),
+      top: Math.round(window.screenY + rect.top),
+      bottom: Math.round(window.screenY + rect.bottom)
+    })
   });
 
   ipcRenderer.on('setTimeOffset', (e, arg) => {
@@ -1243,6 +1254,21 @@
     const dayIdx = getCurrentDayScheduleIndex();
     const sessionKey = (kind, idx) => `${dayIdx}_${idx}_${kind}`;
 
+    // 放学提醒（提醒提供方之一）：当天最后一节课结束后触发一次；按自然日去重
+    const rd = settings?.reminder_dismissal || {};
+    if (rd.enabled) {
+      const dayTimetable = sd.timetable ? scheduleConfig.timetable?.[sd.timetable] : null;
+      const dismissalKey = `dismissal_${dayIdx}`;
+      if (dayTimetable && isTimetableFinished(dayTimetable, getCurrentTime()) && !hasFired(dismissalKey)) {
+        lastReminderState.fired[dismissalKey] = true;
+        saveFiredStore(dismissalKey);
+        fireReminder({
+          text: String(rd.text || '放学了，路上注意安全'),
+          duration: Number(rd.duration) || 6000
+        });
+      }
+    }
+
     // 即将上课：处于课间（isBreak=true 且 type=upcoming）且倒计时 <= N 秒
     if (rc.upcoming_enabled && hl.isBreak && hl.type === 'upcoming' && hl.index !== null) {
       const cd = hl.countdown;
@@ -1344,6 +1370,10 @@
     extremeChecking = true;
     ipcRenderer.invoke('get-weather', rw.city || '').then((data) => {
       if (!data || data.error || data.code === null || data.code === undefined) return;
+      // 天气设置 → 排除的气象预警：天气描述命中任一关键词时不提醒
+      const excluded = Array.isArray(settings?.weather?.excluded_alerts) ? settings.weather.excluded_alerts : [];
+      const weatherText = String(data.text || '');
+      if (excluded.some((keyword) => keyword && weatherText.includes(keyword))) return;
       const code = Number(data.code);
       if (!EXTREME_CODES.has(code)) return;
       const todayKey = getTodayKey();

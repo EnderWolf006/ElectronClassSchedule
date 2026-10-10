@@ -9,6 +9,8 @@ import { Svg, ICONS } from '../../common/icons.jsx';
 import ComponentsPage, { createComponentId, getConfiguredComponentRows } from './ComponentsPage.jsx';
 import ThemePacksPage from './ThemePacksPage.jsx';
 import PluginsPage from './PluginsPage.jsx';
+import SecurityPage from './SecurityPage.jsx';
+import WeatherPage from './WeatherPage.jsx';
 import '../../common/tokens.css';
 import '../../common/chrome.css';
 import './software-settings.css';
@@ -19,6 +21,8 @@ const NAV_ITEMS = [
   { page: 'appearance', label: '外观', icon: ICONS.style },
   { page: 'themes', label: '主题', icon: ICONS.palette },
   { page: 'plugins', label: '插件', icon: ICONS.plugin },
+  { page: 'security', label: '安全设置', icon: ICONS.lock },
+  { page: 'weather', label: '天气', icon: ICONS.componentWeather },
   { page: 'reminder', label: '提醒', icon: ICONS.reminder },
 ];
 
@@ -153,9 +157,11 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
   const [reminderCustom, setReminderCustom] = useState([]);
   const [reminderEnabled, setReminderEnabled] = useState(true);
   const [reminderWeather, setReminderWeather] = useState({});
+  const [reminderDismissal, setReminderDismissal] = useState({});
   const [reminderAdvanced, setReminderAdvanced] = useState({});
-  // 提醒页二级菜单：提醒提供方 / 高级设置 各自独立的子页签
-  const [reminderProviderTab, setReminderProviderTab] = useState('class');
+  // 提醒页：提供方 / 高级设置 两个页签；提供方列表点击进入详情
+  const [reminderSectionTab, setReminderSectionTab] = useState('providers');
+  const [openProvider, setOpenProvider] = useState(null);
   const [reminderAdvancedTab, setReminderAdvancedTab] = useState('sound');
   const [activeTheme, setActiveTheme] = useState('');
   const [customCss, setCustomCss] = useState('');
@@ -165,6 +171,10 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
   // 推给 Root 造成浅色闪帧；若之后 loadSettings 回包慢/失败，窗口就会残留浅色
   const [themeMode, setThemeMode] = useState(() => initialThemeFromQuery() || 'auto');
   const [positionMode, setPositionMode] = useState('top');
+  const [countdownStyle, setCountdownStyle] = useState('floating');
+  // 启动设置（存主进程 store）：高优先级启动依赖开机启动
+  const [launchSettings, setLaunchSettings] = useState({ autoLaunch: true, highPriority: false });
+  const [launchHint, setLaunchHint] = useState('');
   // 首次读取完成前，各类“即改即生效”的自动保存不能误触发
   const loadedRef = useRef(false);
   // 各设置域共用的防抖定时器
@@ -208,9 +218,11 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
       // 总开关缺省为开；旧配置文件没有这些键时按默认值展示
       setReminderEnabled(settingsData?.reminder_enabled !== false);
       setReminderWeather(settingsData?.reminder_weather || {});
+      setReminderDismissal(settingsData?.reminder_dismissal || {});
       setReminderAdvanced(settingsData?.reminder_advanced || {});
       setThemeMode(settingsData?.theme_mode || 'auto');
       setPositionMode(settingsData?.window_position || 'top');
+      setCountdownStyle(settingsData?.countdown_style === 'inline' ? 'inline' : 'floating');
       setActiveTheme(settingsData?.active_theme || '');
       setCustomCss(typeof settingsData?.custom_css === 'string' ? settingsData.custom_css : '');
       setTimeOffsetText(String(Number(localStorage.getItem('timeOffset') || 0)));
@@ -226,6 +238,17 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
+
+  // 启动设置存在主进程 store（不在 settings.js），单独读取
+  useEffect(() => {
+    ipcRenderer.invoke('launch-settings-get').then((data) => {
+      if (!data) return;
+      setLaunchSettings({
+        autoLaunch: data.autoLaunch !== false,
+        highPriority: data.highPriority === true,
+      });
+    }).catch(() => { /* 读取失败时保持默认展示 */ });
+  }, []);
 
   // 主进程请求切换页面（如插件浮窗齿轮 -> 插件页）
   useEffect(() => {
@@ -329,6 +352,33 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
     }, '窗口位置已生效', { skipReload: true });
   };
 
+  // 倒计时样式：顶部居中 / 顶部靠右时可切换“下方悬浮”与“内嵌”；
+  // 右侧竖排（行即列）固定内嵌，界面上禁用该项
+  const changeCountdownStyle = (style) => {
+    setCountdownStyle(style);
+    persistSettings((nextSettings) => {
+      nextSettings.countdown_style = style === 'inline' ? 'inline' : 'floating';
+    }, style === 'inline' ? '已切换为内嵌倒计时' : '已切换为下方悬浮倒计时');
+  };
+
+  // 启动设置：开机启动 / 高优先级启动（后者依赖前者，由主进程统一落盘并同步系统项）
+  const changeLaunchSetting = (key, value) => {
+    setLaunchHint('');
+    ipcRenderer.invoke('launch-settings-set', { [key]: value }).then((data) => {
+      if (!data) return;
+      setLaunchSettings({
+        autoLaunch: data.autoLaunch !== false,
+        highPriority: data.highPriority === true,
+      });
+      if (data.highPriority && data.applied === false) {
+        setLaunchHint('高优先级启动任务创建失败，可能被系统策略或安全软件拦截。');
+        return;
+      }
+      if (key === 'autoLaunch' && value === false) setStatus('已关闭开机启动（高优先级启动一并关闭）');
+      else setStatus('启动设置已生效');
+    }).catch(() => setLaunchHint('启动设置保存失败，请重试。'));
+  };
+
   // 组件布局同时写 config（组件专属选项）与 settings（布局）
   const flushComponentSettings = useCallback(() => {
     if (!configRef.current || !settingsRef.current) return;
@@ -399,11 +449,17 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
     const nextCustom = customOverride !== undefined ? customOverride : reminderCustom;
     const nextEnabled = blockOverride && blockOverride.enabled !== undefined ? blockOverride.enabled : reminderEnabled;
     const nextWeather = blockOverride && blockOverride.weather !== undefined ? blockOverride.weather : reminderWeather;
+    const nextDismissal = blockOverride && blockOverride.dismissal !== undefined ? blockOverride.dismissal : reminderDismissal;
     const nextAdvanced = blockOverride && blockOverride.advanced !== undefined ? blockOverride.advanced : reminderAdvanced;
     schedulePersist('reminder', (nextSettings) => {
       nextSettings.reminder_enabled = nextEnabled;
       nextSettings.reminder_class = nextClass;
       nextSettings.reminder_custom = nextCustom;
+      nextSettings.reminder_dismissal = {
+        enabled: nextDismissal.enabled === true,
+        text: String(nextDismissal.text || '放学了，路上注意安全'),
+        duration: Number(nextDismissal.duration) || 6000,
+      };
       nextSettings.reminder_weather = {
         enabled: nextWeather.enabled || false,
         time: nextWeather.time || '07:00',
@@ -503,6 +559,33 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
                 <p className="page-intro">调整课表窗口的显示方式、倒计时和多周轮换。</p>
               </div>
               <div className="panel">
+                <h3>启动</h3>
+                <div className="settings-grid">
+                  <div className="field">
+                    <Switch
+                      checked={launchSettings.autoLaunch}
+                      onChange={(_event, data) => changeLaunchSetting('autoLaunch', data.checked === true)}
+                      label="开机启动"
+                    />
+                    <p className="field-help">登录后自动启动课表条。</p>
+                  </div>
+                  <div className="field">
+                    <Switch
+                      checked={launchSettings.highPriority}
+                      disabled={!launchSettings.autoLaunch}
+                      onChange={(_event, data) => changeLaunchSetting('highPriority', data.checked === true)}
+                      label="高优先级启动"
+                    />
+                    <p className="field-help">
+                      {launchSettings.autoLaunch
+                        ? '进入桌面（资源管理器加载完成）之前就启动课表，进入桌面后立即可见；以最高权限运行。'
+                        : '需先开启“开机启动”后才能设置。'}
+                    </p>
+                  </div>
+                </div>
+                {launchHint && <p className="field-help">{launchHint}</p>}
+              </div>
+              <div className="panel">
                 <h3>多周轮换偏移</h3>
                 <div className="settings-grid">
                   {WEEK_COUNTS.map((weeks) => {
@@ -560,6 +643,23 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
                     <option value="right">右侧竖排</option>
                   </Select>
                   <p className="field-help">控制课表条在屏幕上的排列位置：顶部居中、顶部靠右（每行右对齐），或右侧竖排（各行从右到左、行内组件自上而下），选择后立即生效并自动保存。</p>
+                </div>
+                <div className="field">
+                  <label htmlFor="countdownStyleSelect">倒计时样式</label>
+                  <Select
+                    id="countdownStyleSelect"
+                    value={countdownStyle}
+                    disabled={positionMode === 'right'}
+                    onChange={(event) => changeCountdownStyle(event.target.value)}
+                  >
+                    <option value="floating">下方弹出悬浮倒计时</option>
+                    <option value="inline">内嵌倒计时（课程格内展开）</option>
+                  </Select>
+                  <p className="field-help">
+                    {positionMode === 'right'
+                      ? '右侧竖排模式下固定使用内嵌倒计时，无法单独设置。'
+                      : '“下方弹出悬浮”在课表下方弹出倒计时框；“内嵌”在当前课程/课间格内展开倒计时。课表行下方还有其它组件时始终内嵌，避免遮挡。'}
+                  </p>
                 </div>
               </div>
 
@@ -671,18 +771,26 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
               />
             </section>
 
+            <section className={`ss-page${activePage === 'security' ? ' active' : ''}`}>
+              <SecurityPage onStatus={setStatus} />
+            </section>
+
+            <section className={`ss-page${activePage === 'weather' ? ' active' : ''}`}>
+              <WeatherPage onStatus={setStatus} />
+            </section>
+
             <section className={`ss-page${activePage === 'reminder' ? ' active' : ''}`}>
               <div className="page-header">
                 <h1 className="page-title">提醒</h1>
-                <p className="page-intro">在主界面课表条上触发提醒遮罩，支持上下课、自定义文本和天气三种提醒来源。</p>
+                <p className="page-intro">在主界面课表条上触发提醒遮罩；每个提醒提供方都可以单独启停，点击卡片进入详情配置。</p>
               </div>
 
               {/* 总开关：关闭后所有提醒提供方一律不触发 */}
               <div className={`panel reminder-master${reminderEnabled ? '' : ' is-off'}`}>
                 <div className="reminder-master-row">
                   <div>
-                    <h3>提醒总开关</h3>
-                    <p className="field-help">关闭后，上下课提醒、自定义文本提醒、天气提醒都不会触发，高级设置也不生效。</p>
+                    <h3>启用提醒</h3>
+                    <p className="field-help">启用提醒后，将会在对应事件发生时发出提醒；关闭后所有提醒提供方一律不触发，高级设置也不生效。</p>
                   </div>
                   <Switch
                     checked={reminderEnabled}
@@ -694,25 +802,134 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
                 </div>
               </div>
 
-              {/* 提醒提供方：二级菜单在三种来源间切换 */}
+              {/* 提醒提供方 / 高级设置 */}
               <div className={`panel${reminderEnabled ? '' : ' panel-disabled'}`}>
-                <h3>提醒提供方</h3>
                 <div className="sub-tabs" role="tablist">
                   {[
-                    { key: 'class', label: '上下课提醒' },
-                    { key: 'custom', label: '自定义文本提醒' },
-                    { key: 'weather', label: '天气提醒' },
+                    { key: 'providers', label: '提醒提供方' },
+                    { key: 'advanced', label: '高级设置' },
                   ].map((tab) => (
                     <button
                       type="button"
                       key={tab.key}
-                      className={`sub-tab${reminderProviderTab === tab.key ? ' active' : ''}`}
-                      onClick={() => setReminderProviderTab(tab.key)}
+                      role="tab"
+                      aria-selected={reminderSectionTab === tab.key}
+                      className={`sub-tab${reminderSectionTab === tab.key ? ' active' : ''}`}
+                      onClick={() => { setReminderSectionTab(tab.key); setOpenProvider(null); }}
                     >{tab.label}</button>
                   ))}
                 </div>
 
-                <div className={`sub-page${reminderProviderTab === 'class' ? ' active' : ''}`}>
+                {reminderSectionTab === 'providers' && !openProvider && (
+                  <div className="reminder-provider-list">
+                    <div
+                      className="reminder-provider-row"
+                      role="button"
+                      tabIndex={0}
+                      title="点击进入配置"
+                      onClick={() => setOpenProvider('class')}
+                      onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setOpenProvider('class'); } }}
+                    >
+                      <span className="reminder-provider-icon" aria-hidden="true">🎓</span>
+                      <div className="reminder-provider-text">
+                        <strong>上下课提醒</strong>
+                        <span>在准备上课、上课和下课时发出提醒，并预告下一节课。</span>
+                      </div>
+                      <Switch
+                        checked={!!(reminderClass.upcoming_enabled || reminderClass.start_enabled || reminderClass.end_enabled)}
+                        aria-label="上下课提醒"
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={(_e, d) => {
+                          const next = { ...reminderClass, upcoming_enabled: d.checked, start_enabled: d.checked, end_enabled: d.checked };
+                          setReminderClass(next);
+                          persistReminder(next);
+                        }}
+                      />
+                      <span className="plugin-enter" aria-hidden="true">›</span>
+                    </div>
+
+                    <div
+                      className="reminder-provider-row"
+                      role="button"
+                      tabIndex={0}
+                      title="点击进入配置"
+                      onClick={() => setOpenProvider('dismissal')}
+                      onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setOpenProvider('dismissal'); } }}
+                    >
+                      <span className="reminder-provider-icon" aria-hidden="true">🚸</span>
+                      <div className="reminder-provider-text">
+                        <strong>放学提醒</strong>
+                        <span>在当天最后一节课结束后发出提醒，可自定义提醒文字与持续时间。</span>
+                      </div>
+                      <Switch
+                        checked={reminderDismissal.enabled === true}
+                        aria-label="放学提醒"
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={(_e, d) => {
+                          const next = { ...reminderDismissal, enabled: d.checked };
+                          setReminderDismissal(next);
+                          persistReminder(undefined, undefined, { dismissal: next });
+                        }}
+                      />
+                      <span className="plugin-enter" aria-hidden="true">›</span>
+                    </div>
+
+                    <div
+                      className="reminder-provider-row"
+                      role="button"
+                      tabIndex={0}
+                      title="点击进入配置"
+                      onClick={() => setOpenProvider('weather')}
+                      onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setOpenProvider('weather'); } }}
+                    >
+                      <span className="reminder-provider-icon" aria-hidden="true">⛅</span>
+                      <div className="reminder-provider-text">
+                        <strong>天气预警</strong>
+                        <span>按设定时间播报当天天气，并在出现极端天气时预警；城市在【天气】页面设置。</span>
+                      </div>
+                      <Switch
+                        checked={reminderWeather.enabled === true}
+                        aria-label="天气预警"
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={(_e, d) => {
+                          const next = { ...reminderWeather, enabled: d.checked };
+                          setReminderWeather(next);
+                          persistReminder(undefined, undefined, { weather: next });
+                        }}
+                      />
+                      <span className="plugin-enter" aria-hidden="true">›</span>
+                    </div>
+
+                    <div
+                      className="reminder-provider-row"
+                      role="button"
+                      tabIndex={0}
+                      title="点击进入配置"
+                      onClick={() => setOpenProvider('custom')}
+                      onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setOpenProvider('custom'); } }}
+                    >
+                      <span className="reminder-provider-icon" aria-hidden="true">✏️</span>
+                      <div className="reminder-provider-text">
+                        <strong>自定义文本提醒</strong>
+                        <span>在指定时间显示自定义文字的提醒，可设置颜色与持续时间。</span>
+                      </div>
+                      <span className="reminder-provider-meta">{reminderCustom.length} 条</span>
+                      <span className="plugin-enter" aria-hidden="true">›</span>
+                    </div>
+                  </div>
+                )}
+
+                {reminderSectionTab === 'providers' && openProvider && (
+                  <div className="plugin-detail-bar">
+                    <Button
+                      className="win-small"
+                      icon={<Svg size={16} viewBox="0 0 24 24" html={ICONS.back} strokeWidth={1.7} />}
+                      onClick={() => setOpenProvider(null)}
+                    >返回提醒提供方</Button>
+                  </div>
+                )}
+
+                <div className={`sub-page${openProvider === 'class' ? ' active' : ''}`}>
                   <p className="field-help">在即将上课、上课、下课时自动触发遮罩提醒，绿色=上课/即将上课，黄色=下课。</p>
                   <div className="settings-grid">
                     <div className="field">
@@ -810,7 +1027,53 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
                   </div>
                 </div>
 
-                <div className={`sub-page${reminderProviderTab === 'custom' ? ' active' : ''}`}>
+                <div className={`sub-page${openProvider === 'dismissal' ? ' active' : ''}`}>
+                  <p className="field-help">当天最后一节课结束后发出提醒，每天都可触发一次（按自然日去重）。</p>
+                  <div className="settings-grid">
+                    <div className="field">
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Switch
+                          checked={reminderDismissal.enabled === true}
+                          onChange={(_e, d) => {
+                            const next = { ...reminderDismissal, enabled: d.checked };
+                            setReminderDismissal(next);
+                            persistReminder(undefined, undefined, { dismissal: next });
+                          }}
+                        />
+                        启用放学提醒
+                      </label>
+                    </div>
+                    <div className="field">
+                      <label>提醒文字</label>
+                      <Input
+                        value={reminderDismissal.text || ''}
+                        placeholder="放学了，路上注意安全"
+                        onChange={(e) => {
+                          const next = { ...reminderDismissal, text: e.target.value };
+                          setReminderDismissal(next);
+                          persistReminder(undefined, undefined, { dismissal: next });
+                        }}
+                      />
+                    </div>
+                    <div className="field">
+                      <label>持续时间（毫秒）</label>
+                      <Input
+                        type="number"
+                        min={1000}
+                        max={60000}
+                        step={1000}
+                        value={String(reminderDismissal.duration || 6000)}
+                        onChange={(e) => {
+                          const next = { ...reminderDismissal, duration: Number(e.target.value) || 6000 };
+                          setReminderDismissal(next);
+                          persistReminder(undefined, undefined, { dismissal: next });
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className={`sub-page${openProvider === 'custom' ? ' active' : ''}`}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                     <p className="field-help" style={{ margin: 0 }}>每天到指定时间触发提醒，可设多条。遮罩从课表中央扩散展开并显示文字。</p>
                     <Button className="win-small" onClick={() => {
@@ -856,11 +1119,14 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
                             type="color"
                             className="native-color"
                             value={item.color || '#114514'}
+                            title="取色过程中不会保存，关闭取色器或点击其它位置后才保存"
                             onChange={(e) => {
+                              // 取色过程中只更新界面，不落盘：否则每动一下就会被保存导致取色器关闭
                               const updated = reminderCustom.map((it, j) => j === i ? { ...it, color: e.target.value } : it);
                               setReminderCustom(updated);
-                              persistReminder(undefined, updated);
                             }}
+                            onBlur={() => persistReminder(undefined, reminderCustom)}
+                            onKeyUp={(e) => { if (e.key === 'Enter') persistReminder(undefined, reminderCustom); }}
                           />
                         </div>
                         <div className="field">
@@ -888,7 +1154,7 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
                   )}
                 </div>
 
-                <div className={`sub-page${reminderProviderTab === 'weather' ? ' active' : ''}`}>
+                <div className={`sub-page${openProvider === 'weather' ? ' active' : ''}`}>
                   <div className="settings-grid">
                     <div className="field">
                       <label style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -919,19 +1185,11 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
                       <p className="field-help">每天到该时间播报一次天气</p>
                     </div>
                     <div className="field">
-                      <label htmlFor="rwCity">城市</label>
-                      <Input
-                        id="rwCity"
-                        type="text"
-                        placeholder="留空 = 自动定位"
-                        value={reminderWeather.city || ''}
-                        onChange={(e) => {
-                          const next = { ...reminderWeather, city: e.target.value };
-                          setReminderWeather(next);
-                          persistReminder(undefined, undefined, { weather: next });
-                        }}
-                      />
-                      <p className="field-help">可填城市名（如"太原"），留空则按当前网络自动定位</p>
+                      <label>城市</label>
+                      <p className="field-help" style={{ margin: 0 }}>
+                        天气提醒使用【天气】页面设置的位置（当前为 {reminderWeather.city || '自动定位'}）；
+                        如需更换城市或改用坐标定位，请到【天气】页面调整。极端天气预警会跳过【天气】页面中“排除的气象预警”关键词。
+                      </p>
                     </div>
                     <div className="field">
                       <label style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -967,7 +1225,7 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
               </div>
 
               {/* 高级设置：音效 / 置顶 / 全屏，二级菜单切换 */}
-              <div className={`panel${reminderEnabled ? '' : ' panel-disabled'}`}>
+              <div className={`panel${reminderEnabled ? '' : ' panel-disabled'}`} style={{ display: reminderSectionTab === 'advanced' ? '' : 'none' }}>
                 <h3>高级设置</h3>
                 <div className="sub-tabs" role="tablist">
                   {[

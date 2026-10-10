@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="utf-8">
+  <title>密码验证</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: transparent; }
+    body { font-family: "Microsoft YaHei", sans-serif; color: #f5f5f5; }
+    .panel {
+      height: 100%;
+      margin: 6px;
+      padding: 16px 18px;
+      border-radius: 10px;
+      background: rgba(32, 32, 36, 0.97);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .title {
+      font-size: 15px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      -webkit-app-region: drag;
+    }
+    .title .close {
+      -webkit-app-region: no-drag;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: #bbb;
+      font-size: 15px;
+      line-height: 1;
+      padding: 2px 4px;
+    }
+    .title .close:hover { color: #fff; }
+    .reason {
+      font-size: 12.5px;
+      color: #b8b8b8;
+      line-height: 1.5;
+    }
+    input[type="password"] {
+      height: 34px;
+      padding: 0 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      font-size: 14px;
+      outline: none;
+    }
+    input[type="password"]:focus { border-color: #4cc2ff; }
+    .error {
+      min-height: 18px;
+      font-size: 12.5px;
+      color: #ff8080;
+    }
+    .actions { margin-top: auto; display: flex; justify-content: flex-end; gap: 8px; }
+    button.action {
+      height: 32px;
+      padding: 0 16px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.1);
+      color: #f0f0f0;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    button.action:hover { background: rgba(255, 255, 255, 0.18); }
+    button.action.primary { background: #0f6cbd; border-color: #0f6cbd; }
+    button.action.primary:hover { background: #1a7fd4; }
+  </style>
+</head>
+
+<body>
+  <div class="panel">
+    <div class="title">
+      <span>需要验证密码</span>
+      <button class="close" id="close" title="关闭">✕</button>
+    </div>
+    <div class="reason" id="reason"></div>
+    <input type="password" id="password" placeholder="请输入密码" autocomplete="off">
+    <div class="error" id="error"></div>
+    <div class="actions">
+      <button class="action" id="cancel">取消</button>
+      <button class="action primary" id="ok">确定</button>
+    </div>
+  </div>
+  <script>
+    const { ipcRenderer } = require('electron');
+    const reasonEl = document.getElementById('reason');
+    const input = document.getElementById('password');
+    const errorEl = document.getElementById('error');
+    reasonEl.textContent = new URLSearchParams(location.search).get('reason') || '启用密码保护后，该操作需要验证密码。';
+
+    let busy = false;
+    function submit() {
+      if (busy) return;
+      const password = input.value;
+      if (!password) {
+        errorEl.textContent = '请输入密码';
+        return;
+      }
+      busy = true;
+      errorEl.textContent = '验证中…';
+      ipcRenderer.send('security-attempt', { password });
+    }
+    function cancel() {
+      ipcRenderer.send('security-prompt-cancel');
+    }
+    ipcRenderer.on('security-attempt-result', (_event, result) => {
+      busy = false;
+      errorEl.textContent = (result && result.error) || '密码不正确';
+      input.value = '';
+      input.focus();
+    });
+    document.getElementById('ok').addEventListener('click', submit);
+    document.getElementById('cancel').addEventListener('click', cancel);
+    document.getElementById('close').addEventListener('click', cancel);
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') submit();
+      else if (event.key === 'Escape') cancel();
+    });
+    input.focus();
+  </script>
+</body>
+
+</html>

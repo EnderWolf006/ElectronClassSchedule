@@ -62,12 +62,14 @@ export function getTimetableSlotCount(timetable) {
 
 // 卡片数组 → config.timetable 的某个分组，并做与旧版一致的校验/自动编号。
 // 上课/课间是 "HH:MM-HH:MM" 区间；分割线是 "HH:MM" 单点（值为 DIVIDER_MARKER）。
+// 区间之间不允许时间重叠（首尾相接可以，用于相邻时间段联动拖动）。
 export function collectTimetableCards(cards) {
   const group = {};
   const errors = [];
   const seenKeys = new Set();
   const orderedEntries = [];
   const classEntries = [];
+  const intervalEntries = [];
 
   cards.forEach((card, domIndex) => {
     const start = normalizeTimeText(card.start);
@@ -99,6 +101,12 @@ export function collectTimetableCards(cards) {
       return;
     }
     seenKeys.add(key);
+    intervalEntries.push({
+      domIndex,
+      key,
+      startMinutes: timeToMinutes(start),
+      endMinutes: timeToMinutes(end),
+    });
     if (card.type === 'break') {
       orderedEntries.push({ key, type: 'break', name: String(card.name || '').trim() || '课间' });
     } else {
@@ -106,6 +114,15 @@ export function collectTimetableCards(cards) {
       orderedEntries.push(entry);
       classEntries.push(entry);
     }
+  });
+
+  // 重叠检测：任意两个时间段区间相交（不含首尾相接）即视为无效，无法保存
+  intervalEntries.forEach((a, i) => {
+    intervalEntries.slice(i + 1).forEach((b) => {
+      if (a.startMinutes < b.endMinutes && b.startMinutes < a.endMinutes) {
+        errors.push(`时间段 ${a.key} 与 ${b.key} 时间重叠（第 ${a.domIndex + 1} / ${b.domIndex + 1} 项），请调整后再保存。`);
+      }
+    });
   });
 
   classEntries
@@ -121,10 +138,11 @@ export function collectTimetableCards(cards) {
   return { group, errors, invalidIndexes: errors.map((_, i) => i) };
 }
 
-// 返回校验失败的卡片序号集合（用于红框提示）
+// 返回校验失败的卡片序号集合（用于红框提示）：时间无效、重复、或与其它时间段重叠
 export function getInvalidCardIndexes(cards) {
   const invalid = new Set();
   const seenKeys = new Set();
+  const intervals = [];
   cards.forEach((card, domIndex) => {
     const start = normalizeTimeText(card.start);
     if (card.type === 'divider') {
@@ -145,6 +163,15 @@ export function getInvalidCardIndexes(cards) {
       return;
     }
     seenKeys.add(key);
+    intervals.push({ domIndex, startMinutes: timeToMinutes(start), endMinutes: timeToMinutes(end) });
+  });
+  intervals.forEach((a, i) => {
+    intervals.slice(i + 1).forEach((b) => {
+      if (a.startMinutes < b.endMinutes && b.startMinutes < a.endMinutes) {
+        invalid.add(a.domIndex);
+        invalid.add(b.domIndex);
+      }
+    });
   });
   return invalid;
 }

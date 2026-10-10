@@ -55,4 +55,5 @@ export const ICONS = {
   folder: '<path d="M3 6.5c0-.8.7-1.5 1.5-1.5h4.2l1.8 1.8H19.5c.8 0 1.5.7 1.5 1.5v8.7c0 .8-.7 1.5-1.5 1.5H4.5C3.7 18.5 3 17.8 3 17z"/>',
   plugin: '<path d="M10 3v2.6M10 14.4V17M3 10h2.6M14.4 10H17"/><rect x="5.6" y="5.6" width="8.8" height="8.8" rx="2"/>',
   back: '<path d="M14.5 5 8 11.5l6.5 6.5"/>',
+  lock: '<rect x="5" y="10.2" width="14" height="9.4" rx="2"/><path d="M8.2 10.2V7.6a3.8 3.8 0 0 1 7.6 0v2.6"/><circle cx="12" cy="14.9" r="1.2" fill="currentColor" stroke="none"/>',
 };
