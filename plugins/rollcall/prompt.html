@@ -4,19 +4,28 @@
 <head>
   <meta charset="utf-8">
   <title>点名</title>
+  <script>
+    // 首帧前确定主题，避免深色→浅色闪烁
+    (function () {
+      var mode = new URLSearchParams(location.search).get('themeMode');
+      if (mode === 'light' || (mode === 'auto' && !window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('theme-light');
+      }
+    })();
+  </script>
   <style>
     * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; background: transparent; }
+    html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
     body {
-      font-family: "Microsoft YaHei", sans-serif;
+      font-family: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
       color: #f5f5f5;
       display: flex;
       align-items: stretch;
       justify-content: stretch;
+      padding: 6px;
     }
     .panel {
       flex: 1;
-      margin: 6px;
       padding: 14px 16px;
       border-radius: 10px;
       background: rgba(32, 32, 36, 0.96);
@@ -89,6 +98,33 @@
     button.action:hover { background: rgba(255, 255, 255, 0.18); }
     button.action.primary { background: #0f6cbd; border-color: #0f6cbd; }
     button.action.primary:hover { background: #1a7fd4; }
+
+    /* ===== 浅色主题 ===== */
+    .theme-light body { color: #1f1f1f; }
+    .theme-light .panel {
+      background: rgba(245, 245, 247, 0.97);
+      border-color: rgba(0, 0, 0, 0.10);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    }
+    .theme-light .title .close { color: #666; }
+    .theme-light .title .close:hover { color: #1f1f1f; }
+    .theme-light label { color: #444; }
+    .theme-light input[type="number"] {
+      border-color: rgba(0, 0, 0, 0.18);
+      background: rgba(255, 255, 255, 0.9);
+      color: #1f1f1f;
+    }
+    .theme-light input[type="number"]:focus { border-color: #0f6cbd; }
+    .theme-light .hint { color: #777; }
+    .theme-light .repeat-row { color: #333; }
+    .theme-light button.action {
+      border-color: rgba(0, 0, 0, 0.16);
+      background: rgba(0, 0, 0, 0.05);
+      color: #1f1f1f;
+    }
+    .theme-light button.action:hover { background: rgba(0, 0, 0, 0.10); }
+    .theme-light button.action.primary { background: #0f6cbd; border-color: #0f6cbd; color: #fff; }
+    .theme-light button.action.primary:hover { background: #1a7fd4; }
   </style>
 </head>
 
@@ -116,18 +152,32 @@
     const { ipcRenderer } = require('electron');
     const params = new URLSearchParams(location.search);
     const max = Math.max(1, Number(params.get('max')) || 1);
+    const REPEAT_MAX = 999;
     const last = Math.max(1, Number(params.get('last')) || 1);
     const input = document.getElementById('count');
     const repeat = document.getElementById('repeat');
-    input.max = String(max);
-    input.value = String(Math.min(last, max));
+    const hint = document.getElementById('hint');
     repeat.checked = params.get('repeat') === '1';
-    document.getElementById('hint').textContent = `候选人数：${max}`;
+
+    // 允许重复时，人数上限从候选人数提升到 999，可超出候选总数
+    function applyMax() {
+      const ceiling = repeat.checked ? REPEAT_MAX : max;
+      input.max = String(ceiling);
+      const current = Number(input.value) || 1;
+      if (current > ceiling) input.value = String(ceiling);
+      hint.textContent = repeat.checked
+        ? `候选人数：${max}（允许重复，最多 ${REPEAT_MAX} 人）`
+        : `候选人数：${max}`;
+    }
+    input.value = String(Math.min(last, repeat.checked ? REPEAT_MAX : max));
+    applyMax();
+    repeat.addEventListener('change', applyMax);
     input.focus();
     input.select();
 
     function submit() {
-      const value = Math.max(1, Math.min(max, Math.floor(Number(input.value) || 1)));
+      const ceiling = repeat.checked ? REPEAT_MAX : max;
+      const value = Math.max(1, Math.min(ceiling, Math.floor(Number(input.value) || 1)));
       ipcRenderer.send('plugin:rollcall:prompt-result', { count: value, allowRepeat: repeat.checked });
     }
     function cancel() {

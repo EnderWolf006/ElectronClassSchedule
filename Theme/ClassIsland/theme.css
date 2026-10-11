@@ -36,3 +36,27 @@
 .reminderText {
     font-weight: 400;
 }
+
+/* ============================================================
+   单色化：所有课表颜色统一为黑色（浅色主题）或白色（深色主题）。
+   覆盖默认配色变量，当前/课间/侧栏/已过课程不再使用彩色区分。
+   ============================================================ */
+[data-theme="light"] {
+    --col-text: #000000;
+    --col-current: #000000;
+    --col-break: #000000;
+    --col-ended: #000000;
+    --col-right: #000000;
+    --col-left: #000000;
+    --col-divider: #000000;
+}
+
+[data-theme="dark"] {
+    --col-text: #ffffff;
+    --col-current: #ffffff;
+    --col-break: #ffffff;
+    --col-ended: #ffffff;
+    --col-right: #ffffff;
+    --col-left: #ffffff;
+    --col-divider: #ffffff;
+}

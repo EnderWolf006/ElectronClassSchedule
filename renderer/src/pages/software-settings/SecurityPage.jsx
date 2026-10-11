@@ -6,7 +6,7 @@ import { ipcRenderer } from '../../common/electron.js';
 // 密码不写入 settings.js：主进程用「加盐 scrypt 哈希 + safeStorage（Windows 下为
 // DPAPI，绑定当前系统用户）整体加密」保存到用户数据目录下的密钥文件，
 // 页面上会展示该文件路径——删除它即可重置为无密码状态。
-export default function SecurityPage({ onStatus }) {
+export default function SecurityPage({ onStatus, settingsRef }) {
   const [status, setStatus] = useState(null);
   const [modules, setModules] = useState([]);
   const [moduleValues, setModuleValues] = useState({});
@@ -36,6 +36,11 @@ export default function SecurityPage({ onStatus }) {
       .then((result) => {
         if (result && result.ok) {
           setModuleValues(result.values || {});
+          // 同步更新软件设置窗口的 settingsRef，避免后续保存其它设置时
+          // 用旧的 security_protect 覆盖掉刚改的模块开关
+          if (settingsRef && settingsRef.current) {
+            settingsRef.current.security_protect = result.values || {};
+          }
           onStatus?.(enabled ? '该模块已启用密码保护' : '该模块已取消密码保护');
         } else {
           setError((result && result.error) || '保存失败');
@@ -80,8 +85,9 @@ export default function SecurityPage({ onStatus }) {
       <div className="page-header">
         <h1 className="page-title">安全设置</h1>
         <p className="page-intro">
-          为课表加一把锁：启用后可以逐项选择需要密码的操作——打开“软件设置 / 课表配置编辑器”，
-          以及托盘菜单中的退出、重启、上课隐藏、窗口置顶、课上计时、显示次日课程。
+          为课表加一把锁：启用后可以逐项选择需要密码的操作——打开“软件设置 / 课表配置编辑器 / 安全设置”，
+          以及托盘菜单中的退出、重启、上课隐藏、窗口置顶、课上计时、显示次日课程；
+          启用后还会拒绝被非管理员的“任务管理器 - 结束任务”直接关闭。
         </p>
       </div>
 
@@ -95,10 +101,6 @@ export default function SecurityPage({ onStatus }) {
           主进程先做加盐哈希，再用系统级加密（Windows 的 DPAPI，绑定当前系统账户）
           写入用户数据目录下的密钥文件。删除该文件即可重置为无密码状态（忘记密码时的兜底）。
         </p>
-        <div className="field">
-          <label>密钥文件位置</label>
-          <Input readOnly value={status?.file || '读取中…'} />
-        </div>
         {status && status.encryptionAvailable === false && (
           <p className="field-help security-warning">当前系统不支持安全存储（safeStorage 不可用），无法启用密码保护。</p>
         )}

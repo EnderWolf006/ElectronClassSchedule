@@ -15,6 +15,7 @@ const pages = [
   'exit-confirm',
   'schedule-dialog',
   'course-fusion',
+  'early-dismissal',
 ];
 
 for (let i = 0; i < pages.length; i += 1) {

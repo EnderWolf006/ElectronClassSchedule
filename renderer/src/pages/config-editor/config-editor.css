@@ -140,6 +140,49 @@
   width: 100%;
 }
 
+/* ----- 课表页 · 每天加载的课表（轮换模式逐天独立设置） ----- */
+
+/* 每行：轮换模式下拉 + （多课表轮换）该天的轮换设置 */
+.schedule-map-panel .day-load-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: flex-start;
+}
+
+.schedule-map-panel .day-load-row > .fui-Select {
+  width: 200px;
+  flex-shrink: 0;
+}
+
+.schedule-map-panel .day-rotation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: flex-end;
+  flex: 1;
+  min-width: 0;
+}
+
+.schedule-map-panel .day-rotation-cycle,
+.schedule-map-panel .day-rotation-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 150px;
+}
+
+.schedule-map-panel .day-rotation-cycle label,
+.schedule-map-panel .day-rotation-entry label {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.schedule-map-panel .day-rotation .fui-Select {
+  width: 100%;
+}
+
 .day-editor {
   flex: 1;
   min-width: 0;

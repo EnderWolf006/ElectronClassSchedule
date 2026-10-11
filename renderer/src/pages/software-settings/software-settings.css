@@ -67,23 +67,6 @@ input.native-color {
   font-size: 13px;
 }
 
-#root .fui-Textarea.style-editor {
-  width: 100%;
-  min-height: 0;
-  padding: 0;
-}
-
-#root .fui-Textarea.style-editor textarea.fui-Textarea__textarea {
-  width: 100%;
-  min-height: 480px;
-  resize: vertical;
-  padding: 12px 14px;
-  color: var(--text);
-  font: 13px/1.55 Consolas, "Microsoft YaHei", monospace;
-  tab-size: 4;
-  white-space: pre;
-}
-
 #root .ss-app .field-help {
   margin: -8px 0 14px;
 }
@@ -635,6 +618,41 @@ input.native-color {
   transition: background 0.12s ease;
 }
 
+/* 课程提醒（即将上课/上课/下课）单项卡片 */
+.reminder-item-card {
+  margin-top: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: 8px;
+  background: var(--colorNeutralBackground2);
+}
+
+.reminder-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.reminder-item-heading {
+  min-width: 0;
+}
+
+.reminder-item-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--colorNeutralForeground1);
+}
+
+.reminder-item-body {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--colorNeutralStroke2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .reminder-provider-row:hover {
   background: var(--colorNeutralBackground2Hover);
 }
@@ -832,44 +850,6 @@ input.native-color {
   outline: none;
 }
 
-/* ===== 主题页：自定义样式 ===== */
-.custom-css-panel {
-  margin-top: 16px;
-}
-
-.custom-css-help code {
-  display: inline-block;
-  margin: 0 2px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--colorNeutralBackground3);
-  font: 12px/1.5 Consolas, "Microsoft YaHei", monospace;
-  color: var(--colorNeutralForeground1);
-}
-
-.custom-css-reference {
-  margin-top: 10px;
-  font-size: 13px;
-  color: var(--colorNeutralForeground2);
-}
-
-.custom-css-reference summary {
-  cursor: pointer;
-  user-select: none;
-}
-
-.custom-css-reference-code {
-  margin: 10px 0 0;
-  max-height: 360px;
-  overflow: auto;
-  padding: 12px 14px;
-  border: 1px solid var(--colorNeutralStroke2);
-  border-radius: 6px;
-  background: var(--colorNeutralBackground3);
-  font: 12px/1.55 Consolas, "Microsoft YaHei", monospace;
-  white-space: pre;
-}
-
 /* ===== 提醒页：总开关 / 二级菜单子页 / 禁用态 ===== */
 .reminder-master-row {
   display: flex;
@@ -927,5 +907,17 @@ input.native-color {
 .panel-disabled {
   opacity: 0.55;
   pointer-events: none;
+}
+
+/* 左侧菜单分组分割线（常规设置 / 安全与扩展） */
+.ss-app .nav-list .nav-divider {
+  border: none;
+  border-top: 1px solid var(--divider);
+  margin: 6px 10px;
+}
+
+/* 折叠侧栏时分割线改为短横，与仅图标模式对齐 */
+.ss-app.nav-collapsed .nav-list .nav-divider {
+  margin: 6px 8px;
 }
 

@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Switch, Textarea } from '@fluentui/react-components';
+import { Button, Switch } from '@fluentui/react-components';
 import { ipcRenderer } from '../../common/electron.js';
 import { Svg, ICONS } from '../../common/icons.jsx';
 
 // “主题”页：
-// 1. 扫描 Theme 文件夹，每个含 index.json 的子文件夹显示为一个主题开关。
-//    最多启用一个开关（单选语义）；全部关闭时加载默认主题。
-// 2. 自定义样式：任意 CSS 文本，保存后注入到主界面 head 末尾（优先级最高），
-//    可完全覆盖 css/style.css 与主题包（背景、颜色、字体、布局等）。
-export default function ThemePacksPage({ activeTheme, onSelectTheme, customCss, onChangeCustomCss }) {
+// 扫描 Theme 文件夹，每个含 index.json 的子文件夹显示为一个主题开关。
+// 最多启用一个开关（单选语义）；全部关闭时加载默认主题。
+export default function ThemePacksPage({ activeTheme, onSelectTheme }) {
   const [packs, setPacks] = useState([]);
-  const [referenceCss, setReferenceCss] = useState(null);
 
   const reloadPacks = useCallback(() => {
     ipcRenderer.invoke('list-theme-packs')
@@ -25,16 +22,6 @@ export default function ThemePacksPage({ activeTheme, onSelectTheme, customCss, 
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, [reloadPacks]);
-
-  const loadReferenceCss = () => {
-    if (referenceCss !== null) return;
-    ipcRenderer.invoke('read-main-css-file')
-      .then((css) => setReferenceCss(typeof css === 'string' ? css : ''))
-      .catch((error) => {
-        console.error('读取默认样式失败:', error);
-        setReferenceCss('/* 读取 css/style.css 失败 */');
-      });
-  };
 
   return (
     <>
@@ -99,34 +86,6 @@ export default function ThemePacksPage({ activeTheme, onSelectTheme, customCss, 
         <p className="field-help">
           新增或删除主题文件夹后，重新打开此页面即可刷新列表。
         </p>
-      </div>
-
-      <div className="panel custom-css-panel">
-        <div className="theme-packs-toolbar">
-          <h3>自定义样式</h3>
-          {customCss && (
-            <Button className="win-small" onClick={() => onChangeCustomCss('')}>清空</Button>
-          )}
-        </div>
-        <p className="field-help custom-css-help">
-          在此编写任意 CSS，保存后立即生效并作用于主界面；样式优先级高于默认 style.css
-          与上方启用的主题包，相当于对默认样式的完全重构。可修改背景与配色，例如
-          <code>:root &#123; --bg-base: #101014; --col-current: #4cc2ff; &#125;</code>、
-          <code>.background &#123; background-image: url('file:///C:/Users/you/bg.jpg'); background-size: cover; &#125;</code>
-          （本地图片用 file:/// 路径，网络图片直接写 https:// 链接）。
-        </p>
-        <Textarea
-          className="style-editor"
-          value={customCss || ''}
-          placeholder={'/* 示例：\n:root {\n  --bg-base: #101014;\n  --col-current: #4cc2ff;\n}\n.background {\n  background-image: url("file:///C:/Users/you/Pictures/bg.jpg");\n  background-size: cover;\n} */'}
-          onChange={(event) => onChangeCustomCss(event.target.value)}
-        />
-        <details className="custom-css-reference" onToggle={(event) => event.target.open && loadReferenceCss()}>
-          <summary>查看默认 style.css 作为编写参考</summary>
-          {referenceCss !== null && (
-            <pre className="custom-css-reference-code"><code>{referenceCss}</code></pre>
-          )}
-        </details>
       </div>
     </>
   );

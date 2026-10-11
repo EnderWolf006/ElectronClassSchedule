@@ -1,9 +1,9 @@
-const { app, BrowserWindow, Menu, ipcMain, dialog, screen, Tray, shell, powerMonitor, nativeTheme, net, safeStorage } = require('electron')
+const { app, BrowserWindow, Menu, ipcMain, dialog, screen, Tray, shell, powerMonitor, nativeTheme, net, safeStorage, systemPreferences } = require('electron')
 const path = require('path');
 const fs = require('fs')
 const os = require('os')
 const crypto = require('crypto')
-const { execFile } = require('child_process')
+const { execFile, exec } = require('child_process')
 const createShortcut = require('windows-shortcuts')
 const yaml = require('js-yaml')
 const { parseTableFile, parseImageFile } = require('./schedule-import');
@@ -49,6 +49,36 @@ var win = undefined;
 let configEditorWin = undefined;
 let softwareSettingsWin = undefined;
 let courseFusionWin = undefined;
+let earlyDismissalWin = undefined;
+
+// ===== 运行时覆盖层（仅本次运行有效，保存在主进程内存） =====
+// 重启软件/电脑后自然丢失；跨天后由渲染层按日期判断自动失效。
+// 保存在主进程（而非渲染层）是为了让主窗口 reload（如保存配置后）后仍可拉回
+let runtimeTempCourseChanges = null; // { date, items: [{ dayIndex, slotIndex, subject }] }
+let runtimeEarlyDismissal = null;    // { date, time: 'HH:MM' }
+
+function runtimeTodayKey() {
+    const d = new Date();
+    return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+ipcMain.handle('get-temp-course-changes', () => runtimeTempCourseChanges)
+ipcMain.on('set-temp-course-changes', (event, payload) => {
+    runtimeTempCourseChanges = (payload && typeof payload === 'object'
+        && typeof payload.date === 'string' && Array.isArray(payload.items)) ? payload : null;
+})
+
+ipcMain.handle('get-temp-early-dismissal', () => runtimeEarlyDismissal)
+ipcMain.on('set-temp-early-dismissal', (event, payload) => {
+    const time = payload && /^\d{1,2}:\d{2}(:\d{2})?$/.test(String(payload.time || ''))
+        ? String(payload.time).slice(0, 5)
+        : null;
+    // date 由主进程按当天时间记录（收起时校验），渲染层按该日期判断跨天失效
+    runtimeEarlyDismissal = time ? { date: runtimeTodayKey(), time } : null;
+    if (win && !win.isDestroyed()) {
+        win.webContents.send('early-dismissal-changed', runtimeEarlyDismissal);
+    }
+})
 let basePath = app.isPackaged ? './resources/app/' : './'
 if (!app.requestSingleInstanceLock({ key: 'classSchedule' })) {
     app.quit();
@@ -496,6 +526,15 @@ function createPluginApi(plugin, instance) {
                 : options);
             instance.windows.push(winObj);
             guardRepaint(winObj);
+            // 与软件设置窗口一致：把当前主题模式通过 URL 参数注入，
+            // 让插件窗口（如点名人数选择窗）首帧就呈现正确的深浅色
+            const originalLoadFile = winObj.loadFile.bind(winObj);
+            winObj.loadFile = (filePath, loadOptions = {}) => {
+                return originalLoadFile(filePath, {
+                    ...loadOptions,
+                    query: { ...(loadOptions.query || {}), themeMode: readThemeMode() },
+                });
+            };
             winObj.on('closed', () => {
                 instance.windows = instance.windows.filter((item) => item !== winObj);
             });
@@ -672,6 +711,7 @@ ipcMain.on('open-plugins-folder', async () => {
 const SECURITY_MODULES = [
     { id: 'settings', label: '打开“软件设置”', group: 'page' },
     { id: 'editor', label: '打开“课表配置编辑器”', group: 'page' },
+    { id: 'security', label: '打开“安全设置”页', group: 'page' },
     { id: 'quit', label: '退出程序', group: 'tray' },
     { id: 'restart', label: '重启', group: 'tray' },
     { id: 'hidden', label: '上课隐藏', group: 'tray' },
@@ -750,24 +790,74 @@ function verifySecurityPassword(password) {
 
 let securityPromptWin = null;
 let securityPromptResolve = null;
+// 验证通过后验证窗的退场方式：
+// - close：立即关闭（默认，如托盘开关类动作）
+// - fade：淡出后关闭（页面内验证，如打开“安全设置”页）
+// - handoff：先保留，等目标窗口显示时再淡出关闭（打开软件设置/配置编辑器，形成视觉过渡）
+let securityPromptExitMode = 'close';
+let securityPromptHandoffWin = null;
+let securityPromptHandoffTimer = 0;
+
+// 淡出并关闭验证窗（约 180ms），让“密码窗 → 目标窗”之间有过渡而不是瞬间消失
+function fadeOutAndClosePrompt(winObj) {
+    if (!winObj || winObj.isDestroyed()) return;
+    const totalSteps = 9;
+    let step = 0;
+    const timer = setInterval(() => {
+        step += 1;
+        if (winObj.isDestroyed()) { clearInterval(timer); return; }
+        try { winObj.setOpacity(Math.max(0, 1 - step / totalSteps)); } catch (error) { /* 忽略 */ }
+        if (step >= totalSteps) {
+            clearInterval(timer);
+            winObj.close();
+        }
+    }, 20);
+}
+
+// 目标窗口已经显示：释放被保留的验证窗
+function releaseSecurityPromptHandoff() {
+    const winObj = securityPromptHandoffWin;
+    securityPromptHandoffWin = null;
+    if (securityPromptHandoffTimer) {
+        clearTimeout(securityPromptHandoffTimer);
+        securityPromptHandoffTimer = 0;
+    }
+    fadeOutAndClosePrompt(winObj);
+}
 
 function finishSecurityPrompt(result) {
     const winObj = securityPromptWin;
     securityPromptWin = null;
     const resolve = securityPromptResolve;
     securityPromptResolve = null;
-    if (winObj && !winObj.isDestroyed()) winObj.close();
+    const mode = result === true ? securityPromptExitMode : 'close';
+    securityPromptExitMode = 'close';
+    if (winObj && !winObj.isDestroyed()) {
+        if (mode === 'handoff') {
+            // 交给随后打开的窗口：它显示后调用 releaseSecurityPromptHandoff；
+            // 兜底 2.5s（目标窗口未出现时也要淡出，避免验证窗滞留）
+            securityPromptHandoffWin = winObj;
+            if (securityPromptHandoffTimer) clearTimeout(securityPromptHandoffTimer);
+            securityPromptHandoffTimer = setTimeout(releaseSecurityPromptHandoff, 2500);
+        } else if (mode === 'fade') {
+            fadeOutAndClosePrompt(winObj);
+        } else {
+            winObj.close();
+        }
+    }
     if (resolve) resolve(result);
 }
 
-// 弹出密码验证窗；返回 Promise<boolean>（验证通过 / 取消）
-function promptSecurityPassword(reason) {
+// 弹出密码验证窗；返回 Promise<boolean>（验证通过 / 取消）。
+// options.handoff：验证通过后由目标窗口释放（带过渡）；options.fade：通过后立即淡出
+function promptSecurityPassword(reason, options) {
     return new Promise((resolve) => {
         if (securityPromptWin && !securityPromptWin.isDestroyed()) {
             securityPromptWin.focus();
             resolve(false);
             return;
         }
+        securityPromptExitMode = options && options.handoff ? 'handoff' : (options && options.fade ? 'fade' : 'close');
         securityPromptResolve = resolve;
         const mainWin = (win && !win.isDestroyed()) ? win : null;
         const restoreTop = () => {
@@ -776,7 +866,9 @@ function promptSecurityPassword(reason) {
             }
         };
         if (mainWin) mainWin.setAlwaysOnTop(false);
-        securityPromptWin = new BrowserWindow({
+        // 用局部变量持有本次验证窗：旧窗的 closed 回调不能清空新窗的引用，
+        // 否则连续验证时新窗会失去引用、无法被关闭，停在“验证中…”并挡住后面的窗口
+        const promptWin = new BrowserWindow({
             width: 380,
             height: 250,
             frame: false,
@@ -795,14 +887,22 @@ function promptSecurityPassword(reason) {
                 backgroundThrottling: false,
             },
         });
-        securityPromptWin.setAlwaysOnTop(true, 'screen-saver');
-        guardRepaint(securityPromptWin);
-        securityPromptWin.loadFile('security-prompt.html', { query: { reason: String(reason || '') } });
-        securityPromptWin.once('ready-to-show', () => {
-            if (securityPromptWin && !securityPromptWin.isDestroyed()) securityPromptWin.show();
+        securityPromptWin = promptWin;
+        promptWin.setAlwaysOnTop(true, 'screen-saver');
+        guardRepaint(promptWin);
+        promptWin.loadFile('security-prompt.html', { query: { reason: String(reason || ''), themeMode: readThemeMode() } });
+        promptWin.once('ready-to-show', () => {
+            if (!promptWin.isDestroyed()) promptWin.show();
         });
-        securityPromptWin.on('closed', () => {
-            securityPromptWin = null;
+        promptWin.on('closed', () => {
+            if (securityPromptWin === promptWin) securityPromptWin = null;
+            if (securityPromptHandoffWin === promptWin) {
+                securityPromptHandoffWin = null;
+                if (securityPromptHandoffTimer) {
+                    clearTimeout(securityPromptHandoffTimer);
+                    securityPromptHandoffTimer = 0;
+                }
+            }
             restoreTop();
             if (securityPromptResolve === resolve) {
                 securityPromptResolve = null;
@@ -812,10 +912,35 @@ function promptSecurityPassword(reason) {
     });
 }
 
-// 已启用密码保护时先验证；未启用直接放行
-function withSecurity(reason) {
+// 已启用密码保护时先验证；未启用直接放行（options 见 promptSecurityPassword）
+function withSecurity(reason, options) {
     if (!isSecurityEnabled()) return Promise.resolve(true);
-    return promptSecurityPassword(reason);
+    return promptSecurityPassword(reason, options);
+}
+
+// ===== 进程保护：启用密码保护后，不允许被非管理员的“任务管理器 - 结束任务”直接结束 =====
+// 通过修改本进程对象的 DACL，拒绝当前用户“结束/挂起进程”的权利：任务管理器结束时会
+// 显示“拒绝访问”，避免用结束进程的方式绕过密码。SYSTEM 与管理员（SeDebugPrivilege）
+// 仍可管理，不影响注销/关机与系统维护；权限只挂在运行中的进程对象上，进程退出即消失，
+// 不会写入任何持久化配置，也不会影响下次启动。
+let processGuardActive = false;
+let processGuardBusy = false;
+
+function applyProcessGuard() {
+    if (process.platform !== 'win32' || processGuardBusy) return;
+    processGuardBusy = true;
+    const mode = isSecurityEnabled() ? 'protect' : 'restore';
+    execFile('powershell', [
+        '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+        '-File', path.join(__dirname, 'scripts', 'protect-process.ps1'),
+        '-ProcessId', String(process.pid),
+        '-Mode', mode,
+    ], { windowsHide: true }, (error, stdout) => {
+        processGuardBusy = false;
+        const ok = !error && /OK/.test(String(stdout || ''));
+        if (ok) processGuardActive = mode === 'protect';
+        else console.log('进程保护设置失败:', String(stdout || (error && error.message) || '').trim());
+    });
 }
 
 ipcMain.on('security-attempt', (event, payload) => {
@@ -828,11 +953,26 @@ ipcMain.on('security-attempt', (event, payload) => {
     if (sender && !sender.isDestroyed()) sender.send('security-attempt-result', result);
 })
 
-ipcMain.on('security-prompt-cancel', () => finishSecurityPrompt(false))
+ipcMain.on('security-prompt-cancel', (event) => {
+    // 兜底：即使主进程引用已丢失，也能关掉发起取消的那扇验证窗，避免残留挡住界面
+    const senderWin = BrowserWindow.fromWebContents(event.sender);
+    if (senderWin && !senderWin.isDestroyed()) senderWin.close();
+    finishSecurityPrompt(false);
+})
+
+// 打开受保护页面（如“安全设置”页）前的验证：未受保护直接放行。
+// 页面在已打开的窗口内，验证通过后淡出验证窗即可
+ipcMain.handle('security-verify-module', async (event, moduleId) => {
+    const id = String(moduleId || '');
+    if (!isModuleProtected(id)) return { ok: true, required: false };
+    const ok = await promptSecurityPassword('打开该页面需要验证密码', { fade: true });
+    return { ok, required: true };
+})
 
 ipcMain.handle('security-status', async () => ({
     enabled: isSecurityEnabled(),
     encryptionAvailable: safeStorage.isEncryptionAvailable(),
+    processGuard: processGuardActive,
     file: getSecurityFilePath(),
 }))
 
@@ -856,6 +996,8 @@ ipcMain.handle('security-set-password', async (event, payload) => {
     }
     securityFailures = 0;
     securityBlockedUntil = 0;
+    // 启用密码保护后立即加上进程保护（拒绝被任务管理器结束）
+    applyProcessGuard();
     return { ok: true };
 })
 
@@ -864,6 +1006,8 @@ ipcMain.handle('security-remove-password', async (event, payload) => {
     const verified = verifySecurityPassword(String((payload && payload.currentPassword) || ''));
     if (!verified.ok) return verified;
     try { fs.unlinkSync(getSecurityFilePath()); } catch (error) { /* 忽略 */ }
+    // 关闭密码保护后解除进程保护
+    applyProcessGuard();
     return { ok: true };
 })
 
@@ -1110,11 +1254,14 @@ function createSettingsWindow(options) {
 function openConfigEditorWindow(unlocked) {
     // 启用密码保护且“课表配置编辑器”模块受保护时：打开前需验证
     if (isModuleProtected('editor') && unlocked !== true) {
-        withSecurity('打开课表配置编辑器需要验证密码').then((ok) => { if (ok) openConfigEditorWindow(true); });
+        // handoff：验证窗保留到目标窗口显示，形成“密码窗 → 编辑器”的过渡
+        withSecurity('打开课表配置编辑器需要验证密码', { handoff: true }).then((ok) => { if (ok) openConfigEditorWindow(true); });
         return;
     }
     if (configEditorWin && !configEditorWin.isDestroyed()) {
+        configEditorWin.show();
         configEditorWin.focus();
+        releaseSecurityPromptHandoff();
         return;
     }
 
@@ -1134,6 +1281,11 @@ function openConfigEditorWindow(unlocked) {
     }))
     configEditorWin.loadFile(path.join(__dirname, 'dist', 'config-editor.html'))
     saveWindowSizeOnClose('configEditor', configEditorWin)
+    // 目标窗口显示后聚焦并淡出验证窗（等 mica 首次 hide→show 序列走完再淡出，避免中间空一帧）
+    configEditorWin.once('show', () => {
+        configEditorWin.focus();
+        setTimeout(releaseSecurityPromptHandoff, 150);
+    })
     configEditorWin.on('closed', () => {
         configEditorWin = undefined;
     })
@@ -1142,16 +1294,19 @@ function openConfigEditorWindow(unlocked) {
 function openSoftwareSettingsWindow(page, unlocked) {
     // 启用密码保护且“软件设置”模块受保护时：打开前需验证
     if (isModuleProtected('settings') && unlocked !== true) {
-        withSecurity('打开软件设置需要验证密码').then((ok) => { if (ok) openSoftwareSettingsWindow(page, true); });
+        // handoff：验证窗保留到目标窗口显示，形成“密码窗 → 软件设置”的过渡
+        withSecurity('打开软件设置需要验证密码', { handoff: true }).then((ok) => { if (ok) openSoftwareSettingsWindow(page, true); });
         return;
     }
     const targetPage = typeof page === 'string' && page ? page : null;
     if (softwareSettingsWin && !softwareSettingsWin.isDestroyed()) {
+        softwareSettingsWin.show();
         softwareSettingsWin.focus();
         // 已打开时通知它切换到指定页面（如插件的“常用应用”浮窗齿轮 -> 插件页）
         if (targetPage) {
             softwareSettingsWin.webContents.send('settings-navigate', targetPage);
         }
+        releaseSecurityPromptHandoff();
         return;
     }
 
@@ -1174,6 +1329,11 @@ function openSoftwareSettingsWindow(page, unlocked) {
         query: targetPage ? { page: targetPage } : undefined
     });
     saveWindowSizeOnClose('softwareSettings', softwareSettingsWin);
+    // 目标窗口显示后聚焦并淡出验证窗（等 mica 首次 hide→show 序列走完再淡出，避免中间空一帧）
+    softwareSettingsWin.once('show', () => {
+        softwareSettingsWin.focus();
+        setTimeout(releaseSecurityPromptHandoff, 150);
+    });
     softwareSettingsWin.on('closed', () => {
         softwareSettingsWin = undefined;
     });
@@ -1231,6 +1391,36 @@ async function openCourseFusionWindow() {
     });
 }
 
+// “提前放学”临时设置窗口：输入当天的放学时间（深浅色由 createSettingsWindow
+// 经 URL 参数注入，跟随软件状态）。内容只保存在主进程内存：重启后不恢复，
+// 当天结束后自动恢复默认课表
+function openEarlyDismissalWindow() {
+    if (earlyDismissalWin && !earlyDismissalWin.isDestroyed()) {
+        earlyDismissalWin.focus();
+        return;
+    }
+    earlyDismissalWin = createSettingsWindow(applyWindowSizeMemory('earlyDismissal', {
+        width: 480,
+        height: 380,
+        center: true,
+        frame: false,
+        resizable: true,
+        minWidth: 420,
+        minHeight: 320,
+        title: '提前放学',
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+            enableRemoteModule: true
+        }
+    }));
+    earlyDismissalWin.loadFile(path.join(__dirname, 'dist', 'early-dismissal.html'));
+    saveWindowSizeOnClose('earlyDismissal', earlyDismissalWin);
+    earlyDismissalWin.on('closed', () => {
+        earlyDismissalWin = undefined;
+    });
+}
+
 app.whenReady().then(() => {
     ensureThemeDir()
     ensurePluginsDir()
@@ -1251,6 +1441,8 @@ app.whenReady().then(() => {
     DisableMinimize(handle); // Thank to peter's project https://github.com/tbvjaos510/electron-disable-minimize
     setAutoLaunch()
     setHighPriorityLaunch()
+    // 已启用密码保护时恢复进程保护（拒绝任务管理器直接结束）
+    applyProcessGuard()
 })
 
 function createTrayMenu() {
@@ -1268,6 +1460,10 @@ function createTrayMenu() {
 
 // ===== 自绘托盘菜单（独立的透明无边框窗口） =====
 const TRAY_MENU_WIDTH = 248;
+// 菜单四周预留的透明边距：容纳菜单投影，避免阴影被窗口边界硬切；
+// 同时让 CSS 圆角完全落在窗口内部，配合 roundedCorners:false 消除 Win11 的 DWM 方角残影
+const TRAY_MENU_SHADOW_MARGIN = 18;
+const TRAY_MENU_WINDOW_WIDTH = TRAY_MENU_WIDTH + TRAY_MENU_SHADOW_MARGIN * 2;
 let trayMenuWin = undefined;
 let trayMenuReady = false;
 // true 表示本次收到尺寸后需要定位并弹出窗口；勾选状态刷新时只更新尺寸
@@ -1283,6 +1479,7 @@ function buildTrayMenuModel() {
     const items = [
         { id: 'adjust', label: '临时调课', icon: iconUrl('adjust.png') },
         { id: 'fusion', label: '课程融合', icon: iconUrl('fusion.png') },
+        { id: 'dismissal', label: '提前放学', icon: iconUrl('clock.png') },
         { id: 'temp', label: '加载临时课表', icon: iconUrl('toggle.png') },
         { type: 'separator' },
         { id: 'countdown', label: '课上计时', type: 'checkbox', checked: store.get('isDuringClassCountdown', true) },
@@ -1326,11 +1523,14 @@ function ensureTrayMenuWindow() {
     trayMenuReady = false;
     trayMenuPendingShow = false;
     trayMenuWin = new BrowserWindow({
-        width: TRAY_MENU_WIDTH,
-        height: 120,
+        width: TRAY_MENU_WINDOW_WIDTH,
+        height: 120 + TRAY_MENU_SHADOW_MARGIN * 2,
         frame: false,
         transparent: true,
         backgroundColor: '#00000000',
+        // Win11 会给无边框窗口强制加 DWM 圆角，透明窗口四角因此出现方角/黑角残影；
+        // 关闭后由页面内 CSS 圆角自绘边角
+        roundedCorners: false,
         resizable: false,
         movable: false,
         minimizable: false,
@@ -1391,8 +1591,11 @@ function executeTrayAction(id, unlocked = false) {
     if (typeof id === 'string' && id.startsWith('plugin:')) {
         return executePluginTrayAction(id);
     }
-    // 启用密码保护后，程序控制类开关需要先验证密码（按模块开关逐项判断）
-    if (!unlocked && SECURITY_MODULE_IDS.has(id) && isModuleProtected(id)) {
+    // 启用密码保护后，程序控制类开关需要先验证密码（按模块开关逐项判断）。
+    // 打开“软件设置 / 课表配置编辑器”由各自的打开函数内部校验，这里跳过，
+    // 避免同一个动作连续弹出两次验证窗（第二次窗会被旧窗的关闭事件影响而无法关闭）
+    const pageOpenAction = id === 'settings' || id === 'editor';
+    if (!unlocked && !pageOpenAction && SECURITY_MODULE_IDS.has(id) && isModuleProtected(id)) {
         withSecurity('执行该操作需要验证密码').then((ok) => { if (ok) executeTrayAction(id, true); });
         return false;
     }
@@ -1402,6 +1605,9 @@ function executeTrayAction(id, unlocked = false) {
             return false;
         case 'fusion':
             openCourseFusionWindow();
+            return false;
+        case 'dismissal':
+            openEarlyDismissalWindow();
             return false;
         case 'temp':
             win.webContents.send('setDayOffset');
@@ -1471,7 +1677,7 @@ ipcMain.on('tray-menu-size', (event, size) => {
             trayMenuWin.setBounds({
                 x: bounds.x,
                 y: bounds.y + bounds.height - height,
-                width: TRAY_MENU_WIDTH,
+                width: TRAY_MENU_WINDOW_WIDTH,
                 height
             });
         }
@@ -1489,11 +1695,13 @@ ipcMain.on('tray-menu-size', (event, size) => {
     const anchorBottom = anchor ? anchor.bottom : tb.y + tb.height;
     const display = screen.getDisplayNearestPoint({ x: anchorX, y: anchorTop });
     const wa = display.workArea;
-    let x = Math.round(anchorX - TRAY_MENU_WIDTH / 2);
-    x = Math.max(wa.x + 4, Math.min(x, wa.x + wa.width - TRAY_MENU_WIDTH - 4));
+    const m = TRAY_MENU_SHADOW_MARGIN;
+    let x = Math.round(anchorX - TRAY_MENU_WINDOW_WIDTH / 2);
+    x = Math.max(wa.x + 4 - m, Math.min(x, wa.x + wa.width - TRAY_MENU_WINDOW_WIDTH - 4 + m));
     // 方向选择：足够空间时按偏好方向（角标=向下、托盘图标=向上）；
     // 不足时换向；两侧都不足时选空间更大的一侧，最后统一钳制在工作区内，
-    // 避免出现“明明上方有空间却向下弹出”或菜单跑出屏幕的情况
+    // 避免出现“明明上方有空间却向下弹出”或菜单跑出屏幕的情况。
+    // 窗口比菜单大一圈阴影边距 m，定位时减去 m 保证菜单与锚点间的可视间距仍为 gap
     const gap = 8;
     const spaceAbove = anchorTop - (wa.y + 4);
     const spaceBelow = (wa.y + wa.height - 4) - anchorBottom;
@@ -1501,9 +1709,9 @@ ipcMain.on('tray-menu-size', (event, size) => {
     const below = preferBelow
         ? (spaceBelow >= height + gap || spaceBelow >= spaceAbove)
         : !(spaceAbove >= height + gap || spaceAbove >= spaceBelow);
-    let y = below ? anchorBottom + gap : anchorTop - height - gap;
-    y = Math.max(wa.y + 4, Math.min(y, wa.y + wa.height - height - 4));
-    trayMenuWin.setBounds({ x, y, width: TRAY_MENU_WIDTH, height });
+    let y = below ? anchorBottom + gap - m : anchorTop - height - gap + m;
+    y = Math.max(wa.y + 4 - m, Math.min(y, wa.y + wa.height - height - 4 + m));
+    trayMenuWin.setBounds({ x, y, width: TRAY_MENU_WINDOW_WIDTH, height });
     trayMenuShownAt = Date.now();
     trayMenuWin.show();
     trayMenuWin.focus();
@@ -2004,6 +2212,79 @@ ipcMain.handle('select-reminder-sound', async () => {
     return result.filePaths[0];
 });
 
+// ===== 系统强调色：提醒"默认颜色"跟随 Windows 设置 → 个性化 → 颜色 =====
+ipcMain.handle('get-system-accent', () => {
+    try {
+        // 实测 Windows 下返回 8 位 ARGB 十六进制（如 '006fc4e3'，可能带 # 前缀），取低 24 位 RGB
+        const hex = String(systemPreferences.getAccentColor() || '').replace(/^#/, '');
+        if (/^[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(hex)) return '#' + hex.slice(-6).toUpperCase();
+    } catch (error) { /* 平台不支持时返回空，渲染进程走兜底色 */ }
+    return '';
+});
+
+// ===== 自动化动作：打开应用 / 执行命令 / 自动关机 =====
+ipcMain.handle('automation-open-app', async (event, target) => {
+    const p = String(target || '').trim();
+    if (!p) return { ok: false, error: '路径为空' };
+    try {
+        const err = await shell.openPath(p);
+        return { ok: !err, error: err || '' };
+    } catch (error) {
+        return { ok: false, error: String(error) };
+    }
+});
+
+ipcMain.handle('automation-exec', async (event, command) => {
+    const cmd = String(command || '').trim();
+    if (!cmd) return { ok: false, error: '命令为空' };
+    return new Promise((resolve) => {
+        exec(cmd, { windowsHide: true, timeout: 30000 }, (error) => {
+            resolve({ ok: !error, error: error ? String(error.message || error) : '' });
+        });
+    });
+});
+
+ipcMain.handle('automation-shutdown', async (event, seconds) => {
+    const delay = Math.max(0, Math.min(86400, Math.round(Number(seconds) || 60)));
+    return new Promise((resolve) => {
+        exec(`shutdown /s /t ${delay}`, { windowsHide: true }, (error) => {
+            resolve({ ok: !error, error: error ? String(error.message || error) : '' });
+        });
+    });
+});
+
+// ===== 自动化触发：监视指定外部程序启动（渲染进程下发监视名单，出现沿触发） =====
+let watchedProcesses = [];
+let watchTimer = null;
+const lastWatchState = new Map(); // 小写进程名 -> 上一轮是否在运行
+function pollWatchedProcesses() {
+    if (!watchedProcesses.length) return;
+    // 一次性枚举全部进程（CSV 首列形如 "qq.exe"），避免逐个进程名各起一个子进程
+    execFile('tasklist', ['/FO', 'CSV', '/NH'], { windowsHide: true, maxBuffer: 4 * 1024 * 1024 }, (error, stdout) => {
+        if (error || !stdout) return;
+        const lower = String(stdout).toLowerCase();
+        watchedProcesses.forEach((name) => {
+            const key = name.toLowerCase().replace(/"/g, '');
+            if (!key) return;
+            const running = lower.includes(`"${key}"`);
+            const prev = lastWatchState.get(key) || false;
+            if (running && !prev && win && !win.isDestroyed()) {
+                win.webContents.send('automation-app-launch', { name: key, at: Date.now() });
+            }
+            lastWatchState.set(key, running);
+        });
+    });
+}
+ipcMain.on('automation-watch-processes', (event, names) => {
+    watchedProcesses = Array.isArray(names) ? names.map((n) => String(n).trim()).filter(Boolean) : [];
+    lastWatchState.clear();
+    if (watchTimer) { clearInterval(watchTimer); watchTimer = null; }
+    if (watchedProcesses.length) {
+        pollWatchedProcesses();
+        watchTimer = setInterval(pollWatchedProcesses, 3000);
+    }
+});
+
 ipcMain.on('window-control', (event, action) => {
     const targetWindow = BrowserWindow.fromWebContents(event.sender);
     if (!targetWindow || targetWindow.isDestroyed()) return;
@@ -2144,11 +2425,6 @@ ipcMain.handle('read-settings-file', async () => {
     return result && result._settings ? result._settings : result && result.settings ? result.settings : {};
 })
 
-ipcMain.handle('read-main-css-file', async () => {
-    const cssPath = path.join(__dirname, 'css', 'style.css');
-    return fs.readFileSync(cssPath, 'utf8');
-})
-
 ipcMain.handle('import-config-file', async () => {
     const result = await dialog.showOpenDialog(configEditorWin, {
         title: '导入课表配置',
@@ -2267,6 +2543,14 @@ ipcMain.handle('save-config-file', async (event, config) => {
 
 ipcMain.handle('save-settings-file', async (event, settings, options) => {
     const settingsPath = path.join(__dirname, 'js', 'settings.js');
+    // security_protect（逐模块密码保护开关）由 security-modules-set 单独写入磁盘，
+    // 渲染层的 settingsRef 可能仍是旧值；这里以磁盘上的最新值为准，
+    // 避免用户改完模块开关后再改其它设置时，被旧的 security_protect 覆盖丢失。
+    const onDisk = readSettingsObject();
+    if (onDisk && onDisk.security_protect && typeof onDisk.security_protect === 'object') {
+        if (!settings || typeof settings !== 'object') settings = {};
+        settings.security_protect = onDisk.security_protect;
+    }
     const formatted = `const _settings = ${JSON.stringify(settings, null, 4)}\n\nvar settings = JSON.parse(JSON.stringify(_settings))\n`;
     fs.writeFileSync(settingsPath, formatted, 'utf8');
     // 主题模式可能随设置一起改变，立即同步主界面与所有 Mica 窗口的深浅色

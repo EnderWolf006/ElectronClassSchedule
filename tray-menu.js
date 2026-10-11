@@ -52,8 +52,10 @@ function render(items) {
     });
 
     requestAnimationFrame(() => {
-        const h = menuEl.getBoundingClientRect().height + 2; // 阴影余量
-        ipcRenderer.send('tray-menu-size', { width: 248, height: Math.ceil(h) });
+        // 上报含四周 18px 透明阴影边距的窗口总尺寸（与 main.js TRAY_MENU_SHADOW_MARGIN 一致）
+        const m = 18;
+        const h = menuEl.getBoundingClientRect().height + m * 2;
+        ipcRenderer.send('tray-menu-size', { width: 248 + m * 2, height: Math.ceil(h) });
     });
 }
 

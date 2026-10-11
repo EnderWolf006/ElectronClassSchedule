@@ -30,8 +30,41 @@ const NAV_ITEMS = [
   { page: 'daily', label: '课表', icon: ICONS.daily },
 ];
 
+// 每天加载配置（daily_rotation_mode 每天轮换模式 / daily_rotation 每天轮换序列）
+// 由本编辑器维护并随“保存到 scheduleConfig.js”一起落盘。旧版在 settings.js 保存
+// “整周多课表轮换”（rotation_mode==='multi' + multi_rotation_entries），在此幂等
+// 迁移为 7 天相同序列的多课表轮换。学期级字段（开学日期/轮换偏移）自本版起由
+// 软件设置基础设置页维护（settings.js），草稿中清除旧版本迁移残留，避免写回
+// scheduleConfig.js 造成两处配置歧义
+function applyRotationDefaults(data, settingsData) {
+  if (!data || typeof data !== 'object') return;
+  const s = settingsData || {};
+  if (!data.daily_rotation_mode || typeof data.daily_rotation_mode !== 'object') {
+    data.daily_rotation_mode = {};
+  }
+  if (!data.daily_rotation || typeof data.daily_rotation !== 'object') {
+    data.daily_rotation = {};
+  }
+  const legacyMulti = s.rotation_mode === 'multi';
+  const legacyEntries = Array.isArray(s.multi_rotation_entries) ? s.multi_rotation_entries : [];
+  if (legacyMulti && legacyEntries.length >= 2
+    && Object.keys(data.daily_rotation_mode).length === 0
+    && Object.keys(data.daily_rotation).length === 0) {
+    for (let day = 0; day <= 6; day += 1) {
+      data.daily_rotation_mode[String(day)] = 'multi';
+      data.daily_rotation[String(day)] = legacyEntries.slice();
+    }
+  }
+  delete data.rotation_mode;
+  delete data.semester_start_date;
+  delete data.semester_start_week;
+  delete data.rotation_offset;
+  delete data.multi_rotation_entries;
+}
+
 function ConfigEditorApp() {
   const configRef = useRef(null);
+  const settingsRef = useRef(null);
   const [, setTick] = useState(0);
   const bump = useCallback(() => setTick((tick) => tick + 1), []);
   const config = configRef.current;
@@ -77,6 +110,7 @@ function ConfigEditorApp() {
   // 迁移后删除顶层 divider（幂等，覆盖刷新、从 js 导入、从 CSES 导入三条入口）
   const initFromConfig = useCallback((data) => {
     migrateLegacyDividers(data);
+    applyRotationDefaults(data, settingsRef.current);
     configRef.current = data;
     const rows = data && data.subject_name && typeof data.subject_name === 'object'
       ? Object.entries(data.subject_name).map(([key, value]) => ({ key, value }))
@@ -386,7 +420,11 @@ function ConfigEditorApp() {
   };
 
   useEffect(() => {
-    ipcRenderer.invoke('read-config-file').then((data) => {
+    Promise.all([
+      ipcRenderer.invoke('read-config-file'),
+      ipcRenderer.invoke('read-settings-file').catch(() => null),
+    ]).then(([data, settingsData]) => {
+      settingsRef.current = settingsData;
       initFromConfig(data);
     }).catch((error) => {
       console.error(error);

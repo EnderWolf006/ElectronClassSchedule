@@ -56,4 +56,5 @@ export const ICONS = {
   plugin: '<path d="M10 3v2.6M10 14.4V17M3 10h2.6M14.4 10H17"/><rect x="5.6" y="5.6" width="8.8" height="8.8" rx="2"/>',
   back: '<path d="M14.5 5 8 11.5l6.5 6.5"/>',
   lock: '<rect x="5" y="10.2" width="14" height="9.4" rx="2"/><path d="M8.2 10.2V7.6a3.8 3.8 0 0 1 7.6 0v2.6"/><circle cx="12" cy="14.9" r="1.2" fill="currentColor" stroke="none"/>',
+  automation: '<path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/><circle cx="12" cy="12" r="3.2"/>',
 };

@@ -4,13 +4,21 @@
 <head>
   <meta charset="utf-8">
   <title>密码验证</title>
+  <script>
+    // 首帧前确定主题，避免深色→浅色闪烁
+    (function () {
+      var mode = new URLSearchParams(location.search).get('themeMode');
+      if (mode === 'light' || (mode === 'auto' && !window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('theme-light');
+      }
+    })();
+  </script>
   <style>
     * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; background: transparent; }
-    body { font-family: "Microsoft YaHei", sans-serif; color: #f5f5f5; }
+    html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+    body { font-family: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif; color: #f5f5f5; padding: 6px; }
     .panel {
       height: 100%;
-      margin: 6px;
       padding: 16px 18px;
       border-radius: 10px;
       background: rgba(32, 32, 36, 0.97);
@@ -74,6 +82,32 @@
     button.action:hover { background: rgba(255, 255, 255, 0.18); }
     button.action.primary { background: #0f6cbd; border-color: #0f6cbd; }
     button.action.primary:hover { background: #1a7fd4; }
+
+    /* ===== 浅色主题 ===== */
+    .theme-light body { color: #1f1f1f; }
+    .theme-light .panel {
+      background: rgba(245, 245, 247, 0.97);
+      border-color: rgba(0, 0, 0, 0.10);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    }
+    .theme-light .title .close { color: #666; }
+    .theme-light .title .close:hover { color: #1f1f1f; }
+    .theme-light .reason { color: #666; }
+    .theme-light input[type="password"] {
+      border-color: rgba(0, 0, 0, 0.18);
+      background: rgba(255, 255, 255, 0.9);
+      color: #1f1f1f;
+    }
+    .theme-light input[type="password"]:focus { border-color: #0f6cbd; }
+    .theme-light .error { color: #d13438; }
+    .theme-light button.action {
+      border-color: rgba(0, 0, 0, 0.16);
+      background: rgba(0, 0, 0, 0.05);
+      color: #1f1f1f;
+    }
+    .theme-light button.action:hover { background: rgba(0, 0, 0, 0.10); }
+    .theme-light button.action.primary { background: #0f6cbd; border-color: #0f6cbd; color: #fff; }
+    .theme-light button.action.primary:hover { background: #1a7fd4; }
   </style>
 </head>
 

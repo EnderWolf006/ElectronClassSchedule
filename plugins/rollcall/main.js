@@ -80,13 +80,25 @@ module.exports = function activate(api) {
                 message: '本节候选已全部抽完，下节课重置',
             };
         }
-        const take = Math.max(1, Math.min(Math.floor(Number(count) || 1), pool.length));
-        const shuffled = [...pool];
-        for (let i = shuffled.length - 1; i > 0; i -= 1) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        // 允许重复时不限制上限（设个 999 的安全顶），且可超出候选人数
+        const take = allowRepeat
+            ? Math.min(999, Math.max(1, Math.floor(Number(count) || 1)))
+            : Math.max(1, Math.min(Math.floor(Number(count) || 1), pool.length));
+        let picked;
+        if (allowRepeat) {
+            // 有放回抽取：每次都从全部候选中等概率取一人
+            picked = [];
+            for (let i = 0; i < take; i += 1) {
+                picked.push(pool[Math.floor(Math.random() * pool.length)]);
+            }
+        } else {
+            const shuffled = [...pool];
+            for (let i = shuffled.length - 1; i > 0; i -= 1) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            picked = shuffled.slice(0, take);
         }
-        const picked = shuffled.slice(0, take);
         if (!allowRepeat) {
             drawnMap[period.key] = [...drawn, ...picked];
             storage.set('drawn', drawnMap);
@@ -99,7 +111,7 @@ module.exports = function activate(api) {
         };
     };
 
-    // 提醒遮罩颜色：settings.plugins.rollcall.reminderColor（未设置时跟随主界面“提醒”页颜色）
+    // 提醒遮罩颜色：settings.plugins.rollcall.reminderColor（未设置时跟随系统强调色）
     const reminderColorOf = () => {
         const value = String(api.getSettings().reminderColor || '').trim();
         return /^#[0-9a-fA-F]{6}$/.test(value) ? value : '';

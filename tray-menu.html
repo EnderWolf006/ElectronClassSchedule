@@ -23,6 +23,11 @@
             font-family: var(--font-app, var(--font-base, "Microsoft YaHei UI"), "Microsoft YaHei", sans-serif);
         }
 
+        /* 四周透明边距容纳菜单投影（须与 tray-menu.js 上报尺寸、main.js 定位边距一致） */
+        body {
+            padding: 18px;
+        }
+
         .menu {
             width: 248px;
             padding: 7px;

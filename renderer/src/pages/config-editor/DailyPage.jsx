@@ -253,14 +253,85 @@ export default function DailyPage({
   );
 }
 
+// ==== 每天加载配置 ====
+// 每天“轮换模式”存于 config.daily_rotation_mode[星期]（'multi' = 多课表轮换，
+// 缺省 = 课表内轮换），多课表轮换序列存于 config.daily_rotation[星期]。
+// 开学日期与整体轮换偏移在「软件设置 → 基础设置」维护（settings.js），此处不涉及。
+
 function ScheduleMap({ days, configuredSchedule, config, bump }) {
+  // 首帧配置可能尚未读取完成（config 为 null），渲染路径全部走可选链
+  const dayRotation = config?.daily_rotation && typeof config.daily_rotation === 'object'
+    ? config.daily_rotation
+    : {};
+
+  // 该天的轮换模式：缺省为课表内轮换
+  const dayMode = (dayOfWeek) => (
+    config?.daily_rotation_mode
+    && typeof config.daily_rotation_mode === 'object'
+    && config.daily_rotation_mode[String(dayOfWeek)] === 'multi'
+      ? 'multi'
+      : 'timetable'
+  );
+
+  // 切为多课表轮换时登记该天；切回课表内轮换时移除登记（轮换序列保留，便于再次切换）
+  const changeDayMode = (dayOfWeek, mode) => {
+    if (mode === 'multi') {
+      if (!config.daily_rotation_mode || typeof config.daily_rotation_mode !== 'object') {
+        config.daily_rotation_mode = {};
+      }
+      config.daily_rotation_mode[String(dayOfWeek)] = 'multi';
+    } else if (config.daily_rotation_mode && typeof config.daily_rotation_mode === 'object') {
+      delete config.daily_rotation_mode[String(dayOfWeek)];
+    }
+    bump();
+  };
+
+  const dayRotationEntries = (dayOfWeek) => {
+    const entries = dayRotation[String(dayOfWeek)];
+    return Array.isArray(entries) ? entries : [];
+  };
+
+  // 该天多课表轮换的周期：2/3/4 周；“不轮换”= 固定加载第 1 周所选课表（序列长度 1）
+  const changeDayCycle = (dayOfWeek, cycle) => {
+    if (!config.daily_rotation || typeof config.daily_rotation !== 'object') {
+      config.daily_rotation = {};
+    }
+    if (cycle >= 2) {
+      const prev = dayRotationEntries(dayOfWeek);
+      config.daily_rotation[String(dayOfWeek)] = Array.from({ length: cycle }, (_, index) => prev[index] || '');
+    } else {
+      const prev = dayRotationEntries(dayOfWeek);
+      config.daily_rotation[String(dayOfWeek)] = [prev[0] || ''];
+    }
+    bump();
+  };
+
+  const changeDayRotationEntry = (dayOfWeek, weekIndex, name) => {
+    if (!config.daily_rotation || typeof config.daily_rotation !== 'object') {
+      config.daily_rotation = {};
+    }
+    // “不轮换”（周期 1）时该天可能尚无序列数组：按需创建/扩容，保证第 1 周框可直接选课
+    const prev = dayRotationEntries(dayOfWeek);
+    const next = Array.from({ length: Math.max(weekIndex + 1, prev.length) }, (_, index) => prev[index] || '');
+    next[weekIndex] = name;
+    config.daily_rotation[String(dayOfWeek)] = next;
+    bump();
+  };
+
+  const dayOptions = days.length
+    ? days.map((day, index) => (
+      <option key={index} value={index}>{day.Chinese || `第${index + 1}个课表`}</option>
+    ))
+    : <option value="">暂无课表</option>;
+
   return (
-    <div className="panel">
+    <div className="panel schedule-map-panel">
       <h3>每天加载的课表</h3>
       <table className="schedule-map-table">
         <thead>
           <tr>
-            <th style={{ width: '35%' }}>星期</th>
+            <th style={{ width: '12%' }}>星期</th>
+            <th style={{ width: '132px' }}>轮换模式</th>
             <th>需要加载的课表</th>
           </tr>
         </thead>
@@ -272,33 +343,85 @@ function ScheduleMap({ days, configuredSchedule, config, bump }) {
             const selectedIndex = Number.isInteger(configuredIndex) && days[configuredIndex]
               ? configuredIndex
               : (days.length ? 0 : -1);
+            const mode = dayMode(dayOfWeek);
+            const entries = dayRotationEntries(dayOfWeek);
+            const cycle = entries.length >= 2 ? entries.length : 0;
+            // “不轮换”（周期 1）也显示第 1 周课表框，固定加载所选课表
+            const entryCount = cycle >= 2 ? cycle : 1;
             return (
               <tr key={dayOfWeek}>
                 <td>{name}</td>
                 <td>
                   <Select
+                    id={`day-mode-${dayOfWeek}`}
                     disabled={!days.length}
-                    value={days.length ? String(selectedIndex) : ''}
-                    onChange={(event) => {
-                      if (!Array.isArray(config.daily_schedule)) {
-                        config.daily_schedule = [0, 1, 2, 3, 4, 5, 6];
-                      }
-                      config.daily_schedule[dayOfWeek] = Number(event.target.value);
-                      bump();
-                    }}
+                    value={mode}
+                    onChange={(event) => changeDayMode(dayOfWeek, event.target.value)}
                   >
-                    {days.length
-                      ? days.map((day, index) => (
-                        <option key={index} value={index}>{day.Chinese || `第${index + 1}个课表`}</option>
-                      ))
-                      : <option value="">暂无课表</option>}
+                    <option value="timetable">课表内轮换</option>
+                    <option value="multi">多课表轮换</option>
                   </Select>
+                </td>
+                <td>
+                  {mode === 'multi' ? (
+                    <div className="day-rotation">
+                      <div className="day-rotation-cycle">
+                        <label htmlFor={`day-cycle-${dayOfWeek}`}>轮换周期</label>
+                        <Select
+                          id={`day-cycle-${dayOfWeek}`}
+                          disabled={!days.length}
+                          value={String(cycle)}
+                          onChange={(event) => changeDayCycle(dayOfWeek, Number(event.target.value))}
+                        >
+                          <option value="0">不轮换</option>
+                          <option value="2">2 周</option>
+                          <option value="3">3 周</option>
+                          <option value="4">4 周</option>
+                        </Select>
+                      </div>
+                      {Array.from({ length: entryCount }, (_, weekIndex) => (
+                        <div className="day-rotation-entry" key={weekIndex}>
+                          <label htmlFor={`day-rot-${dayOfWeek}-${weekIndex}`}>第 {weekIndex + 1} 周</label>
+                          <Select
+                            id={`day-rot-${dayOfWeek}-${weekIndex}`}
+                            disabled={!days.length}
+                            value={entries[weekIndex] || ''}
+                            onChange={(event) => changeDayRotationEntry(dayOfWeek, weekIndex, event.target.value)}
+                          >
+                            <option value="">（未选择）</option>
+                            {dayOptions}
+                          </Select>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="day-load-row">
+                      <Select
+                        disabled={!days.length}
+                        value={days.length ? String(selectedIndex) : ''}
+                        onChange={(event) => {
+                          if (!Array.isArray(config.daily_schedule)) {
+                            config.daily_schedule = [0, 1, 2, 3, 4, 5, 6];
+                          }
+                          config.daily_schedule[dayOfWeek] = Number(event.target.value);
+                          bump();
+                        }}
+                      >
+                        {dayOptions}
+                      </Select>
+                    </div>
+                  )}
                 </td>
               </tr>
             );
           })}
         </tbody>
       </table>
+      <p className="field-help">
+        「轮换模式」按天独立设置：课表内轮换 = 按星期加载所选课表，课表内单节课程可设置多周轮换；
+        多课表轮换 = 该天先选轮换周期，再为每一周选择加载的课表。轮换周数由「软件设置 → 基础设置」的
+        开学日期与轮换偏移推算，未设置开学日期时从本周开始推算。手动“切换日程 / 加载临时课表”仍然优先。
+      </p>
     </div>
   );
 }

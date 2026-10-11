@@ -572,3 +572,104 @@ body.position-switching .miniCountdown {
     line-height: 1.5;
     padding: 0 12px;
 }
+
+/* 右侧竖排模式：提醒文字改为竖版（从右至左阅读） */
+html[data-position="right"] .reminderText {
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    max-width: none;
+    max-height: 100%;
+    white-space: nowrap;
+    padding: 12px 0;
+    line-height: 1.4;
+}
+
+/* 文字过长时滚动：横向模式从右至左，竖排模式从下至上 */
+.reminderText.scroll-h {
+    white-space: nowrap;
+    display: inline-block;
+    padding-left: 100%;
+    animation: reminder-scroll-h linear forwards;
+}
+.reminderText.scroll-v {
+    white-space: nowrap;
+    display: inline-block;
+    padding-top: 100%;
+    animation: reminder-scroll-v linear forwards;
+}
+@keyframes reminder-scroll-h {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
+}
+@keyframes reminder-scroll-v {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(-100%); }
+}
+
+/* ===== 次级提醒：强提醒结束后贯穿课表组件的倒计时遮罩 ===== */
+.secondaryReminder {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    /* 与课表条（.background）圆角一致，并裁剪内部倒计时层，避免边角超出组件 */
+    border-radius: var(--global-border-radius);
+    overflow: hidden;
+    pointer-events: none;
+}
+.secondaryReminder.active {
+    display: flex;
+}
+/* 激活时隐藏课程文字，但保留课表条底色窗口：
+   .classContainer 自身带 .background 的背景色，visibility:hidden 会连背景一起隐藏，
+   因此容器保持可见（压过 setBackgroundDisplay 的内联样式），只隐藏其子元素 */
+.scheduleComponent:has(.secondaryReminder.active) .classContainer {
+    visibility: visible !important;
+}
+.scheduleComponent:has(.secondaryReminder.active) .classContainer > * {
+    visibility: hidden;
+}
+.secondaryReminderText {
+    font-family: var(--font-mono), "Microsoft YaHei", sans-serif;
+    font-size: calc(var(--countdown-font-size, 25px) * 0.82);
+    font-weight: 700;
+    color: var(--col-text);
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    text-align: center;
+    padding: 0 16px;
+    z-index: 2;
+}
+/* 右侧竖排模式下次级提醒文字也竖排 */
+html[data-position="right"] .secondaryReminderText {
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+}
+/* 倒计时层：铺满整个课表组件的遮罩，左边缘固定、右边界从右至左收缩（scaleX 1→0）；
+   移动边界（右侧）用同色渐变淡化到透明，避免生硬的竖直线 */
+.secondaryReminderBar {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    overflow: hidden;
+}
+.secondaryReminderBar i {
+    display: block;
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(to right,
+        var(--secondary-reminder-bar-color, rgba(0, 0, 0, 0.55)) calc(100% - 64px),
+        color-mix(in srgb, var(--secondary-reminder-bar-color, rgba(0, 0, 0, 0.55)) 0%, transparent) 100%);
+    transform-origin: left center;
+    transform: scaleX(1);
+}
+/* 右侧竖排模式：下边缘固定、上边界从下至上收缩，移动边界（上侧）淡化 */
+html[data-position="right"] .secondaryReminderBar i {
+    transform-origin: bottom center;
+    transform: scaleY(1);
+    background: linear-gradient(to top,
+        var(--secondary-reminder-bar-color, rgba(0, 0, 0, 0.55)) calc(100% - 64px),
+        color-mix(in srgb, var(--secondary-reminder-bar-color, rgba(0, 0, 0, 0.55)) 0%, transparent) 100%);
+}

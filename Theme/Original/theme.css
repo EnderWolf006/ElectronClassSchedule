@@ -1,0 +1,43 @@
+/* ============================================================
+   原版经典主题
+   恢复去AI化改造前的外观：荧光配色 + 装饰性自定义字体 + 文字发光。
+   所需字体（JETB / YouYuan / Sou / Ali）由主界面 css/style.css 的
+   @font-face 全局注册，无需在 index.json 中重复声明。
+   ============================================================ */
+:root {
+    /* 语义字体槽位：倒计时数字/提醒 = JETB，默认 = 幼圆，
+       当前课程/星期 = 思源黑体，侧栏节次时间 = 阿里东方大开 */
+    --font-mono: JETB;
+    --font-base: YouYuan;
+    --font-bold: Sou;
+    --font-serif: Ali;
+
+    /* 深色模式荧光配色 */
+    --col-current: rgba(0, 255, 10, 1);
+    --col-break: rgba(255, 255, 5, 1);
+    --col-ended: rgba(188, 188, 188, 1);
+    --col-right: #FF3a3a;
+    --col-left: rgb(0, 238, 255);
+    --col-divider: #aaa;
+
+    /* 全屏提醒光效默认绿色（用户自定义提醒颜色时以自定义为准） */
+    --reminder-glow-color: rgba(0, 200, 0, 0.85);
+}
+
+[data-theme="light"] {
+    --col-current: #0a7d0a;
+    --col-break: #b8860b;
+    --col-ended: #555555;
+    --col-right: #c0392b;
+    --col-left: #0277bd;
+    --col-divider: #ccc;
+}
+
+/* 恢复提醒文字的黑色柔光描边 */
+.reminderText {
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+}
+
+.secondaryReminderText {
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}

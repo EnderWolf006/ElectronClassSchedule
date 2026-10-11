@@ -47,10 +47,6 @@
                 document.head.appendChild(link);
                 loadedLinks.push(link);
             });
-            // 主题样式后插入时不能越过用户自定义样式：把自定义 <style> 移到 head 末尾，
-            // 保证 settings.custom_css 的优先级始终高于主题包与默认 style.css
-            var customStyle = document.getElementById('customCss');
-            if (customStyle && customStyle.parentNode) customStyle.parentNode.appendChild(customStyle);
         });
     }
 

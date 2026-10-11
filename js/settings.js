@@ -2,8 +2,12 @@ const _settings = {
     "rotation_offset": {
         "2": 0,
         "3": 0,
-        "4": 1
+        "4": 0
     },
+    "semester_start_date": "",
+    "semester_start_week": 1,
+    "rotation_mode": "timetable",
+    "multi_rotation_entries": [],
     "custom_text": "请输入文本",
     "reminder_color": "#114514",
     "reminder_class": {
@@ -77,7 +81,12 @@ const _settings = {
         "--triangle-size": "16px",
         "--sub-font-size": "15px"
     },
-    "window_position": "top"
+    "window_position": "top",
+    "weather": {
+        "latitude": 30.7522,
+        "longitude": 120.75,
+        "city_name": "嘉兴"
+    }
 }
 
 var settings = JSON.parse(JSON.stringify(_settings))

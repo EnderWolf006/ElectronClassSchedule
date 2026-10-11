@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Button, Input, Select, Switch } from '@fluentui/react-components';
+import { Button, Checkbox, Input, Select, Switch } from '@fluentui/react-components';
 import { AppTheme, initialThemeFromQuery } from '../../common/theme.jsx';
 import { useThemePack } from '../../common/themePack.js';
 import TitleBar from '../../common/TitleBar.jsx';
@@ -10,6 +10,7 @@ import ComponentsPage, { createComponentId, getConfiguredComponentRows } from '.
 import ThemePacksPage from './ThemePacksPage.jsx';
 import PluginsPage from './PluginsPage.jsx';
 import SecurityPage from './SecurityPage.jsx';
+import AutomationPage from './AutomationPage.jsx';
 import WeatherPage from './WeatherPage.jsx';
 import '../../common/tokens.css';
 import '../../common/chrome.css';
@@ -19,49 +20,23 @@ const NAV_ITEMS = [
   { page: 'basic', label: '基础设置', icon: ICONS.basicSettings },
   { page: 'components', label: '组件设置', icon: ICONS.components },
   { page: 'appearance', label: '外观', icon: ICONS.style },
+  { page: 'reminder', label: '提醒', icon: ICONS.reminder },
+  { page: 'weather', label: '天气', icon: ICONS.componentWeather },
+  { page: 'automation', label: '自动化', icon: ICONS.automation },
+  // 分割线：以上为常规设置，以下为安全与扩展
+  { divider: true },
+  { page: 'security', label: '安全设置', icon: ICONS.lock },
   { page: 'themes', label: '主题', icon: ICONS.palette },
   { page: 'plugins', label: '插件', icon: ICONS.plugin },
-  { page: 'security', label: '安全设置', icon: ICONS.lock },
-  { page: 'weather', label: '天气', icon: ICONS.componentWeather },
-  { page: 'reminder', label: '提醒', icon: ICONS.reminder },
 ];
 
-const WEEK_COUNTS = [2, 3, 4];
-
-// ==== 多周轮换偏移 ====
-// 与主界面 js/index.js 的锚点逻辑保持一致（file:// 页面共享同一 localStorage）
-function getRotationWeekStart(date) {
-  const weekStart = new Date(date);
-  const day = weekStart.getDay();
-  weekStart.setDate(weekStart.getDate() - (day === 0 ? 6 : day - 1));
-  weekStart.setHours(0, 0, 0, 0);
-  return weekStart;
-}
-
-function getRotationWeekNumber(rotationWeeks) {
-  let anchors = {};
-  try {
-    const parsed = JSON.parse(localStorage.getItem('rotationWeekAnchors') || '{}');
-    if (parsed && typeof parsed === 'object') anchors = parsed;
-  } catch (error) { /* 锚点缺失时按“本周为第 1 周”处理 */ }
-  const now = new Date();
-  const currentWeekStart = getRotationWeekStart(now);
-  let anchor = Number(anchors[rotationWeeks]);
-  if (!Number.isFinite(anchor) || anchor > now.getTime()) {
-    anchor = currentWeekStart.getTime();
-  } else {
-    anchor = getRotationWeekStart(new Date(anchor)).getTime();
-  }
-  return Math.max(0, Math.round((currentWeekStart.getTime() - anchor) / (7 * 24 * 60 * 60 * 1000)));
-}
-
-// 本周实际生效的轮换周次（0 基）：主界面按 (周数 + 偏移) % 周数 取科目，这里保持一致
-function getEffectiveRotationWeek(rotationWeeks, rotationOffset) {
-  const configured = Number(rotationOffset?.[rotationWeeks]);
-  const offset = Number.isInteger(configured) ? configured : 0;
-  const weekNumber = getRotationWeekNumber(rotationWeeks);
-  return (((weekNumber + offset) % rotationWeeks) + rotationWeeks) % rotationWeeks;
-}
+// ==== 课程提醒（即将上课/上课/下课）卡片定义 ====
+// 每项支持：独立开关、独立语音、课前秒数（仅即将上课）、提醒文字（次级提醒）、遮罩文字（强提醒遮罩）
+const CLASS_REMINDER_DEFS = [
+  { key: 'upcoming', title: '在课前准备时发出提醒', desc: '在上课前一段时间发出醒目提醒，提示做好上课准备。', defaultText: '即将上课' },
+  { key: 'start', title: '在上课时发出提醒', desc: '每节课开始时发出醒目提醒。', defaultText: '上课' },
+  { key: 'end', title: '在下课时发出提醒', desc: '每节课结束时发出醒目提醒。', defaultText: '下课' },
+];
 
 // 外观参数规格。unit='px' 表示长度值：文本框里只填数字（多个数字用空格分隔，
 // 如内边距 "8 14"），保存时自动给每个数字补 px；背景透明度是无单位数字。
@@ -134,6 +109,60 @@ function draftToCssValue(spec, draft) {
   return tokens[0];
 }
 
+// 轮换偏移按轮换周期分别设置（{2:x,3:y,4:z}，单位周）；数字为上一版“整体偏移”
+// 的兼容格式（各周期同值）。归一化为对象（与 js/index.js 的 readRotationOffset 一致）
+function normalizeRotationOffsets(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const same = Math.round(value);
+    return { 2: same, 3: same, 4: same };
+  }
+  const pick = (cycle) => (value && typeof value === 'object' && Number.isFinite(Number(value[cycle]))
+    ? Math.round(Number(value[cycle])) : 0);
+  return { 2: pick(2), 3: pick(3), 4: pick(4) };
+}
+
+// 与 js/index.js 一致的周一锚点推算（file:// 页面共享同一 localStorage 锚点）
+function getRotationWeekStart(date) {
+  const weekStart = new Date(date);
+  const day = weekStart.getDay();
+  weekStart.setDate(weekStart.getDate() - (day === 0 ? 6 : day - 1));
+  weekStart.setHours(0, 0, 0, 0);
+  return weekStart;
+}
+
+function getRotationWeekNumber(rotationWeeks, date = new Date()) {
+  let anchors = {};
+  try {
+    const parsed = JSON.parse(localStorage.getItem('rotationWeekAnchors') || '{}');
+    if (parsed && typeof parsed === 'object') anchors = parsed;
+  } catch (error) { /* 锚点缺失时按“本周为第 1 周”处理 */ }
+  const now = date instanceof Date ? date : new Date();
+  const currentWeekStart = getRotationWeekStart(now);
+  let anchor = Number(anchors[rotationWeeks]);
+  if (!Number.isFinite(anchor) || anchor > now.getTime()) {
+    anchor = currentWeekStart.getTime();
+  } else {
+    anchor = getRotationWeekStart(new Date(anchor)).getTime();
+  }
+  return Math.max(0, Math.round((currentWeekStart.getTime() - anchor) / (7 * 24 * 60 * 60 * 1000)));
+}
+
+// 本周学期周序数 - 1（开学日期未设置或非法时返回 null，走锚点）
+function getSemesterWeekBase(settingsData) {
+  const startText = String(settingsData?.semester_start_date || '').trim();
+  if (!/^\d{4}-\d{1,2}-\d{1,2}$/.test(startText)) return null;
+  const parts = startText.split('-').map(Number);
+  const start = new Date(parts[0], parts[1] - 1, parts[2]);
+  if (Number.isNaN(start.getTime())) return null;
+  const week = Number(settingsData?.semester_start_week);
+  const startWeek = Number.isFinite(week) ? Math.round(week) : 1;
+  const diff = Math.round((getRotationWeekStart(new Date()).getTime() - getRotationWeekStart(start).getTime())
+    / (7 * 24 * 60 * 60 * 1000));
+  return startWeek + diff - 1;
+}
+
+const ROTATION_WEEK_COUNTS = [2, 3, 4];
+
 function SoftwareSettingsApp({ onThemeModeChange }) {
   const configRef = useRef(null);
   const settingsRef = useRef(null);
@@ -164,9 +193,12 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
   const [openProvider, setOpenProvider] = useState(null);
   const [reminderAdvancedTab, setReminderAdvancedTab] = useState('sound');
   const [activeTheme, setActiveTheme] = useState('');
-  const [customCss, setCustomCss] = useState('');
   const [pluginList, setPluginList] = useState([]);
+  const [automationRules, setAutomationRules] = useState([]);
   const [timeOffsetText, setTimeOffsetText] = useState('0');
+  // 学期与轮换（存 settings.js，供主界面课表内轮换/多课表轮换推算轮换周数）
+  const [semesterStartDate, setSemesterStartDate] = useState('');
+  const [rotationOffsets, setRotationOffsets] = useState({ 2: 0, 3: 0, 4: 0 });
   // 首帧与 URL 参数（主进程读磁盘注入）保持一致，避免挂载时 effect 先把 auto
   // 推给 Root 造成浅色闪帧；若之后 loadSettings 回包慢/失败，窗口就会残留浅色
   const [themeMode, setThemeMode] = useState(() => initialThemeFromQuery() || 'auto');
@@ -188,10 +220,26 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
       return next;
     });
   }, []);
+  // 打开“安全设置”页需要验证密码：同一窗口内验证通过后不再重复询问
+  const securityUnlockedRef = useRef(false);
+  const openPage = useCallback((page) => {
+    const go = () => { setActivePage(page); setStatus(''); };
+    if (page !== 'security' || securityUnlockedRef.current) {
+      go();
+      return;
+    }
+    ipcRenderer.invoke('security-verify-module', 'security').then((res) => {
+      if (res && res.ok) {
+        securityUnlockedRef.current = true;
+        go();
+      } else {
+        setStatus('已取消密码验证，未打开“安全设置”');
+      }
+    }).catch(() => setStatus('密码验证失败'));
+  }, []);
 
   const settings = settingsRef.current;
   const config = configRef.current;
-  const rotationOffset = settings?.rotation_offset || {};
 
   const loadSettings = useCallback(() => {
     loadedRef.current = false;
@@ -220,12 +268,14 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
       setReminderWeather(settingsData?.reminder_weather || {});
       setReminderDismissal(settingsData?.reminder_dismissal || {});
       setReminderAdvanced(settingsData?.reminder_advanced || {});
+      setAutomationRules(Array.isArray(settingsData?.automation_rules) ? settingsData.automation_rules : []);
       setThemeMode(settingsData?.theme_mode || 'auto');
       setPositionMode(settingsData?.window_position || 'top');
       setCountdownStyle(settingsData?.countdown_style === 'inline' ? 'inline' : 'floating');
       setActiveTheme(settingsData?.active_theme || '');
-      setCustomCss(typeof settingsData?.custom_css === 'string' ? settingsData.custom_css : '');
       setTimeOffsetText(String(Number(localStorage.getItem('timeOffset') || 0)));
+      setSemesterStartDate(String(settingsData?.semester_start_date || ''));
+      setRotationOffsets(normalizeRotationOffsets(settingsData?.rotation_offset));
       setStatus('');
       loadedRef.current = true;
       bump();
@@ -250,16 +300,32 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
     }).catch(() => { /* 读取失败时保持默认展示 */ });
   }, []);
 
+  // 系统强调色：提醒"遮罩颜色"未自定义时的默认色展示（实际取色在触发时进行）
+  const [accentColor, setAccentColor] = useState('');
+  useEffect(() => {
+    ipcRenderer.invoke('get-system-accent').then((value) => {
+      if (typeof value === 'string' && value) setAccentColor(value);
+    }).catch(() => { /* 获取失败时使用 Windows 默认强调蓝兜底 */ });
+  }, []);
+
   // 主进程请求切换页面（如插件浮窗齿轮 -> 插件页）
   useEffect(() => {
     const onNavigate = (_event, page) => {
       if (NAV_ITEMS.some((item) => item.page === page)) {
-        setActivePage(page);
-        setStatus('');
+        openPage(page);
       }
     };
     ipcRenderer.on('settings-navigate', onNavigate);
     return () => ipcRenderer.removeListener('settings-navigate', onNavigate);
+  }, [openPage]);
+
+  // 通过 URL 参数直接打开“安全设置”（?page=security）时同样需要验证密码
+  useEffect(() => {
+    if (activePage === 'security' && !securityUnlockedRef.current) {
+      setActivePage('basic');
+      openPage('security');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -293,27 +359,31 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
     }, delay));
   }, [persistSettings]);
 
-  const changeRotationOffset = (weeks, selectedWeek) => {
-    if (!settingsRef.current) return;
-    // 语义是“本周按第 selectedWeek+1 周显示”：锚点不动，把选择换算成偏移量保存，
-    // 与主界面 (周数 + 偏移) % 周数 的计算方式一致，之后每周自动顺延
-    const weekNumber = getRotationWeekNumber(weeks);
-    const nextOffset = (((selectedWeek - weekNumber) % weeks) + weeks) % weeks;
-    const nextSettings = JSON.parse(JSON.stringify(settingsRef.current));
-    nextSettings.rotation_offset = {
-      2: Number(nextSettings.rotation_offset?.[2] ?? 0),
-      3: Number(nextSettings.rotation_offset?.[3] ?? 0),
-      4: Number(nextSettings.rotation_offset?.[4] ?? 0),
-    };
-    nextSettings.rotation_offset[weeks] = nextOffset;
-    ipcRenderer.invoke('save-settings-file', nextSettings).then(() => {
-      settingsRef.current = nextSettings;
-      setStatus('轮换偏移已保存并生效');
-      bump();
-    }).catch((error) => {
-      console.error(error);
-      setStatus('保存失败，请检查配置格式');
-    });
+  // 开学日期：选择后立即写入 settings.js，主窗口自动 reload 后轮换周数按新日期推算
+  const changeSemesterStartDate = (value) => {
+    setSemesterStartDate(value);
+    persistSettings((nextSettings) => {
+      nextSettings.semester_start_date = value || '';
+    }, '开学日期已保存并生效');
+  };
+
+  // 本周实际生效的轮换周次（0 基）：有开学日期按学期周数，否则按周一锚点
+  const currentEffectiveWeek = (weeks, offsets) => {
+    const base = getSemesterWeekBase(settingsRef.current);
+    const weekBase = base !== null ? base : getRotationWeekNumber(weeks);
+    return ((weekBase + (Number(offsets[weeks]) || 0)) % weeks + weeks) % weeks;
+  };
+
+  // 校准某周期的轮换：下拉显示本周实际按第几周轮换，改选后反算该周期偏移并保存
+  const changeRotationOffset = (weeks, selected) => {
+    const offsets = normalizeRotationOffsets(settingsRef.current?.rotation_offset);
+    const currentEffective = currentEffectiveWeek(weeks, offsets);
+    const nextOffset = (((Number(offsets[weeks]) || 0) + selected - currentEffective) % weeks + weeks) % weeks;
+    const next = { ...offsets, [weeks]: nextOffset };
+    setRotationOffsets(next);
+    persistSettings((nextSettings) => {
+      nextSettings.rotation_offset = next;
+    }, '轮换偏移已保存并生效');
   };
 
   const applyTimeOffset = () => {
@@ -486,15 +556,6 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
     }, themeId ? '主题已切换并立即生效' : '已恢复默认主题');
   };
 
-  // 自定义 CSS：编辑后防抖落盘（主窗口随 save-settings-file 自动 reload 生效）
-  const changeCustomCss = (cssText) => {
-    setCustomCss(cssText);
-    schedulePersist('custom_css', (nextSettings) => {
-      if (cssText) nextSettings.custom_css = cssText;
-      else delete nextSettings.custom_css;
-    }, cssText ? '自定义样式已保存并生效' : '已清空自定义样式', 800);
-  };
-
   // 插件启用/停用：写入 settings.plugins_enabled，主进程随即启停插件并重载主界面
   const refreshPlugins = useCallback(() => {
     ipcRenderer.invoke('list-plugins').then((data) => {
@@ -536,16 +597,20 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
           </div>
           <nav className="nav-list">
             {NAV_ITEMS.map((item) => (
-              <button
-                type="button"
-                key={item.page}
-                className={`nav-item${activePage === item.page ? ' active' : ''}`}
-                title={item.label}
-                onClick={() => { setActivePage(item.page); setStatus(''); }}
-              >
-                <Svg size={24} viewBox="0 0 24 24" html={item.icon} />
-                <span className="nav-label">{item.label}</span>
-              </button>
+              item.divider ? (
+                <hr key="nav-divider" className="nav-divider" />
+              ) : (
+                <button
+                  type="button"
+                  key={item.page}
+                  className={`nav-item${activePage === item.page ? ' active' : ''}`}
+                  title={item.label}
+                  onClick={() => openPage(item.page)}
+                >
+                  <Svg size={24} viewBox="0 0 24 24" html={item.icon} />
+                  <span className="nav-label">{item.label}</span>
+                </button>
+              )
             ))}
           </nav>
         </aside>
@@ -556,7 +621,7 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
             <section className={`ss-page${activePage === 'basic' ? ' active' : ''}`}>
               <div className="page-header">
                 <h1 className="page-title">基础设置</h1>
-                <p className="page-intro">调整课表窗口的显示方式、倒计时和多周轮换。</p>
+                <p className="page-intro">调整课表窗口的显示方式和倒计时。</p>
               </div>
               <div className="panel">
                 <h3>启动</h3>
@@ -586,31 +651,6 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
                 {launchHint && <p className="field-help">{launchHint}</p>}
               </div>
               <div className="panel">
-                <h3>多周轮换偏移</h3>
-                <div className="settings-grid">
-                  {WEEK_COUNTS.map((weeks) => {
-                    // 显示本周实际生效的轮换周次（随锚点每周自动推进），而不是静态偏移值
-                    const effective = getEffectiveRotationWeek(weeks, rotationOffset);
-                    return (
-                      <div className="field" key={weeks}>
-                        <label htmlFor={`rotationOffset${weeks}`}>{weeks === 2 ? '二周' : weeks === 3 ? '三周' : '四周'}轮换</label>
-                        <Select
-                          id={`rotationOffset${weeks}`}
-                          value={String(effective)}
-                          onChange={(event) => changeRotationOffset(weeks, Number(event.target.value))}
-                        >
-                          {Array.from({ length: weeks }, (_, index) => (
-                            <option key={index} value={index}>第 {index + 1} 周</option>
-                          ))}
-                        </Select>
-                      </div>
-                    );
-                  })}
-                </div>
-                <p className="field-help">显示本周实际按第几周轮换，每周自动推进到下一周；若与实际不符，选择本周应显示的周次即可校准，修改后立即生效并自动保存。</p>
-              </div>
-
-              <div className="panel">
                 <h3>时间偏移</h3>
                 <div className="time-offset-field">
                   <div className="field">
@@ -625,6 +665,42 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
                       onBlur={applyTimeOffset}
                     />
                     <p className="field-help">设置课表计时与系统时间的偏移秒数，正数加快、负数减慢；输入后点击其他地方或按回车即生效，重启仍然保留。</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="panel">
+                <h3>学期与轮换</h3>
+                <div className="settings-grid">
+                  <div className="field">
+                    <label htmlFor="semesterStartDateInput">开学日期</label>
+                    <Input
+                      id="semesterStartDateInput"
+                      type="date"
+                      value={semesterStartDate}
+                      onChange={(event) => changeSemesterStartDate(event.target.value)}
+                    />
+                    <p className="field-help">开学当天记为第 1 周，每周一自动推进；课表内轮换与多课表轮换的周数均按此推算。</p>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="rotationOffsetInput">轮换偏移</label>
+                    {ROTATION_WEEK_COUNTS.map((weeks) => (
+                      <div key={weeks} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <span style={{ flex: '0 0 64px', fontSize: 12.5, color: 'var(--muted)' }}>
+                          {weeks === 2 ? '二周轮换' : weeks === 3 ? '三周轮换' : '四周轮换'}
+                        </span>
+                        <Select
+                          id={`rotationOffset${weeks}`}
+                          value={String(currentEffectiveWeek(weeks, rotationOffsets))}
+                          onChange={(event) => changeRotationOffset(weeks, Number(event.target.value))}
+                        >
+                          {Array.from({ length: weeks }, (_, index) => (
+                            <option key={index} value={index}>第 {index + 1} 周</option>
+                          ))}
+                        </Select>
+                      </div>
+                    ))}
+                    <p className="field-help">分别校准二/三/四周轮换：显示本周实际按第几周轮换，若不符选择本周周次即可，双周/三周/四周互不影响，对所有课表内轮换和多课表轮换生效。</p>
                   </div>
                 </div>
               </div>
@@ -758,8 +834,6 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
               <ThemePacksPage
                 activeTheme={activeTheme}
                 onSelectTheme={selectTheme}
-                customCss={customCss}
-                onChangeCustomCss={changeCustomCss}
               />
             </section>
 
@@ -772,7 +846,7 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
             </section>
 
             <section className={`ss-page${activePage === 'security' ? ' active' : ''}`}>
-              <SecurityPage onStatus={setStatus} />
+              <SecurityPage onStatus={setStatus} settingsRef={settingsRef} />
             </section>
 
             <section className={`ss-page${activePage === 'weather' ? ' active' : ''}`}>
@@ -930,101 +1004,76 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
                 )}
 
                 <div className={`sub-page${openProvider === 'class' ? ' active' : ''}`}>
-                  <p className="field-help">在即将上课、上课、下课时自动触发遮罩提醒，绿色=上课/即将上课，黄色=下课。</p>
-                  <div className="settings-grid">
-                    <div className="field">
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <Switch
-                          checked={reminderClass.upcoming_enabled || false}
-                          onChange={(e, d) => {
-                            const next = { ...reminderClass, upcoming_enabled: d.checked };
-                            setReminderClass(next);
-                            persistReminder(next);
-                          }}
-                        />
-                        即将上课提醒
-                      </label>
-                      <Input
-                        type="number"
-                        step="1"
-                        value={String(reminderClass.upcoming_seconds ?? 300)}
-                        onChange={(e) => {
-                          const next = { ...reminderClass, upcoming_seconds: Number(e.target.value) };
-                          setReminderClass(next);
-                          persistReminder(next);
-                        }}
-                        style={{ marginTop: '8px' }}
-                      />
-                      <p className="field-help">距离上课剩余多少秒时提醒</p>
-                    </div>
-                    <div className="field">
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <Switch
-                          checked={reminderClass.start_enabled || false}
-                          onChange={(e, d) => {
-                            const next = { ...reminderClass, start_enabled: d.checked };
-                            setReminderClass(next);
-                            persistReminder(next);
-                          }}
-                        />
-                        上课提醒
-                      </label>
-                    </div>
-                    <div className="field">
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <Switch
-                          checked={reminderClass.end_enabled || false}
-                          onChange={(e, d) => {
-                            const next = { ...reminderClass, end_enabled: d.checked };
-                            setReminderClass(next);
-                            persistReminder(next);
-                          }}
-                        />
-                        下课提醒
-                      </label>
-                    </div>
-                  </div>
-                  <div className="settings-grid" style={{ marginTop: '14px' }}>
-                    <div className="field">
-                      <label htmlFor="rcUpcomingText">即将上课文字</label>
-                      <Input
-                        id="rcUpcomingText"
-                        type="text"
-                        value={reminderClass.upcoming_text || ''}
-                        onChange={(e) => {
-                          const next = { ...reminderClass, upcoming_text: e.target.value };
-                          setReminderClass(next);
-                          persistReminder(next);
-                        }}
-                      />
-                    </div>
-                    <div className="field">
-                      <label htmlFor="rcStartText">上课文字</label>
-                      <Input
-                        id="rcStartText"
-                        type="text"
-                        value={reminderClass.start_text || ''}
-                        onChange={(e) => {
-                          const next = { ...reminderClass, start_text: e.target.value };
-                          setReminderClass(next);
-                          persistReminder(next);
-                        }}
-                      />
-                    </div>
-                    <div className="field">
-                      <label htmlFor="rcEndText">下课文字</label>
-                      <Input
-                        id="rcEndText"
-                        type="text"
-                        value={reminderClass.end_text || ''}
-                        onChange={(e) => {
-                          const next = { ...reminderClass, end_text: e.target.value };
-                          setReminderClass(next);
-                          persistReminder(next);
-                        }}
-                      />
-                    </div>
-                  </div>
+                  <p className="field-help">在即将上课、上课、下课时自动触发遮罩提醒，绿色=上课/即将上课，黄色=下课。遮罩文字显示在强提醒遮罩上；提醒文字显示在次级提醒中，启用语音时朗读提醒文字。</p>
+                  {CLASS_REMINDER_DEFS.map((def) => {
+                    const enabledKey = `${def.key}_enabled`;
+                    const voiceKey = `${def.key}_voice`;
+                    const textKey = `${def.key}_text`;
+                    const maskKey = `${def.key}_mask_text`;
+                    const enabled = reminderClass[enabledKey] || false;
+                    const update = (patch) => {
+                      const next = { ...reminderClass, ...patch };
+                      setReminderClass(next);
+                      persistReminder(next);
+                    };
+                    return (
+                      <div className="reminder-item-card" key={def.key}>
+                        <div className="reminder-item-head">
+                          <div className="reminder-item-heading">
+                            <div className="reminder-item-title">{def.title}</div>
+                            <p className="field-help">{def.desc}</p>
+                          </div>
+                          <Switch
+                            checked={enabled}
+                            onChange={(_e, d) => update({ [enabledKey]: d.checked === true })}
+                          />
+                        </div>
+                        {enabled && (
+                          <div className="reminder-item-body">
+                            <label className="checkbox-row">
+                              <Checkbox
+                                checked={reminderClass[voiceKey] === true}
+                                onChange={(_e, d) => update({ [voiceKey]: d.checked === true })}
+                              />
+                              <span>启用语音</span>
+                            </label>
+                            {def.key === 'upcoming' && (
+                              <div className="field">
+                                <label>课前提醒时间（秒）</label>
+                                <Input
+                                  type="number"
+                                  step="1"
+                                  value={String(reminderClass.upcoming_seconds ?? 300)}
+                                  onChange={(e) => update({ upcoming_seconds: Number(e.target.value) })}
+                                />
+                                <p className="field-help">距离上课剩余多少秒时提醒</p>
+                              </div>
+                            )}
+                            <div className="field">
+                              <label>提醒文字（次级提醒）</label>
+                              <Input
+                                type="text"
+                                placeholder={def.defaultText}
+                                value={reminderClass[textKey] || ''}
+                                onChange={(e) => update({ [textKey]: e.target.value })}
+                              />
+                              <p className="field-help">强提醒结束后显示在课表组件上的次级提醒文字；启用语音时朗读该文字。</p>
+                            </div>
+                            <div className="field">
+                              <label>遮罩文字</label>
+                              <Input
+                                type="text"
+                                placeholder={def.defaultText}
+                                value={reminderClass[maskKey] || ''}
+                                onChange={(e) => update({ [maskKey]: e.target.value })}
+                              />
+                              <p className="field-help">强提醒遮罩上显示的大字；留空时使用提醒文字。</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <div className={`sub-page${openProvider === 'dismissal' ? ' active' : ''}`}>
@@ -1118,8 +1167,8 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
                           <input
                             type="color"
                             className="native-color"
-                            value={item.color || '#114514'}
-                            title="取色过程中不会保存，关闭取色器或点击其它位置后才保存"
+                            value={item.color || accentColor || '#0078d4'}
+                            title="取色过程中不会保存，关闭取色器或点击其它位置后才保存；未自定义时跟随系统强调色"
                             onChange={(e) => {
                               // 取色过程中只更新界面，不落盘：否则每动一下就会被保存导致取色器关闭
                               const updated = reminderCustom.map((it, j) => j === i ? { ...it, color: e.target.value } : it);
@@ -1338,6 +1387,16 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
                   </div>
                 </div>
               </div>
+            </section>
+
+            <section className={`ss-page${activePage === 'automation' ? ' active' : ''}`}>
+              <AutomationPage
+                automationRules={automationRules}
+                onChange={(next) => {
+                  setAutomationRules(next);
+                  persistSettings((s) => { s.automation_rules = next; }, '自动化规则已保存');
+                }}
+              />
             </section>
 
             </main>

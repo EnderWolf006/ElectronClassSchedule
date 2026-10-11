@@ -54,8 +54,8 @@
 
         function updateColorHint() {
             colorHint.textContent = state.reminderColor
-                ? '本插件使用自定义颜色 ' + state.reminderColor + '；“恢复默认”后跟随“软件设置 → 提醒”的颜色。'
-                : '当前跟随“软件设置 → 提醒”的提醒颜色。';
+                ? '本插件使用自定义颜色 ' + state.reminderColor + '；“恢复默认”后跟随系统强调色。'
+                : '当前跟随系统强调色（Windows 设置 → 个性化 → 颜色）。';
         }
 
         function updateNamesHint() {

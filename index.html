@@ -22,6 +22,11 @@
             <div class="class">载</div>
             <div class="class">中</div>
           </div>
+          <!-- 次级提醒：强提醒结束后显示，贯穿课表组件，倒计时条从右至左减少 -->
+          <div class="secondaryReminder" id="secondaryReminder">
+            <div class="secondaryReminderText" id="secondaryReminderText"></div>
+            <div class="secondaryReminderBar"><i id="secondaryReminderBarFill"></i></div>
+          </div>
           <div class="countdownContainer" id="countdownContainer">
             <div class="triangle"></div>
             <div class="countdowner" id="countdowner">
@@ -164,6 +169,10 @@
             <div class="scheduleComponent" data-component-slot="schedule" data-component-id="${component.id}">
               <div class="classContainer background" id="classContainer">
                 <div class="class">加</div><div class="class">载</div><div class="class">中</div>
+              </div>
+              <div class="secondaryReminder" id="secondaryReminder">
+                <div class="secondaryReminderText" id="secondaryReminderText"></div>
+                <div class="secondaryReminderBar"><i id="secondaryReminderBarFill"></i></div>
               </div>
               <div class="countdownContainer" id="countdownContainer">
                 <div class="triangle"></div>
@@ -668,6 +677,7 @@
     })
     lastScheduleData = $.extend(true, {}, scheduleData)
     checkReminders(scheduleData)
+    checkAutomation(scheduleData)
   }
 
 
@@ -676,19 +686,6 @@
     for (const key in settings.css_style) {
       root.style.setProperty(key, settings.css_style[key])
     }
-  }
-
-  // ===== 自定义样式 =====
-  // settings.custom_css 为任意 CSS 文本，以 <style id="customCss"> 注入到 head 末尾，
-  // 优先级高于 css/style.css 与主题包，相当于可对默认样式做完全重构。
-  function applyCustomCss() {
-    let el = document.getElementById('customCss');
-    if (!el) {
-      el = document.createElement('style');
-      el.id = 'customCss';
-      document.head.appendChild(el);
-    }
-    el.textContent = String(settings?.custom_css || '');
   }
 
   // ===== 主题切换 =====
@@ -721,7 +718,6 @@
   loadScheduleConfig().then(() => loadEnabledPlugins()).then(() => {
     renderComponentLayout()
     applyScheduleCss()
-    applyCustomCss()
     applyTheme()
     applyPositionMode()
     scheduleData = getScheduleData();
@@ -730,7 +726,6 @@
   }).catch(() => {
     renderComponentLayout()
     applyScheduleCss()
-    applyCustomCss()
     applyTheme()
     applyPositionMode()
     tick(true)
@@ -957,13 +952,24 @@
 
   ipcRenderer.on('getSelectedChangingClass', (e, arg) => {
     if (arg.index == -1) return
-    let index = arg.arg.index;
-    let selectedClass = arg.arg.classes[arg.index];
-    const date = getCurrentEditedDate();
-    const dayConfig = getCurrentDayScheduleConfig();
-    if (dayConfig && Array.isArray(dayConfig.classList)) {
-      dayConfig.classList[index] = selectedClass;
+    const displayIndex = arg.arg.index;
+    const selectedClass = arg.arg.classes[arg.index];
+    // 显示序号 → classList 槽位索引：主界面显示顺序来自过滤后的时间表
+    // （提前放学可能裁掉部分节次），按 getScheduleData 输出的 slotMap 映射
+    const slotMap = Array.isArray(scheduleData.slotMap) ? scheduleData.slotMap : null;
+    const slotIndex = slotMap ? slotMap[displayIndex] : displayIndex;
+    const dayIndex = getCurrentDayScheduleIndex();
+    if (!Number.isInteger(slotIndex) || slotIndex < 0 || dayIndex < 0) return
+    // 写入“当天临时调课”覆盖层（不再直接改内存 scheduleConfig，避免污染原始课表）：
+    // 数据由主进程内存保存，关闭软件/重启电脑后不恢复，当天结束后（跨天）自动失效
+    const dateKey = getRuntimeTodayKey();
+    if (!runtimeTempChanges || runtimeTempChanges.date !== dateKey || !Array.isArray(runtimeTempChanges.items)) {
+      runtimeTempChanges = { date: dateKey, items: [] };
     }
+    const items = runtimeTempChanges.items.filter((item) => !(item && item.dayIndex === dayIndex && item.slotIndex === slotIndex));
+    items.push({ dayIndex: dayIndex, slotIndex: slotIndex, subject: selectedClass });
+    runtimeTempChanges = { date: dateKey, items: items };
+    ipcRenderer.send('set-temp-course-changes', runtimeTempChanges)
   })
 
   ipcRenderer.on('openSettingDialog', (e, arg) => {
@@ -1020,6 +1026,21 @@
   ipcRenderer.on('courseFusion', (e, fusion) => {
     setCourseFusion(fusion);
     tick(true);
+  })
+
+  // ===== 运行时覆盖层恢复（主进程内存） =====
+  // “临时调课 / 提前放学”保存在主进程内存：主窗口刷新（如保存配置后 reload）后
+  // 立即拉回，关闭软件/重启电脑后不恢复；跨天后由各自的日期判断自动失效
+  ipcRenderer.invoke('get-temp-course-changes').then((value) => {
+    runtimeTempChanges = value || null
+  }).catch(() => {})
+  ipcRenderer.invoke('get-temp-early-dismissal').then((value) => {
+    runtimeEarlyDismissal = value || null
+    tick(true)
+  }).catch(() => {})
+  ipcRenderer.on('early-dismissal-changed', (e, value) => {
+    runtimeEarlyDismissal = value || null
+    tick(true)
   })
 
   ipcRenderer.on('theme-mode-changed', (e, mode) => {
@@ -1181,7 +1202,6 @@
 
   ipcRenderer.on('settings-reloaded', () => {
     applyScheduleCss()
-    applyCustomCss()
     applyTheme()
     tick(true)
   })
@@ -1215,6 +1235,8 @@
   //   · 当前分钟内 → 重发自定义提醒
   // 因此跨 reload 的“已提醒”记录落在 localStorage（按天分键，自然过期）。
   let lastReminderState = { classIndex: null, type: null, fired: {} };
+  // 已下课但下课提醒尚未成功发出的节次（用于触发失败后的重试）
+  let pendingEndIndex = null;
   let firedCustomDate = {};
 
   const FIRED_STORE_KEY = () => `reminder-fired:${getTodayKey()}`;
@@ -1245,14 +1267,49 @@
     return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
   }
 
+  // 触发一次提醒并写入去重标记。关键：必须先触发成功再标记 fired——
+  // 若先标记、触发环节抛错，该时间点会因去重永久漏提醒。
+  function fireReminderOnce(classKey, payload) {
+    if (classKey && hasFired(classKey)) return;
+    try {
+      fireReminder(payload);
+    } catch (error) {
+      console.error('[reminder] 触发失败，下一拍重试:', error);
+      return; // 不写 fired，下次 tick 仍会重试
+    }
+    if (!classKey) return;
+    lastReminderState.fired[classKey] = true;
+    saveFiredStore(classKey);
+  }
+
   function checkReminders(sd) {
     // 总开关：关闭后任何提醒提供方都不触发
     if (settings?.reminder_enabled === false) return;
+    // 跨天重置内存去重：应用长期驻留（不关机/睡眠唤醒）时，内存 fired 记录不会随
+    // localStorage 的按天分键自然过期，次周同一天（dayIdx+节次 key 相同）会被永久拦截，
+    // 表现为"只提醒一次，之后再也不提醒"
+    const reminderToday = getTodayKey();
+    if (lastReminderState.day !== reminderToday) {
+      lastReminderState.day = reminderToday;
+      lastReminderState.fired = {};
+      pendingEndIndex = null;
+    }
     const rc = settings?.reminder_class || {};
     const hl = sd.currentHighlight;
     if (!hl) return;
     const dayIdx = getCurrentDayScheduleIndex();
     const sessionKey = (kind, idx) => `${dayIdx}_${idx}_${kind}`;
+    // 下节课全称：用于"即将上课/下课"提醒文案（index 为 scheduleArray 中的节次位置）
+    const scheduleArr = Array.isArray(sd.scheduleArray) ? sd.scheduleArray : [];
+    const nextClassFullName = (idx) => {
+      const short = scheduleArr[idx];
+      if (short === undefined || short === null || short === '') return '';
+      return scheduleConfig.subject_name?.[short] || short;
+    };
+    const withNextClass = (text, idx) => {
+      const name = nextClassFullName(idx);
+      return name ? `${text}（下节：${name}）` : String(text);
+    };
 
     // 放学提醒（提醒提供方之一）：当天最后一节课结束后触发一次；按自然日去重
     const rd = settings?.reminder_dismissal || {};
@@ -1260,9 +1317,7 @@
       const dayTimetable = sd.timetable ? scheduleConfig.timetable?.[sd.timetable] : null;
       const dismissalKey = `dismissal_${dayIdx}`;
       if (dayTimetable && isTimetableFinished(dayTimetable, getCurrentTime()) && !hasFired(dismissalKey)) {
-        lastReminderState.fired[dismissalKey] = true;
-        saveFiredStore(dismissalKey);
-        fireReminder({
+        fireReminderOnce(dismissalKey, {
           text: String(rd.text || '放学了，路上注意安全'),
           duration: Number(rd.duration) || 6000
         });
@@ -1275,30 +1330,56 @@
       const secs = Number(rc.upcoming_seconds) || 300;
       const key = sessionKey('upcoming', hl.index);
       if (cd !== null && cd > 0 && cd <= secs && !hasFired(key)) {
-        lastReminderState.fired[key] = true;
-        saveFiredStore(key);
-        fireReminder({ text: rc.upcoming_text || '即将上课', color: 'rgba(0,200,0,0.85)', duration: 5000 });
+        const text = rc.upcoming_text || '即将上课';
+        // 次级提醒：从强提醒结束到上课开始的倒计时；文案附下节课全称
+        const fullText = withNextClass(text, hl.index);
+        fireReminderOnce(key, {
+          text: withNextClass(rc.upcoming_mask_text || text, hl.index),
+          color: 'rgba(0,200,0,0.85)',
+          duration: 5000,
+          voice: rc.upcoming_voice === true,
+          voiceText: fullText,
+          secondary: {
+            text: fullText,
+            duration: Math.max(1000, cd * 1000),
+          },
+        });
       }
     }
 
-    // 上课：从非 current 变为 current
+    // 上课：当前处于某节课（同一节次的提醒靠 fired 去重；触发失败时下一拍仍会重试）
     if (rc.start_enabled && hl.type === 'current' && hl.index !== null) {
-      const key = sessionKey('start', hl.index);
-      if (lastReminderState.type !== 'current' && !hasFired(key)) {
-        lastReminderState.fired[key] = true;
-        saveFiredStore(key);
-        fireReminder({ text: rc.start_text || '上课', color: 'rgba(0,200,0,0.85)', duration: 5000 });
-      }
+      pendingEndIndex = null; // 已进入下一节课，不再补发上一节的下课提醒
+      fireReminderOnce(sessionKey('start', hl.index), {
+        text: rc.start_mask_text || (rc.start_text || '上课'),
+        color: 'rgba(0,200,0,0.85)',
+        duration: 5000,
+        voice: rc.start_voice === true,
+        voiceText: rc.start_text || '上课',
+        secondary: { text: rc.start_text || '上课', duration: 5000 },
+      });
     }
 
-    // 下课：从 current 变为非 current
-    if (rc.end_enabled && lastReminderState.type === 'current' && hl.type !== 'current' && lastReminderState.classIndex !== null) {
-      const key = sessionKey('end', lastReminderState.classIndex);
-      if (!hasFired(key)) {
-        lastReminderState.fired[key] = true;
-        saveFiredStore(key);
-        fireReminder({ text: rc.end_text || '下课', color: 'rgba(200,180,0,0.85)', duration: 5000 });
+    // 下课：检测 current→非current 转换，登记待提醒的节次；
+    // 触发失败不写 fired，后续 tick 继续重试，直到成功或进入下一节课
+    if (lastReminderState.type === 'current' && hl.type !== 'current' && lastReminderState.classIndex !== null) {
+      pendingEndIndex = lastReminderState.classIndex;
+    }
+    if (rc.end_enabled && pendingEndIndex !== null) {
+      const endKey = sessionKey('end', pendingEndIndex);
+      if (!hasFired(endKey)) {
+        // 文案附下节课全称（刚结束节次的下一节；无下一节则保持原文字）
+        const endFullText = withNextClass(rc.end_text || '下课', pendingEndIndex + 1);
+        fireReminderOnce(endKey, {
+          text: withNextClass(rc.end_mask_text || (rc.end_text || '下课'), pendingEndIndex + 1),
+          color: 'rgba(200,180,0,0.85)',
+          duration: 5000,
+          voice: rc.end_voice === true,
+          voiceText: endFullText,
+          secondary: { text: endFullText, duration: 5000 },
+        });
       }
+      if (hasFired(endKey)) pendingEndIndex = null;
     }
 
     lastReminderState.classIndex = hl.index;
@@ -1319,7 +1400,7 @@
         if (nowMin === t) {
           firedCustomDate[id] = today;
           saveFiredStore(null, id);
-          fireReminder({ text: item.text || '提醒', color: item.color || settings?.reminder_color || '', duration: Number(item.duration) || 5000 });
+          fireReminder({ text: item.text || '提醒', color: item.color || defaultReminderColor(), duration: Number(item.duration) || 5000 });
         }
       });
     }
@@ -1327,6 +1408,249 @@
     checkWeatherReminder(nowMin, today);
     checkExtremeWeather();
     checkEarthquakes();
+  }
+
+  // ===== 自动化引擎：规则的所有条件满足时按序执行动作 =====
+  // 条件分两类：
+  //   · 事件条件（class_start_offset 上课 / class_end_offset 下课 / dismissal_offset 放学 /
+  //     state_change_offset 时间状态改变 / app_launch 运行指定应用）
+  //     ——在"时刻+偏移"附近的 2 秒窗口内激活，按事件 occurrence 去重，每次事件只触发一次
+  //   · 状态条件（time / class_start / class_end / day_of_week / current_class_is /
+  //     next_class_is / prev_class_is / time_state_is）——逐拍求值
+  // 规则 = 全部条件（事件+状态）同时满足时执行动作。
+  const automationFired = {}; // ruleId -> 触发标识（去重，避免同一条件重复触发）
+  let automationLastDay = '';
+  let pendingAppLaunches = []; // { id, name, at } 主进程推送的外部程序启动事件
+  ipcRenderer.on('automation-app-launch', (e, data) => {
+    if (data && data.name) {
+      pendingAppLaunches.push({ id: `${data.name}_${Number(data.at) || Date.now()}`, name: String(data.name), at: Number(data.at) || Date.now() });
+    }
+  });
+
+  // 将启用的 app_launch 条件进程名同步给主进程（仅在名单变化时发送）
+  let lastAutomationWatchKey = '';
+  function syncAutomationWatchedProcesses() {
+    const rules = Array.isArray(settings?.automation_rules) ? settings.automation_rules : [];
+    const names = [];
+    rules.forEach((rule) => {
+      if (!rule || !rule.enabled || !Array.isArray(rule.conditions)) return;
+      rule.conditions.forEach((c) => {
+        if (c && c.type === 'app_launch' && String(c.value || '').trim()) names.push(String(c.value).trim());
+      });
+    });
+    const key = names.join('|').toLowerCase();
+    if (key !== lastAutomationWatchKey) {
+      lastAutomationWatchKey = key;
+      ipcRenderer.send('automation-watch-processes', names);
+    }
+  }
+
+  // 当天课程时间段（与主界面一致的提前放学过滤），用于事件条件求值
+  function getAutomationSlots() {
+    const dayConfig = getCurrentDayScheduleConfig();
+    const dayTimetable = dayConfig && dayConfig.timetable ? scheduleConfig.timetable?.[dayConfig.timetable] : null;
+    if (!dayTimetable) return [];
+    const ed = (typeof getActiveEarlyDismissal === 'function') ? getActiveEarlyDismissal() : null;
+    const dismissalTime = (ed && ed.time && /^\d{2}:\d{2}(:\d{2})?$/.test(String(ed.time || '')))
+      ? String(ed.time).slice(0, 5)
+      : null;
+    const slots = [];
+    Object.keys(dayTimetable).forEach((timeRange) => {
+      if (timeRange.indexOf('-') === -1) return;
+      const classIndex = dayTimetable[timeRange];
+      if (typeof classIndex !== 'number') return;
+      const [startTime, endTime] = timeRange.split('-');
+      let end = endTime;
+      if (dismissalTime) {
+        if (startTime >= dismissalTime) return;
+        if (endTime > dismissalTime) end = dismissalTime;
+      }
+      slots.push({ start: startTime, end, classIndex });
+    });
+    return slots;
+  }
+
+  const EVENT_CONDITION_TYPES = new Set(['class_start_offset', 'class_end_offset', 'dismissal_offset', 'state_change_offset', 'app_launch']);
+  // 事件条件在当前拍是否激活；返回 { active, occurrence }，非事件条件返回 null
+  function evalEventCondition(cond) {
+    const nowSec = timeToSeconds(getCurrentTime());
+    const today = getTodayKey();
+    const offsetKind = cond.offset_kind || 'at';
+    const seconds = Math.max(0, Number(cond.seconds) || 0);
+    const delta = offsetKind === 'before' ? -seconds : offsetKind === 'after' ? seconds : 0;
+    // 2 秒触发窗口：自动化逐拍执行（约 1 秒），窗口保证不会因节拍错过事件时刻
+    const inWindow = (moment) => nowSec >= moment + delta && nowSec < moment + delta + 2;
+    switch (cond.type) {
+      case 'class_start_offset':
+      case 'class_end_offset': {
+        const slots = getAutomationSlots();
+        for (let i = 0; i < slots.length; i++) {
+          const moment = timeToSeconds(cond.type === 'class_start_offset' ? slots[i].start : slots[i].end);
+          if (inWindow(moment)) return { active: true, occurrence: `${today}_${cond.type}_${i}` };
+        }
+        return { active: false, occurrence: '' };
+      }
+      case 'dismissal_offset': {
+        const slots = getAutomationSlots();
+        if (!slots.length) return { active: false, occurrence: '' };
+        const lastEnd = timeToSeconds(slots[slots.length - 1].end);
+        return { active: inWindow(lastEnd), occurrence: `${today}_dismissal` };
+      }
+      case 'state_change_offset': {
+        // 时间状态变化的时刻 = 每节课的开始/结束边界
+        const slots = getAutomationSlots();
+        for (let i = 0; i < slots.length; i++) {
+          if (inWindow(timeToSeconds(slots[i].start))) return { active: true, occurrence: `${today}_sc_start_${i}` };
+          if (inWindow(timeToSeconds(slots[i].end))) return { active: true, occurrence: `${today}_sc_end_${i}` };
+        }
+        return { active: false, occurrence: '' };
+      }
+      case 'app_launch': {
+        const wanted = String(cond.value || '').trim().toLowerCase();
+        if (!wanted) return { active: false, occurrence: '' };
+        const hit = pendingAppLaunches.find((ev) => ev.name === wanted && Date.now() - ev.at < 10000);
+        return hit ? { active: true, occurrence: `${today}_app_${hit.id}` } : { active: false, occurrence: '' };
+      }
+    }
+    return null;
+  }
+
+  function checkAutomation(sd) {
+    syncAutomationWatchedProcesses();
+    const rules = Array.isArray(settings?.automation_rules) ? settings.automation_rules : [];
+    if (!rules.length) return;
+    const nowMin = getCurrentTime().slice(0, 5);
+    const today = getTodayKey();
+    // 跨天重置：触发标识含日期前缀，长期驻留时按天清空避免无限累积
+    if (automationLastDay !== today) {
+      automationLastDay = today;
+      Object.keys(automationFired).forEach((k) => delete automationFired[k]);
+      pendingAppLaunches = [];
+    }
+    pendingAppLaunches = pendingAppLaunches.filter((ev) => Date.now() - ev.at < 60000);
+    const dayOfWeek = new Date().getDay(); // 0=周日
+    const isoDow = dayOfWeek === 0 ? 7 : dayOfWeek; // 1=周一..7=周日
+    const hl = sd.currentHighlight || {};
+    const arr = Array.isArray(sd.scheduleArray) ? sd.scheduleArray : [];
+    const subjectFullName = (short) => (short === undefined || short === null || short === '') ? '' : (scheduleConfig.subject_name?.[short] || short);
+    // 课程名匹配：与简称或全名做包含匹配（忽略大小写）
+    const matchSubject = (value, idx) => {
+      const v = String(value || '').trim().toLowerCase();
+      if (!v || idx === null || idx < 0) return false;
+      const short = arr[idx];
+      if (short === undefined || short === null || short === '') return false;
+      return subjectFullName(short).toLowerCase().includes(v) || String(short).toLowerCase().includes(v);
+    };
+    // 节次位置：当前课程 / 下节课 / 上节课（index 为 scheduleArray 中仅课程的下标）
+    const currentIdx = (hl.type === 'current' && hl.index !== null) ? hl.index : null;
+    let nextIdx = null;
+    if (hl.index !== null) {
+      if (hl.isBreak) nextIdx = arr[hl.index] !== undefined ? hl.index : null;
+      else if (arr[hl.index + 1] !== undefined) nextIdx = hl.index + 1;
+    }
+    const prevIdx = (hl.index !== null && hl.index > 0) ? hl.index - 1 : null;
+    // 时间状态：上课(current) / 准备上课(课间即将上课) / 下课(其余非上课时间)
+    const timeState = hl.type === 'current' ? 'class' : (hl.isBreak ? 'upcoming' : 'break');
+
+    rules.forEach((rule) => {
+      if (!rule || !rule.enabled || !Array.isArray(rule.conditions) || !rule.conditions.length) return;
+      const hasEvent = rule.conditions.some((c) => c && EVENT_CONDITION_TYPES.has(c.type));
+      const occurrences = [];
+      const evalCondition = (cond) => {
+        if (!cond || !cond.type) return false;
+        if (EVENT_CONDITION_TYPES.has(cond.type)) {
+          const result = evalEventCondition(cond);
+          if (result && result.active) occurrences.push(result.occurrence);
+          return !!(result && result.active);
+        }
+        switch (cond.type) {
+          case 'time':
+            return String(cond.value || '').slice(0, 5) === nowMin;
+          case 'day_of_week':
+            return String(cond.value) === String(isoDow);
+          case 'class_start':
+            return hl.type === 'current' && !hl.isBreak && hl.index === Number(cond.value);
+          case 'class_end': {
+            const ended = hl.index !== null && hl.index > Number(cond.value);
+            return ended;
+          }
+          case 'current_class_is':
+            return matchSubject(cond.value, currentIdx);
+          case 'next_class_is':
+            return matchSubject(cond.value, nextIdx);
+          case 'prev_class_is':
+            return matchSubject(cond.value, prevIdx);
+          case 'time_state_is':
+            return String(cond.value || '') === timeState;
+          default:
+            return false;
+        }
+      };
+      const matchMode = rule.matchMode === 'any' ? 'any' : 'all';
+      const conditionsMet = matchMode === 'any'
+        ? rule.conditions.some(evalCondition)
+        : rule.conditions.every(evalCondition);
+      if (!conditionsMet) {
+        // 状态规则：条件不再满足时清除触发标记，下次条件再次满足可重新触发；
+        // 事件规则按 occurrence 去重，不清标记以免同一事件的 2 秒窗口内重复触发
+        if (!hasEvent) delete automationFired[rule.id];
+        return;
+      }
+      // 同一规则在同一触发条件下只执行一次；状态规则的标识加入日期，避免长期驻留时
+      // 下周同一时刻因标识相同而不再触发
+      const fireKey = rule.id + ':' + (hasEvent
+        ? occurrences.join('|')
+        : `${today}:${nowMin}:${hl.index ?? ''}:${isoDow}`);
+      if (automationFired[rule.id] === fireKey) return;
+      automationFired[rule.id] = fireKey;
+
+      (rule.actions || []).forEach((action) => {
+        if (!action || !action.type) return;
+        switch (action.type) {
+          case 'switch_theme':
+            if (action.value) {
+              settings.active_theme = action.value;
+              ipcRenderer.invoke('save-settings-file', settings).catch(() => {});
+            }
+            break;
+          case 'switch_position':
+            if (['top', 'top-right', 'right'].includes(action.value)) {
+              settings.window_position = action.value;
+              applyPositionMode();
+              ipcRenderer.send('window-position-preview', action.value);
+              ipcRenderer.invoke('save-settings-file', settings, { skipReload: true }).catch(() => {});
+            }
+            break;
+          case 'show_reminder':
+            fireReminder({ text: String(action.value || '提醒'), color: defaultReminderColor(), duration: 5000 });
+            break;
+          case 'switch_schedule':
+            if (action.value && scheduleConfig.daily_class) {
+              const dayIdx = getCurrentDayScheduleIndex();
+              if (scheduleConfig.daily_class[dayIdx]) {
+                scheduleConfig.daily_class[dayIdx].timetable = action.value;
+                ipcRenderer.invoke('save-config-file', scheduleConfig).catch(() => {});
+              }
+            }
+            break;
+          case 'set_countdown_style':
+            if (['floating', 'inline'].includes(action.value)) {
+              settings.countdown_style = action.value;
+              ipcRenderer.invoke('save-settings-file', settings).catch(() => {});
+            }
+            break;
+          case 'open_app':
+            ipcRenderer.invoke('automation-open-app', action.value).catch(() => {});
+            break;
+          case 'exec_command':
+            ipcRenderer.invoke('automation-exec', action.value).catch(() => {});
+            break;
+          case 'shutdown':
+            ipcRenderer.invoke('automation-shutdown', Number(action.value) || 60).catch(() => {});
+            break;
+        }
+      });
+    });
   }
 
   // ===== 天气提醒：每日固定时间播报；雨/雪/雷/雾等恶劣天气追加提示 =====
@@ -1345,7 +1669,7 @@
       const head = `${data.city ? data.city + ' ' : ''}${data.temp === null ? '' : data.temp + '° '}${data.text || ''}`.trim();
       fireReminder({
         text: bad ? `${head}，注意天气变化` : head,
-        color: settings?.reminder_color || '',
+        color: defaultReminderColor(),
         duration: 6000
       });
     }).catch(() => {});
@@ -1481,10 +1805,40 @@
     playBuiltinChime();
   }
 
+  // ===== 提醒语音朗读（Web Speech API） =====
+  // ===== 提醒默认颜色：跟随 Windows 系统强调色（系统设置 → 个性化 → 颜色） =====
+  // 启动时获取并定期刷新（系统强调色可能中途更换）；获取失败回退 Windows 默认强调蓝
+  let systemAccentColor = '';
+  function refreshSystemAccent() {
+    ipcRenderer.invoke('get-system-accent').then((value) => {
+      if (typeof value === 'string' && value) systemAccentColor = value;
+    }).catch(() => {});
+  }
+  refreshSystemAccent();
+  setInterval(refreshSystemAccent, 5 * 60 * 1000);
+  function defaultReminderColor() {
+    return systemAccentColor || '#0078d4';
+  }
+
+  function speakReminder(text) {
+    try {
+      const synth = window.speechSynthesis;
+      if (!synth || !text) return;
+      synth.cancel();
+      const utter = new SpeechSynthesisUtterance(String(text));
+      utter.lang = 'zh-CN';
+      utter.rate = 1;
+      synth.speak(utter);
+    } catch (error) { /* 朗读失败不影响遮罩 */ }
+  }
+
   function fireReminder(payload) {
     const adv = settings?.reminder_advanced || {};
     if (adv.sound_enabled) {
       try { playReminderSound(adv); } catch (error) { /* 静音失败不影响遮罩 */ }
+    }
+    if (payload.voice) {
+      try { speakReminder(payload.voiceText || payload.text); } catch (error) { /* 忽略 */ }
     }
     // 普通提醒：课表条上的遮罩与文字始终显示
     triggerReminderMask(payload);
@@ -1501,6 +1855,16 @@
       ipcRenderer.send('reminder-fullscreen', glowPayload);
     }
     if (adv.ontop_enabled) ipcRenderer.send('reminder-pin', { duration: payload.duration });
+
+    // 次级提醒与强提醒同时开始：倒计时从强提醒触发瞬间起算
+    // （“即将上课”的 duration 为距上课的总秒数，强提醒关闭后倒计时自然继续）
+    if (payload.secondary) {
+      triggerSecondaryReminder({
+        text: String(payload.secondary.text || payload.text || ''),
+        color: String(payload.color || defaultReminderColor()),
+        duration: Number(payload.secondary.duration) || 3000,
+      });
+    }
   }
 
   // ===== 提醒遮罩 =====
@@ -1509,6 +1873,14 @@
   let reminderHideTimer = null;
   let reminderSyncRaf = 0;
   let lastReminderGeom = '';
+
+  // ===== 次级提醒 =====
+  // 次级提醒元素位于 .scheduleComponent 内，而 renderComponentLayout 会重建课表组件，
+  // 因此不能缓存引用，需在使用时实时获取。
+  let secondaryHideTimer = null;
+  let secondaryRaf = 0;
+  let secondaryStartAt = 0;
+  let secondaryDuration = 0;
 
   // 上课/下课瞬间课表条会重建（展开格切换、0.45s 入场动画），宽高和位置
   // 都在变。只在触发瞬间测量一次会让遮罩停留在旧几何上（出现明显错位），
@@ -1537,9 +1909,12 @@
     const text = String(payload.text ?? '').trim();
     reminderText.textContent = text;
     reminderText.style.display = text ? '' : 'none';
+    // 清除可能残留的滚动状态
+    reminderText.classList.remove('scroll-h', 'scroll-v');
+    reminderText.style.animationDuration = '';
     lastReminderGeom = '';
     syncReminderMaskGeometry();
-    const color = String(payload.color || settings?.reminder_color || '').trim();
+    const color = String(payload.color || defaultReminderColor()).trim();
     if (color) reminderMask.style.setProperty('--reminder-bg-color', color);
     else reminderMask.style.removeProperty('--reminder-bg-color');
     clearTimeout(reminderHideTimer);
@@ -1549,8 +1924,32 @@
     reminderSyncRaf = requestAnimationFrame(syncReminderMaskGeometry);
     void reminderMask.offsetWidth;
     reminderMask.classList.add('shown');
+
+    // 文字过长时启用滚动：横排从右至左，竖排从下至上；
+    // 滚动未结束前不关闭提醒（即使设置的时长很短）。
+    const isRight = document.documentElement.dataset.position === 'right';
+    // 先临时设为不换行以测量真实溢出宽度/高度，避免换行导致 scrollW===clientW
+    const prevWhiteSpace = reminderText.style.whiteSpace;
+    reminderText.style.whiteSpace = 'nowrap';
+    const overflows = isRight
+        ? reminderText.scrollHeight > reminderText.clientHeight + 1
+        : reminderText.scrollWidth > reminderText.clientWidth + 1;
+    let scrollDuration = 0;
+    if (text && overflows) {
+      const distance = isRight ? reminderText.scrollHeight : reminderText.scrollWidth;
+      const speed = 60; // 像素/秒
+      scrollDuration = Math.max(2500, Math.round((distance / speed) * 1000));
+      reminderText.classList.add(isRight ? 'scroll-v' : 'scroll-h');
+      reminderText.style.animationDuration = `${scrollDuration}ms`;
+    } else {
+      reminderText.style.whiteSpace = prevWhiteSpace;
+    }
+
     const duration = Number(payload.duration);
-    reminderHideTimer = setTimeout(hideReminderMask, Number.isFinite(duration) && duration > 0 ? duration : 5000);
+    const baseDuration = Number.isFinite(duration) && duration > 0 ? duration : 5000;
+    // 若滚动时长超过设定时长，以滚动时长为准，保证文字完整展示
+    const effectiveDuration = Math.max(baseDuration, scrollDuration);
+    reminderHideTimer = setTimeout(hideReminderMask, effectiveDuration);
   }
 
   function hideReminderMask(manual) {
@@ -1561,6 +1960,7 @@
     // 保证光效无论提醒时长多短都完整播放 1 秒（由主进程定时隐藏）
     if (manual) ipcRenderer.send('reminder-fullscreen-close');
     reminderMask.classList.add('closing');
+    // 次级提醒在强提醒开始时已同步启动并独立倒计时，强提醒关闭（手动或自动）均不影响它
     setTimeout(() => {
       reminderMask.classList.remove('active', 'shown', 'closing');
       cancelAnimationFrame(reminderSyncRaf);
@@ -1568,6 +1968,59 @@
       // 恢复主窗口默认的“空白穿透”态，后续由 forwarded mousemove 重新切换
       ipcRenderer.send('setIgnore', true);
     }, 1100);
+  }
+
+  // ===== 次级提醒逻辑 =====
+  function triggerSecondaryReminder(info) {
+    clearTimeout(secondaryHideTimer);
+    cancelAnimationFrame(secondaryRaf);
+    const secondaryReminder = document.getElementById('secondaryReminder');
+    const secondaryReminderText = document.getElementById('secondaryReminderText');
+    const secondaryReminderBarFill = document.getElementById('secondaryReminderBarFill');
+    if (!secondaryReminder || !secondaryReminderText || !secondaryReminderBarFill) return;
+    secondaryReminderText.textContent = info.text || '';
+    // 倒计时层使用与强提醒相同的颜色但降低透明度（约 55%），与右侧组件形成过渡；
+    // 横排：左缘固定、右边界从右至左收缩；竖排（右侧竖排）：下缘固定、上边界从下至上收缩
+    const isRightMode = document.documentElement.dataset.position === 'right';
+    const baseColor = info.color || 'rgba(0, 0, 0, 0.85)';
+    const semiColor = baseColor.startsWith('#')
+      ? baseColor // 十六进制颜色直接用作条色
+      : baseColor.replace(/rgba?\(([^)]+)\)/, (match, inner) => {
+          const parts = inner.split(',').map((s) => s.trim());
+          const r = parts[0], g = parts[1], b = parts[2], a = parts[3];
+          return `rgba(${r}, ${g}, ${b}, ${a ? Math.min(0.55, parseFloat(a)) : 0.55})`;
+        });
+    secondaryReminder.style.setProperty('--secondary-reminder-bar-color', semiColor);
+    secondaryReminder.classList.add('active');
+    secondaryDuration = Math.max(1000, info.duration || 3000);
+    secondaryStartAt = performance.now();
+    secondaryReminderBarFill.style.transition = 'none';
+    secondaryReminderBarFill.style.transform = isRightMode ? 'scaleY(1)' : 'scaleX(1)';
+    void secondaryReminderBarFill.offsetWidth;
+    // 逐帧更新倒计时遮罩：横排从右至左（scaleX 1→0），竖排从下至上（scaleY 1→0）
+    const tickBar = (now) => {
+      const elapsed = now - secondaryStartAt;
+      const progress = Math.min(1, elapsed / secondaryDuration);
+      secondaryReminderBarFill.style.transform = isRightMode
+        ? `scaleY(${1 - progress})`
+        : `scaleX(${1 - progress})`;
+      if (progress < 1) {
+        secondaryRaf = requestAnimationFrame(tickBar);
+      } else {
+        hideSecondaryReminder();
+      }
+    };
+    secondaryRaf = requestAnimationFrame(tickBar);
+  }
+
+  function hideSecondaryReminder() {
+    cancelAnimationFrame(secondaryRaf);
+    secondaryHideTimer = null;
+    const secondaryReminder = document.getElementById('secondaryReminder');
+    const secondaryReminderBarFill = document.getElementById('secondaryReminderBarFill');
+    if (secondaryReminder) secondaryReminder.classList.remove('active');
+    // 清除内联 transform，由 CSS 按横排(scaleX)/竖排(scaleY)恢复满格
+    if (secondaryReminderBarFill) secondaryReminderBarFill.style.transform = '';
   }
 
   reminderMask.addEventListener('click', () => hideReminderMask(true));
