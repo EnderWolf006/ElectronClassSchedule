@@ -535,9 +535,10 @@ function TimelineView({ cards, groupName, onAddClass, onAddBreak, onAddDivider, 
       if (shift && ctrl) return;
       event.preventDefault();
       if (shift) {
-        // 上边界：与上一时间段共享边界时，其结束时间跟随移动
+        // 上边界：与上一时间段共享边界时，其结束时间跟随移动；
+        // 两个方向均可移动，仅受伙伴开始时间 + 最小时长限制（与拖拽一致）
         const adjacent = findAdjacentPartner(item, 'start');
-        const lower = adjacent ? timeToMinutes(adjacent.card.end) + MIN_SLOT_MINUTES : 0;
+        const lower = adjacent ? timeToMinutes(adjacent.card.start) + MIN_SLOT_MINUTES : 0;
         const value = Math.min(Math.max(snapMinutes(item.start + delta), lower), item.end - MIN_SLOT_MINUTES);
         if (value === item.start) return;
         const patch = { start: minutesToTimeText(value) };
@@ -550,9 +551,10 @@ function TimelineView({ cards, groupName, onAddClass, onAddBreak, onAddDivider, 
         return;
       }
       if (ctrl) {
-        // 下边界：与下一时间段共享边界时，其开始时间跟随移动
+        // 下边界：与下一时间段共享边界时，其开始时间跟随移动；
+        // 两个方向均可移动，仅受伙伴结束时间 - 最小时长限制（与拖拽一致）
         const adjacent = findAdjacentPartner(item, 'end');
-        const upper = adjacent ? timeToMinutes(adjacent.card.start) - MIN_SLOT_MINUTES : DAY_MAX_MINUTES;
+        const upper = adjacent ? timeToMinutes(adjacent.card.end) - MIN_SLOT_MINUTES : DAY_MAX_MINUTES;
         const value = Math.max(Math.min(snapMinutes(item.end + delta), upper), item.start + MIN_SLOT_MINUTES);
         if (value === item.end) return;
         const patch = { end: minutesToTimeText(value) };

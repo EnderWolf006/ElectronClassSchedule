@@ -51,8 +51,10 @@ let softwareSettingsWin = undefined;
 let courseFusionWin = undefined;
 let earlyDismissalWin = undefined;
 
-// ===== 运行时覆盖层（仅本次运行有效，保存在主进程内存） =====
-// 重启软件/电脑后自然丢失；跨天后由渲染层按日期判断自动失效。
+// ===== 当天临时覆盖层 =====
+// - 临时调课：持久化到 userData（带日期键），当天内重启软件/重启系统都保持，
+//   跨天后日期不匹配自动失效恢复原始课表
+// - 提前放学：仅存主进程内存，重启软件即失效；跨天后由渲染层按日期判断失效
 // 保存在主进程（而非渲染层）是为了让主窗口 reload（如保存配置后）后仍可拉回
 let runtimeTempCourseChanges = null; // { date, items: [{ dayIndex, slotIndex, subject }] }
 let runtimeEarlyDismissal = null;    // { date, time: 'HH:MM' }
@@ -62,10 +64,40 @@ function runtimeTodayKey() {
     return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 }
 
-ipcMain.handle('get-temp-course-changes', () => runtimeTempCourseChanges)
+// 临时调课持久化文件（userData 目录随软件卸载/清理，不影响原始课表配置）
+const tempCourseChangesPath = () => path.join(app.getPath('userData'), 'temp-course-changes.json');
+
+function loadTempCourseChanges() {
+    try {
+        const data = JSON.parse(fs.readFileSync(tempCourseChangesPath(), 'utf8'));
+        runtimeTempCourseChanges = (data && typeof data === 'object'
+            && data.date === runtimeTodayKey() && Array.isArray(data.items)) ? data : null;
+    } catch (error) {
+        runtimeTempCourseChanges = null;
+    }
+    // 过期数据顺手清盘，避免残留到下一天被误恢复
+    if (!runtimeTempCourseChanges) saveTempCourseChanges();
+}
+
+function saveTempCourseChanges() {
+    try {
+        fs.writeFileSync(tempCourseChangesPath(),
+            JSON.stringify(runtimeTempCourseChanges || {}), 'utf8');
+    } catch (error) { /* 写盘失败时覆盖层仅本次运行有效 */ }
+}
+
+ipcMain.handle('get-temp-course-changes', () => {
+    // 跨天后惰性失效：日期不匹配即清空并清理持久化文件
+    if (runtimeTempCourseChanges && runtimeTempCourseChanges.date !== runtimeTodayKey()) {
+        runtimeTempCourseChanges = null;
+        saveTempCourseChanges();
+    }
+    return runtimeTempCourseChanges;
+})
 ipcMain.on('set-temp-course-changes', (event, payload) => {
     runtimeTempCourseChanges = (payload && typeof payload === 'object'
         && typeof payload.date === 'string' && Array.isArray(payload.items)) ? payload : null;
+    saveTempCourseChanges();
 })
 
 ipcMain.handle('get-temp-early-dismissal', () => runtimeEarlyDismissal)
@@ -1425,6 +1457,8 @@ app.whenReady().then(() => {
     ensureThemeDir()
     ensurePluginsDir()
     loadActivePlugins()
+    // 启动时恢复当天的临时调课（date 不匹配则视为无覆盖层）
+    loadTempCourseChanges()
     createWindow()
     createTrayMenu()
     // 天气设置：开启“自动获取位置”且未指定城市时，启动后后台刷新一次坐标
