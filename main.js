@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, ipcMain, dialog, screen, Tray, shell, powerMonitor, nativeTheme, net, safeStorage, systemPreferences } = require('electron')
+const { app, BrowserWindow, Menu, ipcMain, dialog, screen, Tray, nativeImage, shell, powerMonitor, nativeTheme, net, safeStorage, systemPreferences } = require('electron')
 const path = require('path');
 const fs = require('fs')
 const os = require('os')
@@ -111,7 +111,10 @@ ipcMain.on('set-temp-early-dismissal', (event, payload) => {
         win.webContents.send('early-dismissal-changed', runtimeEarlyDismissal);
     }
 })
-let basePath = app.isPackaged ? './resources/app/' : './'
+// 托盘图标必须用 __dirname 绝对路径：相对路径依赖进程当前工作目录，
+// 从快捷方式/开机自启/任务计划/外部进程拉起时 CWD 可能不是程序目录，
+// 会导致 new Tray 抛错、托盘图标缺失
+const trayIconPath = path.join(__dirname, 'image', 'icon.png')
 if (!app.requestSingleInstanceLock({ key: 'classSchedule' })) {
     app.quit();
 }
@@ -1483,11 +1486,22 @@ function createTrayMenu() {
     if (tray && !tray.isDestroyed()) {
         tray.destroy();
     }
-    tray = new Tray(basePath + 'image/icon.png')
-    tray.setToolTip('电子课表 - by lsl and TEG6129BEV15')
-    // 左键/右键均弹出自绘菜单（按钮、字体、图标整体放大）
-    tray.on('click', openTrayMenu)
-    tray.on('right-click', openTrayMenu)
+    // 菜单窗口无论托盘是否创建成功都预热，避免角标点击弹出时才加载；
+    // 托盘创建失败也不能中断后续启动流程（天气/自启/进程保护等）
+    try {
+        const image = nativeImage.createFromPath(trayIconPath);
+        if (image.isEmpty()) {
+            throw new Error('托盘图标为空或无效: ' + trayIconPath);
+        }
+        tray = new Tray(image)
+        tray.setToolTip('电子课表 - by lsl and TEG6129BEV15')
+        // 左键/右键均弹出自绘菜单（按钮、字体、图标整体放大）
+        tray.on('click', openTrayMenu)
+        tray.on('right-click', openTrayMenu)
+    } catch (error) {
+        tray = undefined;
+        console.error('创建托盘失败（菜单仍可通过主界面角标打开）:', error);
+    }
     // 启动即预创建并加载菜单窗口，避免首次点击时才加载导致“页面缺失/延迟”
     ensureTrayMenuWindow()
 }
@@ -1720,13 +1734,28 @@ ipcMain.on('tray-menu-size', (event, size) => {
     if (!trayMenuPendingShow) return;
     trayMenuPendingShow = false;
 
-    // 弹出锚点：组件角标点击（向下弹）优先；否则用托盘图标（优先向上弹）
+    // 弹出锚点：组件角标点击（向下弹）优先；否则用托盘图标（优先向上弹）。
+    // 托盘创建失败/已被系统回收时退化为鼠标当前位置，避免对 undefined 调用 getBounds 崩溃
     const anchor = trayMenuAnchor;
     trayMenuAnchor = null;
-    const tb = tray.getBounds();
-    const anchorX = anchor ? anchor.x : Math.round(tb.x + tb.width / 2);
-    const anchorTop = anchor ? anchor.top : tb.y;
-    const anchorBottom = anchor ? anchor.bottom : tb.y + tb.height;
+    let anchorX;
+    let anchorTop;
+    let anchorBottom;
+    if (anchor) {
+        anchorX = anchor.x;
+        anchorTop = anchor.top;
+        anchorBottom = anchor.bottom;
+    } else if (tray && !tray.isDestroyed()) {
+        const tb = tray.getBounds();
+        anchorX = Math.round(tb.x + tb.width / 2);
+        anchorTop = tb.y;
+        anchorBottom = tb.y + tb.height;
+    } else {
+        const point = screen.getCursorScreenPoint();
+        anchorX = point.x;
+        anchorTop = point.y;
+        anchorBottom = point.y;
+    }
     const display = screen.getDisplayNearestPoint({ x: anchorX, y: anchorTop });
     const wa = display.workArea;
     const m = TRAY_MENU_SHADOW_MARGIN;
