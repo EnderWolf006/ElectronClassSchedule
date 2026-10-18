@@ -65,7 +65,28 @@ function runtimeTodayKey() {
 }
 
 // 临时调课持久化文件（userData 目录随软件卸载/清理，不影响原始课表配置）
-const tempCourseChangesPath = () => path.join(app.getPath('userData'), 'temp-course-changes.json');
+// 放在专用保护子目录内：该目录在启用密码保护后会拒绝删除（userData 根目录
+// 不能整体保护，Chromium 缓存需要频繁删除目录项）
+const PROTECTED_DATA_DIRNAME = 'eschedule-secure';
+const protectedDataDir = () => path.join(app.getPath('userData'), PROTECTED_DATA_DIRNAME);
+
+// 建保护目录并把旧版本散落在 userData 根下的关键文件迁移进来（必须在任何
+// 读取发生前调用）
+function ensureProtectedDataLayout() {
+    const dir = protectedDataDir();
+    try { fs.mkdirSync(dir, { recursive: true }); } catch { /* 已存在即可 */ }
+    const userData = app.getPath('userData');
+    for (const name of ['.eschedule-lock.dat', 'temp-course-changes.json']) {
+        const from = path.join(userData, name);
+        const to = path.join(dir, name);
+        try {
+            if (fs.existsSync(from) && !fs.existsSync(to)) fs.renameSync(from, to);
+        } catch { /* 迁移失败时旧路径兜底逻辑不受影响 */ }
+    }
+    return dir;
+}
+
+const tempCourseChangesPath = () => path.join(protectedDataDir(), 'temp-course-changes.json');
 
 function loadTempCourseChanges() {
     try {
@@ -115,7 +136,21 @@ ipcMain.on('set-temp-early-dismissal', (event, payload) => {
 // 从快捷方式/开机自启/任务计划/外部进程拉起时 CWD 可能不是程序目录，
 // 会导致 new Tray 抛错、托盘图标缺失
 const trayIconPath = path.join(__dirname, 'image', 'icon.png')
-if (!app.requestSingleInstanceLock({ key: 'classSchedule' })) {
+// 双进程看门狗：带 --guardian <主进程PID> 启动的实例是无窗口守护进程。
+// 守护进程使用不同的可执行文件名（由主程序硬链接生成），避免任务管理器
+// “结束任务”按同名进程批量分组时把主程序与守护进程一次全部杀掉。
+const GUARDIAN_ARG = '--guardian';
+const GUARDIAN_EXE_NAME = 'eschedule-guard.exe';
+const MAIN_EXE_NAME = 'eSchedule.exe';
+const guardianMode = process.argv.includes(GUARDIAN_ARG);
+const guardianMainPid = (() => {
+    const idx = process.argv.indexOf(GUARDIAN_ARG);
+    if (idx < 0) return 0;
+    const n = parseInt(process.argv[idx + 1], 10);
+    return Number.isInteger(n) && n > 0 ? n : 0;
+})();
+// 守护进程（--guardian）不创建窗口、不持有单实例锁，因此跳过锁检查
+if (!guardianMode && !app.requestSingleInstanceLock({ key: 'classSchedule' })) {
     app.quit();
 }
 const createWindow = () => {
@@ -777,7 +812,7 @@ function isModuleProtected(moduleId) {
 }
 
 function getSecurityFilePath() {
-    return path.join(app.getPath('userData'), '.eschedule-lock.dat');
+    return path.join(protectedDataDir(), '.eschedule-lock.dat');
 }
 
 function hashSecurityPassword(password, salt) {
@@ -953,13 +988,19 @@ function withSecurity(reason, options) {
     return promptSecurityPassword(reason, options);
 }
 
-// ===== 进程保护：启用密码保护后，不允许被非管理员的“任务管理器 - 结束任务”直接结束 =====
-// 通过修改本进程对象的 DACL，拒绝当前用户“结束/挂起进程”的权利：任务管理器结束时会
-// 显示“拒绝访问”，避免用结束进程的方式绕过密码。SYSTEM 与管理员（SeDebugPrivilege）
-// 仍可管理，不影响注销/关机与系统维护；权限只挂在运行中的进程对象上，进程退出即消失，
-// 不会写入任何持久化配置，也不会影响下次启动。
+// ===== 进程保护：启用密码保护后，任务管理器可以正常打开，但无法“结束任务”退出课表 =====
+// 原理：修改本程序每个进程对象的 DACL（自主访问控制列表），拒绝当前用户
+// “结束/挂起进程”的权利。任务管理器（同用户权限运行）结束时会得到“拒绝访问”，
+// 但查看进程、CPU/内存占用等功能完全不受影响。
+// 注意：Electron 由主进程 + 渲染/GPU/工具等多个子进程组成，只保护主进程时
+// 杀掉子进程仍会让窗口崩溃，因此对整棵进程树生效；运行中新拉起的子进程
+// 由定时器补防。SYSTEM 与持有 SeDebugPrivilege 的管理员仍可结束进程，
+// 因此不影响注销/关机与系统维护。权限只挂在运行中的进程对象上，进程退出即消失，
+// 不写注册表、不做任何持久化改动。
 let processGuardActive = false;
 let processGuardBusy = false;
+let processGuardTimer = null;
+const PROCESS_GUARD_INTERVAL_MS = 5000;
 
 function applyProcessGuard() {
     if (process.platform !== 'win32' || processGuardBusy) return;
@@ -970,12 +1011,319 @@ function applyProcessGuard() {
         '-File', path.join(__dirname, 'scripts', 'protect-process.ps1'),
         '-ProcessId', String(process.pid),
         '-Mode', mode,
+        '-IncludeChildren',
     ], { windowsHide: true }, (error, stdout) => {
         processGuardBusy = false;
         const ok = !error && /OK/.test(String(stdout || ''));
-        if (ok) processGuardActive = mode === 'protect';
-        else console.log('进程保护设置失败:', String(stdout || (error && error.message) || '').trim());
+        if (ok) {
+            processGuardActive = mode === 'protect';
+            // 保护期间持续巡检，给新创建的子进程（如崩溃后重启的渲染进程）补上保护
+            if (processGuardActive && !processGuardTimer) {
+                processGuardTimer = setInterval(applyProcessGuard, PROCESS_GUARD_INTERVAL_MS);
+            } else if (!processGuardActive && processGuardTimer) {
+                clearInterval(processGuardTimer);
+                processGuardTimer = null;
+            }
+        } else {
+            console.log('进程保护设置失败:', String(stdout || (error && error.message) || '').trim());
+        }
     });
+}
+
+// ===== 文件删除保护：密码保护启用时，程序文件与关键数据无法被删除 =====
+// 与进程防护同级别边界：拒绝资源管理器/普通命令行的删除与改名（提权管理员、
+// 文件属主自行改 DACL 仍可绕过）。只拒绝 DELETE/DELETE_CHILD，不拒绝写入，
+// 软件内部“原地覆盖”保存配置（scheduleConfig.js/settings.js）完全不受影响。
+// 两个保护对象：①安装根目录（可继承 ACE 自动覆盖全部程序文件）；
+// ②userData 下专用子目录 eschedule-secure（密码文件/临时调课数据）。
+// 注意：electron-store 的 config.json 采用临时文件+改名保存且位于
+// userData 根，不能纳入保护，否则其保存会失败。
+let fileGuardBusy = false;
+let fileGuardTimer = null;
+const FILE_GUARD_INTERVAL_MS = 10000;
+
+function applyFileGuard(mode) {
+    return new Promise((resolve) => {
+        if (process.platform !== 'win32' || !app.isPackaged) { resolve(false); return; }
+        if (fileGuardBusy) { resolve(false); return; }
+        fileGuardBusy = true;
+        // 保护目录必须已存在（内含密码文件等关键数据）
+        const dataDir = ensureProtectedDataLayout();
+        const args = [
+            '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+            '-File', path.join(__dirname, 'scripts', 'protect-files.ps1'),
+            '-Mode', mode,
+            '-InstallRoot', path.dirname(process.execPath),
+            '-ProtectedDir', dataDir,
+        ];
+        execFile('powershell', args, { windowsHide: true, timeout: 120000 }, (error, stdout) => {
+            fileGuardBusy = false;
+            const ok = !error && /OK/.test(String(stdout || ''));
+            if (ok) {
+                if (mode === 'protect') {
+                    // 定时补防：幂等且廉价（只校验根目录与少量文件的 ACL），
+                    // 主要给安装根目录下后续新建的文件确认继承状态
+                    if (!fileGuardTimer) fileGuardTimer = setInterval(() => { applyFileGuard('protect'); }, FILE_GUARD_INTERVAL_MS);
+                } else if (fileGuardTimer) {
+                    clearInterval(fileGuardTimer);
+                    fileGuardTimer = null;
+                }
+            } else {
+                console.log('文件保护设置失败:', String(stdout || (error && error.message) || '').trim());
+            }
+            resolve(ok);
+        });
+    });
+}
+
+// ===== 双进程看门狗：主程序被任务管理器（含提权）结束后自动重启 =====
+// 背景：DACL 只能挡住同权限结束；管理员账户的任务管理器会静默提权（持
+// SeDebugPrivilege，可绕过 DACL）。因此密码保护启用时，主程序额外拉起一个
+// 无窗口、无托盘的“守护进程”（同一 exe，带 --guardian 参数）：
+//   - 守护进程发现主进程被强杀 -> 重新拉起主程序后交班退出；
+//   - 主进程发现守护进程被杀 -> 重新拉起守护进程；
+//   - 两者通过“瞬时 cmd 启动器”启动，启动器立即退出，使二者互无父子关系，
+//     任务管理器对任何一方“结束进程树”都不会连带另一方，手动轮流点击无法
+//     让程序保持退出状态；
+//   - 托盘正常退出/重启/关闭密码保护/关机注销时不重启（停止标记文件 +
+//     SM_SHUTTINGDOWN 检测）；TerminateProcess 强杀不触发任何退出事件，
+//     守护进程据此判定“非正常结束”。
+// 与进程保护一样只在打包后、且已设置密码时启用；状态全部放在 userData，
+// 守护进程退出即无任何残留。
+let guardianWatchTimer = null;
+let guardianLastSpawn = 0;
+let guardianReadyMarked = false;
+const GUARDIAN_POLL_MS = 500;
+const GUARDIAN_SPAWN_GAP_MS = 3000;
+
+function guardianStateFile() { return path.join(app.getPath('userData'), 'guardian-state.json'); }
+function guardianSentinelFile() { return path.join(app.getPath('userData'), 'guardian-stop'); }
+function guardianLogFile() { return path.join(app.getPath('userData'), 'guardian.log'); }
+
+// 两个角色共用一份滚动很小的诊断日志（便于排查拉起/交班异常）
+function guardianLog(message) {
+    try {
+        const line = `[${new Date().toISOString()}] ${guardianMode ? 'GUARDIAN' : 'MAIN'} pid=${process.pid} ${message}\n`;
+        fs.appendFileSync(guardianLogFile(), line);
+    } catch { /* 日志失败不影响看护 */ }
+}
+
+function writeGuardianSentinel() {
+    try { fs.writeFileSync(guardianSentinelFile(), String(Date.now())); } catch { /* 忽略 */ }
+}
+function clearGuardianSentinel() {
+    try { fs.unlinkSync(guardianSentinelFile()); } catch { /* 不存在即可 */ }
+}
+function guardianSentinelExists() {
+    try { fs.accessSync(guardianSentinelFile()); return true; } catch { return false; }
+}
+function readGuardianState() {
+    try { return JSON.parse(fs.readFileSync(guardianStateFile(), 'utf8')); } catch { return null; }
+}
+function writeGuardianState(obj) {
+    try { fs.writeFileSync(guardianStateFile(), JSON.stringify(obj)); } catch { /* 忽略 */ }
+}
+
+// EPERM 表示进程存在但无权发信号（DACL 保护下的预期结果），ESRCH 才是已退出
+function isProcessAlive(pid) {
+    if (!pid) return false;
+    try { process.kill(pid, 0); return true; }
+    catch (error) { return error && error.code === 'EPERM'; }
+}
+
+// 主程序可执行文件的真实路径（守护进程改名运行后，不能再用 process.execPath 拉起主程序）
+function mainExePath() {
+    const dir = path.dirname(process.execPath);
+    const candidate = path.join(dir, MAIN_EXE_NAME);
+    try { fs.accessSync(candidate); return candidate; } catch { return process.execPath; }
+}
+
+// 确保“异名守护可执行文件”存在：优先硬链接（零额外磁盘占用、瞬时完成），
+// 失败则复制。改名后任务管理器不会把守护进程归入“电子课表”应用组批量结束。
+// 已存在时直接复用（即使尺寸不同也不删除替换）：文件保护启用后删除会被
+// DACL 拒绝；守护协议仅依赖 argv 与状态文件，跨版本兼容。
+function ensureGuardianExe() {
+    const guardPath = path.join(path.dirname(process.execPath), GUARDIAN_EXE_NAME);
+    try {
+        if (fs.existsSync(guardPath)) return guardPath;
+        try { fs.linkSync(process.execPath, guardPath); }
+        catch (linkError) {
+            guardianLog(`guardian exe hardlink failed: ${linkError && linkError.message}; fallback copy`);
+            fs.copyFileSync(process.execPath, guardPath);
+        }
+        return guardPath;
+    } catch (error) {
+        guardianLog(`ensureGuardianExe failed: ${error && error.message}`);
+        return null;
+    }
+}
+
+// 通过瞬时 cmd 拉起目标：cmd 立即退出后，新进程父 PID 指向已退出的 cmd，
+// 与调用方不构成进程树，避免被“结束进程树”一锅端
+function spawnOrphan(exePath, args) {
+    try {
+        execFile('cmd.exe', ['/c', 'start', '""', '/B', exePath, ...args],
+            { windowsHide: true }, () => { /* 启动器退出即完成，结果无需处理 */ });
+    } catch (error) { guardianLog(`spawnOrphan failed: ${error && error.message}`); }
+}
+
+function guardianEnabled() {
+    return process.platform === 'win32' && app.isPackaged && isSecurityEnabled();
+}
+
+// ===== 用“退出等待进程”判活（不能用 process.kill(pid,0)）=====
+// 被 DACL 拒绝 TERMINATE 的进程退出后，其残留对象仍会让 kill(0) 返回 EPERM，
+// 造成“已死却误判存活”。这里长期挂一个只持 SYNCHRONIZE 的 wait-process.ps1，
+// 目标一退出它就结束，事件即时且准确。
+let guardianWaiter = null;
+let guardianWaitedPid = 0;
+
+function spawnExitWaiter(pid) {
+    return execFile('powershell', [
+        '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+        '-File', path.join(__dirname, 'scripts', 'wait-process.ps1'),
+        '-ProcessId', String(pid),
+    ], { windowsHide: true });
+}
+
+function stopGuardianWaiter() {
+    if (guardianWaiter) {
+        guardianWaiter.removeAllListeners('exit');
+        try { guardianWaiter.kill(); } catch { /* 忽略 */ }
+        guardianWaiter = null;
+        guardianWaitedPid = 0;
+    }
+}
+
+function attachGuardianWaiter(pid) {
+    if (!pid || (guardianWaitedPid === pid && guardianWaiter)) return;
+    stopGuardianWaiter();
+    guardianWaitedPid = pid;
+    guardianWaiter = spawnExitWaiter(pid);
+    guardianWaiter.on('exit', (code) => {
+        guardianLog(`guardian pid=${pid} exited (waiter code=${code})`);
+        if (guardianWaitedPid !== pid) return; // 已切到更新的守护进程
+        guardianWaiter = null;
+        guardianWaitedPid = 0;
+        // 状态已不可信，清掉后由巡检定时器补拉新守护进程
+        const state = readGuardianState();
+        if (state && state.guardianPid === pid) {
+            try { fs.unlinkSync(guardianStateFile()); } catch { /* 忽略 */ }
+        }
+    });
+    guardianWaiter.on('error', () => {
+        // 等待进程自身启动失败：清空引用，让 2 秒巡检重新挂载
+        if (guardianWaitedPid === pid) { guardianWaiter = null; guardianWaitedPid = 0; }
+    });
+}
+
+function ensureGuardian() {
+    if (!guardianEnabled()) return;
+    const state = readGuardianState();
+    if (state && state.guardianPid) {
+        attachGuardianWaiter(state.guardianPid); // 在岗则挂等待，死亡事件触发补拉
+        return;
+    }
+    const now = Date.now();
+    if (now - guardianLastSpawn < GUARDIAN_SPAWN_GAP_MS) return; // 防拉起风暴
+    const guardExe = ensureGuardianExe();
+    if (!guardExe) return;
+    guardianLastSpawn = now;
+    clearGuardianSentinel();
+    guardianLog(`spawning guardian exe=${guardExe}`);
+    spawnOrphan(guardExe, [GUARDIAN_ARG, String(process.pid)]);
+}
+
+function startGuardianWatch() {
+    if (!guardianEnabled()) return;
+    guardianLog('startGuardianWatch');
+    // 新主实例启动时旧守护已交班退出，清掉陈旧状态避免误判“已有守护在岗”
+    try { fs.unlinkSync(guardianStateFile()); } catch { /* 忽略 */ }
+    stopGuardianWaiter();
+    clearGuardianSentinel();
+    ensureGuardian();
+    if (!guardianWatchTimer) guardianWatchTimer = setInterval(ensureGuardian, 2000);
+}
+
+function stopGuardianWatch() {
+    if (guardianWatchTimer) { clearInterval(guardianWatchTimer); guardianWatchTimer = null; }
+    stopGuardianWaiter();
+    // 通知守护进程自行退出，且不要再拉起主程序
+    guardianLog('stopGuardianWatch (write sentinel)');
+    writeGuardianSentinel();
+}
+
+// 所有“正常退出”（托盘退出/重启等）都留下停止标记；被强杀则不会触发本事件
+app.on('before-quit', () => {
+    if (guardianReadyMarked) {
+        guardianLog('before-quit (graceful) -> sentinel');
+        writeGuardianSentinel();
+    }
+});
+
+// 检测系统是否正在关机/注销（SM_SHUTTINGDOWN），避免在会话销毁时重新拉起
+function checkSessionEnding() {
+    return new Promise((resolve) => {
+        try {
+            execFile('powershell', [
+                '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+                '-File', path.join(__dirname, 'scripts', 'check-session-ending.ps1'),
+            ], { windowsHide: true, timeout: 8000 }, (error, stdout) => {
+                resolve(/^\s*1\s*$/.test(String(stdout || '')));
+            });
+        } catch { resolve(false); }
+    });
+}
+
+// 守护进程主体：无窗口、无托盘，只负责盯住主进程
+async function runGuardian() {
+    if (!guardianMainPid || !isProcessAlive(guardianMainPid) || guardianSentinelExists()) {
+        guardianLog(`cannot start: mainPid=${guardianMainPid} alive=${!!guardianMainPid && isProcessAlive(guardianMainPid)} sentinel=${guardianSentinelExists()}`);
+        app.exit(0);
+        return;
+    }
+    // 同一时刻只允许一个守护进程在岗（状态文件里有在岗者则自行退出）
+    const existing = readGuardianState();
+    if (existing && existing.guardianPid !== process.pid && isProcessAlive(existing.guardianPid)) {
+        guardianLog('another guardian active, exit');
+        app.exit(0);
+        return;
+    }
+    writeGuardianState({ guardianPid: process.pid, mainPid: guardianMainPid, ts: Date.now() });
+    guardianLog(`guardian online watching main=${guardianMainPid} exe=${process.execPath}`);
+    // 守护进程自身也加 DACL 保护，未提权的任务管理器杀不掉它
+    execFile('powershell', [
+        '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+        '-File', path.join(__dirname, 'scripts', 'protect-process.ps1'),
+        '-ProcessId', String(process.pid), '-Mode', 'protect', '-IncludeChildren',
+    ], { windowsHide: true }, () => { /* 结果不影响看护逻辑 */ });
+
+    let relaunching = false;
+    const onMainGone = async (code) => {
+        if (relaunching) return;
+        relaunching = true;
+        guardianLog(`main exited (waiter code=${code}); checking session ending...`);
+        if (guardianSentinelExists()) { guardianLog('sentinel seen, exit'); app.exit(0); return; }
+        // 主进程消失：关机/注销中则放行；否则拉起新主程序并交班给新守护进程
+        if (await checkSessionEnding()) { guardianLog('session ending, exit'); app.exit(0); return; }
+        const target = mainExePath();
+        guardianLog(`relaunching main: ${target}`);
+        spawnOrphan(target, []);
+        setTimeout(() => { guardianLog('handoff done, exit'); app.exit(0); }, 500);
+    };
+
+    // 主进程退出等待器：目标一退出进程即结束（对 DACL 僵尸对象也准确）
+    let mainWaiter = null;
+    const attachMainWaiter = () => {
+        mainWaiter = spawnExitWaiter(guardianMainPid);
+        mainWaiter.on('exit', (code) => { onMainGone(code); });
+        mainWaiter.on('error', () => { setTimeout(attachMainWaiter, 2000); });
+    };
+    attachMainWaiter();
+    // 哨兵巡检：托盘正常退出/关密码时立即放行（强杀不会写哨兵）
+    setInterval(() => {
+        if (guardianSentinelExists()) { guardianLog('sentinel seen, exit'); app.exit(0); }
+    }, GUARDIAN_POLL_MS);
 }
 
 ipcMain.on('security-attempt', (event, payload) => {
@@ -1023,6 +1371,7 @@ ipcMain.handle('security-set-password', async (event, payload) => {
         return { ok: false, error: '当前系统不支持安全存储（safeStorage 不可用），无法启用密码保护' };
     }
     try {
+        ensureProtectedDataLayout();
         const salt = crypto.randomBytes(16).toString('hex');
         const record = { v: 1, salt, hash: hashSecurityPassword(next, salt), updatedAt: Date.now() };
         fs.writeFileSync(getSecurityFilePath(), safeStorage.encryptString(JSON.stringify(record)));
@@ -1031,8 +1380,12 @@ ipcMain.handle('security-set-password', async (event, payload) => {
     }
     securityFailures = 0;
     securityBlockedUntil = 0;
-    // 启用密码保护后立即加上进程保护（拒绝被任务管理器结束）
+    // 启用密码保护后立即加上进程保护、看门狗与文件删除保护：
+    // 任务管理器仍可打开但无法结束本程序（结束后也会被守护进程立即重新拉起），
+    // 程序文件与密码/课表配置等关键文件也无法被删除或改名
     applyProcessGuard();
+    startGuardianWatch();
+    applyFileGuard('protect');
     return { ok: true };
 })
 
@@ -1040,8 +1393,11 @@ ipcMain.handle('security-remove-password', async (event, payload) => {
     if (!isSecurityEnabled()) return { ok: true };
     const verified = verifySecurityPassword(String((payload && payload.currentPassword) || ''));
     if (!verified.ok) return verified;
+    // 必须先解除文件删除保护，再删除密码文件（否则密码文件自身的 Deny ACE
+    // 会让 unlink 失败）；随后停看门狗、解除进程保护
+    await applyFileGuard('restore');
     try { fs.unlinkSync(getSecurityFilePath()); } catch (error) { /* 忽略 */ }
-    // 关闭密码保护后解除进程保护
+    stopGuardianWatch();
     applyProcessGuard();
     return { ok: true };
 })
@@ -1457,6 +1813,14 @@ function openEarlyDismissalWindow() {
 }
 
 app.whenReady().then(() => {
+    // 守护进程模式：不创建任何窗口/托盘，仅运行看护逻辑
+    if (guardianMode) {
+        runGuardian();
+        return;
+    }
+    // 最先执行：建立受保护数据目录并迁移旧版关键文件，后续所有
+    // 密码/调课数据读写都依赖该路径
+    ensureProtectedDataLayout()
     ensureThemeDir()
     ensurePluginsDir()
     loadActivePlugins()
@@ -1478,8 +1842,18 @@ app.whenReady().then(() => {
     DisableMinimize(handle); // Thank to peter's project https://github.com/tbvjaos510/electron-disable-minimize
     setAutoLaunch()
     setHighPriorityLaunch()
-    // 已启用密码保护时恢复进程保护（拒绝任务管理器直接结束）
+    // 已启用密码保护：恢复进程保护与看门狗；未启用：确保上一会话的看门狗已停止
     applyProcessGuard()
+    if (guardianEnabled()) {
+        startGuardianWatch()
+    } else {
+        stopGuardianWatch()
+    }
+    // 文件删除保护同样需要在启动时恢复；未启用密码时做一次 restore，
+    // 清掉可能残留的 Deny ACE（保证可逆性）
+    applyFileGuard(guardianEnabled() ? 'protect' : 'restore')
+    guardianReadyMarked = true
+    guardianLog(`main ready, guardianEnabled=${guardianEnabled()}`)
 })
 
 function createTrayMenu() {
@@ -1694,7 +2068,8 @@ function executeTrayAction(id, unlocked = false) {
             openSoftwareSettingsWindow();
             return false;
         case 'restart':
-            // 立即退出并重新启动本程序
+            // 立即退出并重新启动本程序（app.exit 不触发 before-quit，需显式停止看门狗）
+            stopGuardianWatch();
             app.relaunch();
             app.exit(0);
             return false;
@@ -2389,6 +2764,12 @@ ipcMain.on('window-position-preview', (event, mode) => {
     win.__positionMode = normalized;
     // 渲染端完成新模式布局后会经 apply-position-bounds 一次性 setBounds 到终态
     win.webContents.send('position-mode-changed', normalized);
+})
+
+// 外观页滑动条拖动期间实时预览（尚未保存到文件）：主窗口热应用 CSS 变量，不 reload
+ipcMain.on('css-style-preview', (event, cssStyle) => {
+    if (!win || win.isDestroyed() || !cssStyle || typeof cssStyle !== 'object') return;
+    win.webContents.send('css-style-preview', cssStyle);
 })
 
 // 位置切换动画的"终态尺寸"通道：渲染端完成新模式布局后调用，

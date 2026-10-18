@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Button, Checkbox, Input, Select, Switch } from '@fluentui/react-components';
+import { Button, Checkbox, Input, Select, Slider, Switch } from '@fluentui/react-components';
 import { AppTheme, initialThemeFromQuery } from '../../common/theme.jsx';
 import { useThemePack } from '../../common/themePack.js';
 import TitleBar from '../../common/TitleBar.jsx';
 import { ipcRenderer } from '../../common/electron.js';
 import { Svg, ICONS } from '../../common/icons.jsx';
-import ComponentsPage, { createComponentId, getConfiguredComponentRows } from './ComponentsPage.jsx';
+import ComponentsPage, { createComponentId, flattenComponentRows, getConfiguredComponentRows } from './ComponentsPage.jsx';
 import ThemePacksPage from './ThemePacksPage.jsx';
 import PluginsPage from './PluginsPage.jsx';
 import SecurityPage from './SecurityPage.jsx';
@@ -40,17 +40,19 @@ const CLASS_REMINDER_DEFS = [
 
 // 外观参数规格。unit='px' 表示长度值：文本框里只填数字（多个数字用空格分隔，
 // 如内边距 "8 14"），保存时自动给每个数字补 px；背景透明度是无单位数字。
+// kind='slider'：滑动条（拖动时经 css-style-preview 通道实时预览，不 reload）；
+// kind='pair'：两个长度值拆成“上下”“左右”两个数字框，草稿仍以空格连接。
 const CSS_VAR_SPECS = [
   { var: '--center-font-size', label: '中心字号', unit: 'px' },
   { var: '--corner-font-size', label: '角标字号', unit: 'px' },
   { var: '--countdown-font-size', label: '倒计时字号', unit: 'px' },
-  { var: '--global-border-radius', label: '全局圆角', unit: 'px' },
-  { var: '--global-bg-opacity', label: '背景透明度', unit: '' },
-  { var: '--container-bg-padding', label: '容器内边距', unit: 'px' },
-  { var: '--countdown-bg-padding', label: '倒计时内边距', unit: 'px' },
+  { var: '--global-border-radius', label: '全局圆角', unit: 'px', kind: 'slider', min: 0, max: 25, step: 1 },
+  { var: '--global-bg-opacity', label: '背景透明度', unit: '', kind: 'slider', min: 0, max: 1, step: 0.05 },
+  { var: '--container-bg-padding', label: '容器内边距', unit: 'px', kind: 'pair' },
+  { var: '--countdown-bg-padding', label: '倒计时内边距', unit: 'px', kind: 'pair' },
   { var: '--container-space', label: '组件间距', unit: 'px' },
   { var: '--top-space', label: '顶部间距', unit: 'px' },
-  { var: '--main-horizontal-space', label: '主水平间距', unit: 'px' },
+  { var: '--main-horizontal-space', label: '主水平间距', unit: 'px', kind: 'slider', min: 1, max: 20, step: 1 },
   { var: '--divider-width', label: '分隔线宽度', unit: 'px' },
   { var: '--divider-margin', label: '分隔线边距', unit: 'px' },
   { var: '--triangle-size', label: '三角尺寸', unit: 'px' },
@@ -109,6 +111,17 @@ function draftToCssValue(spec, draft) {
   return tokens[0];
 }
 
+// 外观拖动/输入期间的实时预览：把当前草稿转成 CSS 变量经主进程热发给主窗口，
+// 主窗口直接 setProperty 应用（带 CSS 过渡），不落盘、不整页 reload
+function previewCssStyle(drafts) {
+  const values = {};
+  for (const spec of CSS_VAR_SPECS) {
+    const value = draftToCssValue(spec, drafts[spec.var] ?? '');
+    if (value !== null && value !== '') values[spec.var] = value;
+  }
+  ipcRenderer.send('css-style-preview', values);
+}
+
 // 轮换偏移按轮换周期分别设置（{2:x,3:y,4:z}，单位周）；数字为上一版“整体偏移”
 // 的兼容格式（各周期同值）。归一化为对象（与 js/index.js 的 readRotationOffset 一致）
 function normalizeRotationOffsets(value) {
@@ -162,6 +175,91 @@ function getSemesterWeekBase(settingsData) {
 }
 
 const ROTATION_WEEK_COUNTS = [2, 3, 4];
+
+// 外观页单个参数字段：普通数字框 / 滑动条（拖动实时预览）/ “上下 左右”双框。
+// 必须定义在组件外：滑动过程中每次 onChange 都触发父级重渲染，
+// 若在此处内联定义会被卸载重建，拖动会断掉。
+function CssVarField({ spec, value, onChange }) {
+  const id = `cssVar-${spec.var}`;
+  if (spec.kind === 'slider') {
+    const draft = String(value ?? '').trim();
+    const num = Number(draft);
+    const sliderValue = draft !== '' && Number.isFinite(num)
+      ? Math.min(spec.max, Math.max(spec.min, num))
+      : spec.min;
+    return (
+      <div className="field slider-field">
+        <div className="slider-field-head">
+          <label htmlFor={id}>{spec.label}</label>
+          <span className="slider-value">{draft !== '' ? `${draft}${spec.unit}` : '默认'}</span>
+        </div>
+        <Slider
+          id={id}
+          min={spec.min}
+          max={spec.max}
+          step={spec.step}
+          value={sliderValue}
+          onChange={(event, data) => {
+            const v = spec.step < 1 ? Number(Number(data.value).toFixed(2)) : data.value;
+            onChange(spec, String(v));
+          }}
+        />
+      </div>
+    );
+  }
+  if (spec.kind === 'pair') {
+    const parts = String(value ?? '').trim().split(/\s+/).filter(Boolean);
+    const first = parts[0] ?? '';
+    const second = parts[1] ?? '';
+    const join = (a, b) => [a, b].map((item) => item.trim()).filter(Boolean).join(' ');
+    return (
+      <div className="field pair-field">
+        <label>{spec.label}</label>
+        <div className="pair-inputs">
+          <div className="unit-field">
+            <Input
+              aria-label={`${spec.label}（上下）`}
+              placeholder="上下"
+              inputMode="decimal"
+              value={first}
+              onChange={(event) => onChange(spec, join(event.target.value.replace(/[^\d.-]/g, ''), second))}
+            />
+            <span className="unit-suffix">px</span>
+          </div>
+          <div className="unit-field">
+            <Input
+              aria-label={`${spec.label}（左右）`}
+              placeholder="左右"
+              inputMode="decimal"
+              value={second}
+              onChange={(event) => onChange(spec, join(first, event.target.value.replace(/[^\d.-]/g, '')))}
+            />
+            <span className="unit-suffix">px</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="field">
+      <label htmlFor={id}>{spec.label}</label>
+      <div className="unit-field">
+        <Input
+          id={id}
+          type="text"
+          inputMode="decimal"
+          placeholder="如 8"
+          value={value || ''}
+          onChange={(event) => {
+            // 长度框只允许数字、小数点、负号和空格；单位 px 不允许手输
+            onChange(spec, event.target.value.replace(/[^\d.\s-]/g, ''));
+          }}
+        />
+        {spec.unit === 'px' && <span className="unit-suffix">px</span>}
+      </div>
+    </div>
+  );
+}
 
 function SoftwareSettingsApp({ onThemeModeChange }) {
   const configRef = useRef(null);
@@ -459,11 +557,11 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
       type: component.type,
       options: { ...(component.options || {}) },
     })));
-    if (!layout.some((row) => row.some((component) => component.type === 'schedule'))) {
+    if (!flattenComponentRows(layout).some((component) => component.type === 'schedule')) {
       layout.unshift([{ id: createComponentId('schedule'), type: 'schedule', options: {} }]);
     }
     nextSettings.component_layout = layout;
-    const firstOf = (type) => layout.flat().find((component) => component.type === type);
+    const firstOf = (type) => flattenComponentRows(layout).find((component) => component.type === type);
     const week = firstOf('week');
     const countdown = firstOf('countdown');
     const time = firstOf('time');
@@ -492,7 +590,8 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
     return () => clearTimeout(timer);
   }, [rows, flushComponentSettings]);
 
-  // 外观参数：输入后防抖自动保存（px 由草稿自动补全）
+  // 外观参数：输入后防抖自动保存（px 由草稿自动补全）。
+  // skipReload：改动已随 css-style-preview 通道热应用，落盘不再触发主窗口整页 reload
   useEffect(() => {
     if (!loadedRef.current) return;
     const timer = setTimeout(() => {
@@ -507,10 +606,19 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
       }
       persistSettings((nextSettings) => {
         nextSettings.css_style = nextCssStyle;
-      }, '外观设置已自动保存并生效');
+      }, '外观设置已自动保存并生效', { skipReload: true });
     }, 500);
     return () => clearTimeout(timer);
   }, [cssStyleObj, persistSettings]);
+
+  // 外观参数统一入口：更新草稿并立即经预览通道热应用到主窗口（落盘由上面的 effect 防抖负责）
+  const changeCssVar = (spec, draft) => {
+    const next = { ...cssStyleObj };
+    if (draft === '') delete next[spec.var];
+    else next[spec.var] = draft;
+    setCssStyleObj(next);
+    previewCssStyle(next);
+  };
 
   // 提醒设置（总开关/上下课/自定义/天气/高级）统一防抖落盘。
   // blockOverride 用来传入“本次刚修改、setState 尚未生效”的最新块，避免闭包读到旧值
@@ -790,43 +898,21 @@ function SoftwareSettingsApp({ onThemeModeChange }) {
             <section className={`ss-page${activePage === 'appearance' ? ' active' : ''}`}>
               <div className="page-header">
                 <h1 className="page-title">外观</h1>
-                <p className="page-intro">调整主界面样式参数，只需填写数字（长度单位 px 会自动添加），修改后立即生效。</p>
+                <p className="page-intro">调整主界面样式参数：滑动条拖动时主界面实时平滑变化，所有修改自动保存、立即生效。</p>
               </div>
               <div className="panel">
                 <h3>样式参数</h3>
-                <div className="settings-grid">
+                <div className="settings-grid single">
                   {CSS_VAR_SPECS.map((spec) => (
-                    <div className="field" key={spec.var}>
-                      <label htmlFor={`cssVar-${spec.var}`}>{spec.label}</label>
-                      <div className="unit-field">
-                        <Input
-                          id={`cssVar-${spec.var}`}
-                          type={spec.unit === 'px' ? 'text' : 'number'}
-                          inputMode="decimal"
-                          step={spec.unit === 'px' ? undefined : '0.1'}
-                          min={spec.unit === 'px' ? undefined : 0}
-                          max={spec.unit === 'px' ? undefined : 1}
-                          placeholder={spec.unit === 'px' ? '如 8 或 8 14' : '0 - 1'}
-                          value={cssStyleObj[spec.var] || ''}
-                          onChange={(event) => {
-                            // 长度框只允许数字、小数点、负号和空格；单位 px 不允许手输
-                            const v = spec.unit === 'px'
-                              ? event.target.value.replace(/[^\d.\s-]/g, '')
-                              : event.target.value;
-                            setCssStyleObj((prev) => {
-                              const next = { ...prev };
-                              if (v === '') delete next[spec.var];
-                              else next[spec.var] = v;
-                              return next;
-                            });
-                          }}
-                        />
-                        {spec.unit === 'px' && <span className="unit-suffix">px</span>}
-                      </div>
-                    </div>
+                    <CssVarField
+                      key={spec.var}
+                      spec={spec}
+                      value={cssStyleObj[spec.var] || ''}
+                      onChange={changeCssVar}
+                    />
                   ))}
                 </div>
-                <p className="field-help">内边距等需要两个数值的参数，用空格分隔（如“8 14”）；留空则恢复默认值。</p>
+                <p className="field-help">内边距分“上下”“左右”两个数值填写；各项留空则恢复默认值。</p>
               </div>
             </section>
 

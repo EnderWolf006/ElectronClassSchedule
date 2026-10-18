@@ -11,6 +11,8 @@ export const COMPONENT_LABELS = {
   time: '时间',
   weather: '天气',
   customText: '自定义文本',
+  merge: '合并',
+  carousel: '轮播',
 };
 
 const COMPONENT_DESCRIPTIONS = {
@@ -21,6 +23,8 @@ const COMPONENT_DESCRIPTIONS = {
   time: '当前时间',
   weather: '当前位置气温与天气',
   customText: '自定义显示文本',
+  merge: '多个组件合为一个大背景块',
+  carousel: '按间隔轮播多个子组件',
 };
 
 const COMPONENT_ICONS = {
@@ -31,6 +35,8 @@ const COMPONENT_ICONS = {
   time: ICONS.componentTime,
   weather: ICONS.componentWeather,
   customText: ICONS.componentCustomText,
+  merge: ICONS.components,
+  carousel: '<path d="M4.2 10a5.8 5.8 0 0 1 10-4M15.8 10a5.8 5.8 0 0 1-10 4"/><path d="M14.6 2.6v3.4h-3.4M5.4 17.4V14h3.4"/>',
 };
 
 export function normalizeDateValue(value) {
@@ -55,10 +61,17 @@ export function normalizeComponent(component, legacyIndex = 0, config, settings)
     return { id: `${component}-${legacyIndex + 1}`, type: component, options: legacyOptions[component] || {} };
   }
   if (!component || typeof component.type !== 'string' || !component.type.trim()) return null;
+  const options = { ...(component.options || {}) };
+  // 容器组件（merge/carousel）：子组件递归归一化，支持套娃嵌套
+  if (Array.isArray(options.children)) {
+    options.children = options.children
+      .map((child, index) => normalizeComponent(child, index, config, settings))
+      .filter(Boolean);
+  }
   return {
     id: component.id || createComponentId(component.type),
     type: component.type.trim(),
-    options: { ...(component.options || {}) },
+    options,
   };
 }
 
@@ -72,6 +85,40 @@ export function getConfiguredComponentRows(settings, config) {
       : []));
 }
 
+// ===== 布局树递归工具（容器组件的 options.children 也参与遍历） =====
+
+// 递归拍平全部组件（含 merge/carousel 的子级）
+export function flattenComponentRows(rows) {
+  const out = [];
+  const walk = (list) => (Array.isArray(list) ? list : []).forEach((component) => {
+    if (!component) return;
+    out.push(component);
+    walk(component.options?.children);
+  });
+  (Array.isArray(rows) ? rows : []).forEach((row) => walk(row));
+  return out;
+}
+
+export function findComponentInRows(rows, id) {
+  return flattenComponentRows(rows).find((component) => component.id === id) || null;
+}
+
+export function countComponentType(rows, type) {
+  return flattenComponentRows(rows).filter((component) => component.type === type).length;
+}
+
+// 深映射：对 id 匹配的组件应用 updater（容器子级递归），返回新 rows 引用
+export function mapComponentInRows(rows, id, updater) {
+  return rows.map((row) => row.map((component) => {
+    if (component.id === id) return updater(component);
+    const children = component.options?.children;
+    if (Array.isArray(children) && children.length) {
+      return { ...component, options: { ...component.options, children: mapComponentInRows([children], id, updater)[0] } };
+    }
+    return component;
+  }));
+}
+
 function buildNewComponent(type, settings, pluginDefs) {
   const component = { id: createComponentId(type), type, options: {} };
   if (type === 'week') component.options = { display: true };
@@ -79,6 +126,9 @@ function buildNewComponent(type, settings, pluginDefs) {
   if (type === 'time') component.options = { source: 'offset' };
   if (type === 'weather') component.options = { city: '' };
   if (type === 'customText') component.options = { text: settings?.custom_text || '' };
+  // 容器组件：子组件列表初始为空，由编辑器按钮逐个添加
+  if (type === 'merge') component.options = { children: [] };
+  if (type === 'carousel') component.options = { children: [], interval: 5 };
   // 插件组件：按清单里的 options 模式填入默认值
   const definition = (Array.isArray(pluginDefs) ? pluginDefs : []).find((item) => item && item.type === type);
   if (definition) {
@@ -362,12 +412,14 @@ export default function ComponentsPage({
     clearDragState();
   };
 
-  // 课表组件必须至少保留一个：只有存在多个课表实例时才允许删除多余的
-  const scheduleCount = rows.flat().filter((component) => component.type === 'schedule').length;
+  // 课表组件必须至少保留一个：统计含容器子级在内的全部课表实例
+  const scheduleCount = countComponentType(rows, 'schedule');
 
   const removeChip = (event, rowIndex, component) => {
     event.stopPropagation();
-    if (component.type === 'schedule' && scheduleCount <= 1) return;
+    // 组件子树内含课表时，删除后不得让课表总数归零（容器可能包着最后一个课表）
+    const subtreeSchedules = countComponentType([[component]], 'schedule');
+    if (subtreeSchedules > 0 && scheduleCount - subtreeSchedules <= 0) return;
     const nextRows = rows.map((row) => [...row]);
     nextRows[rowIndex] = nextRows[rowIndex].filter((item) => item.id !== component.id);
     commitRows(nextRows);
@@ -376,8 +428,8 @@ export default function ComponentsPage({
   const deleteRow = (event, rowIndex) => {
     event.stopPropagation();
     if (rows.length === 1) return;
-    // 不允许通过删除整行带走最后一个课表组件
-    const rowScheduleCount = rows[rowIndex].filter((component) => component.type === 'schedule').length;
+    // 不允许通过删除整行带走最后一个课表组件（含行内容器子级里的课表）
+    const rowScheduleCount = countComponentType([rows[rowIndex]], 'schedule');
     if (rowScheduleCount > 0 && scheduleCount - rowScheduleCount <= 0) return;
     const nextRows = rows.map((row) => [...row]);
     nextRows.splice(rowIndex, 1);
@@ -388,20 +440,24 @@ export default function ComponentsPage({
     commitRows([...rows.map((row) => [...row]), []]);
   };
 
-  const selected = rows.flat().find((component) => component.id === selectedId) || null;
+  const selected = (selectedId ? findComponentInRows(rows, selectedId) : null) || null;
+
+  // 按 id 深更新任意组件（含容器子级）：产出新 rows 引用触发父页防抖落盘
+  const updateComponent = (id, updater) => {
+    const nextRows = mapComponentInRows(rows, id, updater);
+    settingsRef.current.component_layout = nextRows;
+    setRows(nextRows);
+    bump();
+  };
 
   const updateOption = (field, value) => {
     if (!selected) return;
     // 必须生成新的 rows 引用：父页面的防抖落盘 effect 依赖 rows 变化，
     // 原地 mutate + bump() 只会重绘 UI，不会触发保存。
-    const nextRows = rows.map((row) => row.map((component) => (
-      component.id === selected.id
-        ? { ...component, options: { ...component.options, [field]: value } }
-        : component
-    )));
-    settingsRef.current.component_layout = nextRows;
-    setRows(nextRows);
-    bump();
+    updateComponent(selected.id, (component) => ({
+      ...component,
+      options: { ...component.options, [field]: value },
+    }));
   };
 
   return (
@@ -446,7 +502,11 @@ export default function ComponentsPage({
                 }}
                 onDrop={(event) => handleOrderDrop(event, rowIndex)}
               >
-                {components.map((component) => (
+                {components.map((component) => {
+                  // 子树内含课表的组件（含课表本体与包着课表的容器）：删除后课表总数不得归零
+                  const chipSchedules = countComponentType([[component]], 'schedule');
+                  const removeDisabled = chipSchedules > 0 && scheduleCount - chipSchedules <= 0;
+                  return (
                   <div
                     key={component.id}
                     className={`component-chip${draggingId === component.id ? ' dragging' : ''}`}
@@ -476,22 +536,23 @@ export default function ComponentsPage({
                     <Button
                       className="chip-remove win-icon"
                       type="button"
-                      disabled={component.type === 'schedule' && scheduleCount <= 1}
-                      title={component.type === 'schedule' && scheduleCount <= 1 ? '至少保留一个课表组件' : '从布局中删除'}
+                      disabled={removeDisabled}
+                      title={removeDisabled ? '至少保留一个课表组件' : '从布局中删除'}
                       aria-label="从布局中删除"
                       onClick={(event) => removeChip(event, rowIndex, component)}
                       icon={<Svg size={16} viewBox="0 0 16 16" html={ICONS.trash} strokeWidth={1.3} />}
                     />
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
             <div>
               <Button
                 className="win-icon"
                 type="button"
-                disabled={rows.length === 1 || (components.some((component) => component.type === 'schedule') && scheduleCount <= 1)}
-                title={components.some((component) => component.type === 'schedule') && scheduleCount <= 1 ? '该行包含最后一个课表组件，不能删除' : '删除该行'}
+                disabled={rows.length === 1 || (countComponentType([components], 'schedule') > 0 && scheduleCount - countComponentType([components], 'schedule') <= 0)}
+                title={countComponentType([components], 'schedule') > 0 && scheduleCount - countComponentType([components], 'schedule') <= 0 ? '该行包含最后一个课表组件，不能删除' : '删除该行'}
                 aria-label="删除该行"
                 onClick={(event) => deleteRow(event, rowIndex)}
                 icon={<Svg size={14} viewBox="0 0 16 16" html={ICONS.trash} strokeWidth={1.3} />}
@@ -544,6 +605,15 @@ export default function ComponentsPage({
                 component={selected}
                 onOption={updateOption}
                 pluginSchema={pluginSchemas[selected.type] || null}
+                containerContext={{
+                  labels,
+                  icons,
+                  allTypes: Object.keys(labels),
+                  scheduleCount,
+                  updateComponent,
+                  selectComponent: (id) => setSelectedId(id),
+                  createChild: (type) => buildNewComponent(type, settingsRef.current, pluginDefs),
+                }}
               />
             </div>
           </>
@@ -553,11 +623,21 @@ export default function ComponentsPage({
   );
 }
 
-function ComponentEditorFields({ component, onOption, pluginSchema }) {
+function ComponentEditorFields({ component, onOption, pluginSchema, containerContext }) {
   const options = component.options || {};
   // 取色草稿：取色过程中只更新界面不落盘，失焦（关闭取色器 / 点击其它位置）后才保存
   const [colorDraft, setColorDraft] = useState(null);
   const draftActive = colorDraft && colorDraft.id === component.id;
+  // 容器组件（合并/轮播）：子组件管理与轮播间隔
+  if (component.type === 'merge' || component.type === 'carousel') {
+    return (
+      <ContainerEditor
+        component={component}
+        onOption={onOption}
+        {...containerContext}
+      />
+    );
+  }
   // 插件组件：按清单声明的 options 模式渲染通用表单
   if (Array.isArray(pluginSchema) && pluginSchema.length) {
     return (
@@ -690,4 +770,103 @@ function ComponentEditorFields({ component, onOption, pluginSchema }) {
     );
   }
   return <div className="component-editor-empty">该组件暂无特定设置。</div>;
+}
+
+// ===== 容器组件（合并/轮播）编辑器：按钮式管理子组件，支持套娃嵌套 =====
+function ContainerEditor({
+  component,
+  onOption,
+  labels,
+  icons,
+  allTypes,
+  scheduleCount,
+  updateComponent,
+  selectComponent,
+  createChild,
+}) {
+  const options = component.options || {};
+  const children = Array.isArray(options.children) ? options.children : [];
+  const [addType, setAddType] = useState('week');
+
+  // 子级列表整体替换（增/删/排序）：经深映射产出新 rows 引用触发落盘
+  const setChildren = (nextChildren) => {
+    updateComponent(component.id, (current) => ({
+      ...current,
+      options: { ...current.options, children: nextChildren },
+    }));
+  };
+
+  const moveChild = (index, delta) => {
+    const target = index + delta;
+    if (target < 0 || target >= children.length) return;
+    const next = [...children];
+    [next[index], next[target]] = [next[target], next[index]];
+    setChildren(next);
+  };
+
+  const removeChild = (child) => {
+    const subtreeSchedules = countComponentType([[child]], 'schedule');
+    if (subtreeSchedules > 0 && scheduleCount - subtreeSchedules <= 0) return;
+    setChildren(children.filter((item) => item.id !== child.id));
+  };
+
+  return (
+    <div className="field container-editor">
+      {component.type === 'carousel' && (
+        <>
+          <label>切换间隔（秒）</label>
+          <Input
+            type="number"
+            min={1}
+            step={1}
+            value={String(options.interval ?? 5)}
+            onChange={(event) => onOption('interval', Math.max(1, Math.round(Number(event.target.value) || 5)))}
+          />
+        </>
+      )}
+      <label>子组件（{children.length}）</label>
+      <div className="container-children">
+        {children.length === 0 && (
+          <div className="component-editor-empty">暂无子组件，请在下方选择类型后添加。</div>
+        )}
+        {children.map((child, index) => {
+          const childSchedules = countComponentType([[child]], 'schedule');
+          const removeDisabled = childSchedules > 0 && scheduleCount - childSchedules <= 0;
+          return (
+            <div className="container-child" key={child.id}>
+              <span className="component-type-icon">
+                <Svg size={16} viewBox="0 0 20 20" html={icons[child.type] || ICONS.componentCustomText} strokeWidth={1.4} />
+              </span>
+              <span className="container-child-label">{labels[child.type] || child.type}</span>
+              <div className="container-child-actions">
+                <Button className="win-small" type="button" disabled={index === 0} onClick={() => moveChild(index, -1)}>上移</Button>
+                <Button className="win-small" type="button" disabled={index === children.length - 1} onClick={() => moveChild(index, 1)}>下移</Button>
+                <Button className="win-small" type="button" onClick={() => selectComponent(child.id)}>编辑</Button>
+                <Button
+                  className="win-small"
+                  type="button"
+                  disabled={removeDisabled}
+                  title={removeDisabled ? '至少保留一个课表组件' : '从容器中删除'}
+                  onClick={() => removeChild(child)}
+                >
+                  删除
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="container-add">
+        <Select value={addType} onChange={(event) => setAddType(event.target.value)}>
+          {allTypes.map((type) => (
+            <option key={type} value={type}>{labels[type] || type}</option>
+          ))}
+        </Select>
+        <Button className="win-small" type="button" onClick={() => setChildren([...children, createChild(addType)])}>
+          添加子组件
+        </Button>
+      </div>
+      <p className="field-help">子组件可继续选择“合并”“轮播”实现套娃堆叠；点击“编辑”可进入该子组件的设置。</p>
+    </div>
+  );
 }

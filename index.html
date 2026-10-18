@@ -90,15 +90,43 @@
     divider: [null, null]
   }
 
+  // 内置组件类型：merge/carousel 为容器组件，子组件存 options.children（可套娃嵌套）
+  const BUILTIN_COMPONENT_TYPES = ['schedule', 'week', 'date', 'countdown', 'time', 'weather', 'customText', 'merge', 'carousel'];
+
+  function normalizeLayoutNode(component, nextId) {
+    if (typeof component === 'string') return { id: `${component}-${nextId()}`, type: component, options: {} };
+    if (!component || typeof component.type !== 'string') return null;
+    if (!BUILTIN_COMPONENT_TYPES.includes(component.type) && !isPluginComponentType(component.type)) return null;
+    const options = { ...(component.options || {}) };
+    if (Array.isArray(options.children)) {
+      options.children = options.children.map((child) => normalizeLayoutNode(child, nextId)).filter(Boolean);
+    }
+    return { id: component.id || `${component.type}-${nextId()}`, type: component.type, options };
+  }
+
   function getComponentLayout() {
     const configured = Array.isArray(settings.component_layout) ? settings.component_layout : [['schedule', 'week', 'countdown']];
     let legacyIndex = 0;
-    const rows = configured.map(row => Array.isArray(row) ? row.map(component => {
-      if (typeof component === 'string') return { id: `${component}-${++legacyIndex}`, type: component, options: {} };
-      return component && (['schedule', 'week', 'date', 'countdown', 'time', 'weather', 'customText'].includes(component.type) || isPluginComponentType(component.type))
-        ? { id: component.id || `${component.type}-${++legacyIndex}`, type: component.type, options: component.options || {} } : null;
-    }).filter(Boolean) : []).filter(row => row.length);
+    const nextId = () => ++legacyIndex;
+    const rows = configured.map(row => Array.isArray(row)
+      ? row.map(component => normalizeLayoutNode(component, nextId)).filter(Boolean) : []).filter(row => row.length);
     return rows.length ? rows : [[{ id: 'schedule-1', type: 'schedule', options: {} }]];
+  }
+
+  // 递归拍平布局中的全部组件（含 merge/carousel 的子级）
+  function flattenComponents(layout) {
+    const out = [];
+    const walk = (list) => list.forEach((component) => {
+      out.push(component);
+      const children = component.options && component.options.children;
+      if (Array.isArray(children)) walk(children);
+    });
+    layout.forEach((row) => walk(row));
+    return out;
+  }
+
+  function findComponentById(layout, id) {
+    return flattenComponents(layout).find((component) => component.id === id) || null;
   }
 
   // ===== 插件宿主 =====
@@ -128,7 +156,7 @@
   }
 
   function runPluginComponentHooks(mode) {
-    const instances = getComponentLayout().flat().filter((component) => isPluginComponentType(component.type));
+    const instances = flattenComponents(getComponentLayout()).filter((component) => isPluginComponentType(component.type));
     instances.forEach((component) => {
       const element = document.querySelector(`[data-component-id="${component.id}"]`);
       const definition = pluginComponents[component.type];
@@ -160,37 +188,51 @@
     }).catch((error) => { console.error('[plugin] 获取插件列表失败:', error); });
   }
 
+  // 单个组件的 HTML：容器组件（merge/carousel）递归生成子组件
+  function componentHtml(component) {
+    if (component.type === 'schedule') return `
+      <div class="scheduleComponent" data-component-slot="schedule" data-component-id="${component.id}">
+        <div class="classContainer background" id="classContainer">
+          <div class="class">加</div><div class="class">载</div><div class="class">中</div>
+        </div>
+        <div class="secondaryReminder" id="secondaryReminder">
+          <div class="secondaryReminderText" id="secondaryReminderText"></div>
+          <div class="secondaryReminderBar"><i id="secondaryReminderBarFill"></i></div>
+        </div>
+        <div class="countdownContainer" id="countdownContainer">
+          <div class="triangle"></div>
+          <div class="countdowner" id="countdowner">
+            <div class="currentClass" id="currentFullName">Loading</div>
+            <div class="countdown" id="countdownText">00:00</div>
+            <div class="countdownProgress"><i></i></div>
+          </div>
+        </div>
+      </div>`;
+    if (component.type === 'week') return `<div class="leftSidebar sidebar background" data-component-slot="week" data-component-id="${component.id}"><span class="weekEN t">Load</span><div class="corner options notIgnoreClick weekCH">ing</div></div>`;
+    if (component.type === 'date') return `<div class="leftSidebar sidebar background" data-component-slot="date" data-component-id="${component.id}"><span class="dateValue t">00/00</span><div class="corner options notIgnoreClick dateWeek">周一</div></div>`;
+    if (component.type === 'time') return `<div class="timeSidebar sidebar background" data-component-slot="time" data-component-id="${component.id}"><span class="currentTime t">00:00:00</span></div>`;
+    if (component.type === 'weather') return `<div class="weatherSidebar sidebar background" data-component-slot="weather" data-component-id="${component.id}"><span class="weatherLine t"><span class="weatherEmoji">🌡️</span><span class="weatherTemp">--°</span></span><div class="corner weatherCity">天气</div></div>`;
+    if (component.type === 'customText') return `<div class="customText background" data-component-slot="customText" data-component-id="${component.id}"></div>`;
+    // 合并组件：统一大背景，子组件褪去自身背景并排展示
+    if (component.type === 'merge') {
+      const children = Array.isArray(component.options.children) ? component.options.children : [];
+      return `<div class="mergeComponent background" data-component-slot="merge" data-component-id="${component.id}">${children.map(componentHtml).join('')}</div>`;
+    }
+    // 轮播组件：同一时刻只显示一个子组件，由 setupCarousels 按间隔轮换
+    if (component.type === 'carousel') {
+      const children = Array.isArray(component.options.children) ? component.options.children : [];
+      const slides = children.map((child, index) => `<div class="carouselSlide${index === 0 ? ' active' : ''}">${componentHtml(child)}</div>`).join('');
+      return `<div class="carouselComponent" data-component-slot="carousel" data-component-id="${component.id}">${slides}</div>`;
+    }
+    if (isPluginComponentType(component.type)) return `<div class="pluginComponent background" data-component-slot="plugin" data-component-id="${component.id}" data-plugin-type="${component.type}"></div>`;
+    return `<div class="rightSidebar sidebar background" data-component-slot="countdown" data-component-id="${component.id}"><span class="countdownDays t">000</span><div class="corner">天</div><div class="dateProgress"><i></i></div></div>`;
+  }
+
   function renderComponentLayout() {
     const layout = getComponentLayout();
     componentRows.innerHTML = layout.map((row, rowIndex) => `
       <div class="componentRow" data-component-row="${rowIndex}">
-        ${row.map(component => {
-          if (component.type === 'schedule') return `
-            <div class="scheduleComponent" data-component-slot="schedule" data-component-id="${component.id}">
-              <div class="classContainer background" id="classContainer">
-                <div class="class">加</div><div class="class">载</div><div class="class">中</div>
-              </div>
-              <div class="secondaryReminder" id="secondaryReminder">
-                <div class="secondaryReminderText" id="secondaryReminderText"></div>
-                <div class="secondaryReminderBar"><i id="secondaryReminderBarFill"></i></div>
-              </div>
-              <div class="countdownContainer" id="countdownContainer">
-                <div class="triangle"></div>
-                <div class="countdowner" id="countdowner">
-                  <div class="currentClass" id="currentFullName">Loading</div>
-                  <div class="countdown" id="countdownText">00:00</div>
-                  <div class="countdownProgress"><i></i></div>
-                </div>
-              </div>
-            </div>`;
-          if (component.type === 'week') return `<div class="leftSidebar sidebar background" data-component-slot="week" data-component-id="${component.id}"><span class="weekEN t">Load</span><div class="corner options notIgnoreClick weekCH">ing</div></div>`;
-          if (component.type === 'date') return `<div class="leftSidebar sidebar background" data-component-slot="date" data-component-id="${component.id}"><span class="dateValue t">00/00</span><div class="corner options notIgnoreClick dateWeek">周一</div></div>`;
-          if (component.type === 'time') return `<div class="timeSidebar sidebar background" data-component-slot="time" data-component-id="${component.id}"><span class="currentTime t">00:00:00</span></div>`;
-          if (component.type === 'weather') return `<div class="weatherSidebar sidebar background" data-component-slot="weather" data-component-id="${component.id}"><span class="weatherLine t"><span class="weatherEmoji">🌡️</span><span class="weatherTemp">--°</span></span><div class="corner weatherCity">天气</div></div>`;
-          if (component.type === 'customText') return `<div class="customText background" data-component-slot="customText" data-component-id="${component.id}"></div>`;
-          if (isPluginComponentType(component.type)) return `<div class="pluginComponent background" data-component-slot="plugin" data-component-id="${component.id}" data-plugin-type="${component.type}"></div>`;
-          return `<div class="rightSidebar sidebar background" data-component-slot="countdown" data-component-id="${component.id}"><span class="countdownDays t">000</span><div class="corner">天</div><div class="dateProgress"><i></i></div></div>`;
-        }).join('')}
+        ${row.map(componentHtml).join('')}
       </div>
     `).join('');
     classContainer = document.getElementById('classContainer');
@@ -203,13 +245,36 @@
     countdownDays = document.querySelector('.countdownDays');
     currentTime = document.querySelector('.currentTime');
     document.querySelectorAll('[data-component-slot="customText"]').forEach((el) => {
-      const match = layout.flat().find((component) => component.id === el.dataset.componentId);
+      const match = findComponentById(layout, el.dataset.componentId);
       if (match) el.textContent = match.options.text ?? '';
     });
     rightSidebar = document.querySelector('[data-component-slot="countdown"]');
     leftSidebar = document.querySelector('[data-component-slot="week"]');
     // 布局重建后请插件渲染自己的组件
     runPluginComponentHooks('render');
+    setupCarousels();
+  }
+
+  // ===== 轮播组件：按各实例 options.interval（秒，默认 5，最小 1）轮换子组件 =====
+  let carouselTimers = [];
+  function setupCarousels() {
+    carouselTimers.forEach((timer) => clearInterval(timer));
+    carouselTimers = [];
+    const layout = getComponentLayout();
+    document.querySelectorAll('[data-component-slot="carousel"]').forEach((el) => {
+      // 只取直接子级 slide，嵌套轮播的子级由嵌套实例自己管理
+      const slides = Array.from(el.children).filter((child) => child.classList.contains('carouselSlide'));
+      slides.forEach((slide, index) => slide.classList.toggle('active', index === 0));
+      if (slides.length <= 1) return;
+      const component = findComponentById(layout, el.dataset.componentId);
+      const seconds = Math.max(1, Number(component && component.options && component.options.interval) || 5);
+      let index = 0;
+      carouselTimers.push(setInterval(() => {
+        slides[index].classList.remove('active');
+        index = (index + 1) % slides.length;
+        slides[index].classList.add('active');
+      }, seconds * 1000));
+    });
   }
 
   function setScheduleClass() {
@@ -416,7 +481,7 @@
       const style = getComputedStyle(cc);
       root.style.setProperty('--cc-padding-x', style.paddingLeft);
     }
-    const instances = getComponentLayout().flat();
+    const instances = flattenComponents(getComponentLayout());
     document.querySelectorAll('.scheduleComponent').forEach((sc) => {
       const instance = instances.find((component) => component.id === sc.dataset.componentId);
       const enabled = instance ? instance.options.showProgress !== false : true;
@@ -548,7 +613,7 @@
   const weatherDataMap = new Map(); // componentId -> {city,temp,text,emoji} | {error:true}
 
   function renderWeatherComponents() {
-    getComponentLayout().flat().filter((component) => component.type === 'weather').forEach((component) => {
+    flattenComponents(getComponentLayout()).filter((component) => component.type === 'weather').forEach((component) => {
       const element = document.querySelector(`[data-component-id="${component.id}"]`);
       if (!element) return;
       const data = weatherDataMap.get(component.id);
@@ -574,7 +639,7 @@
 
   let weatherRetryTimer = null;
   async function refreshWeather() {
-    const instances = getComponentLayout().flat().filter((component) => component.type === 'weather');
+    const instances = flattenComponents(getComponentLayout()).filter((component) => component.type === 'weather');
     let hasError = false;
     await Promise.all(instances.map(async (component) => {
       try {
@@ -594,7 +659,7 @@
 
   function setSidebar() {
     const editedDate = getCurrentEditedDate()
-    const instances = getComponentLayout().flat();
+    const instances = flattenComponents(getComponentLayout());
     const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
     const month = String(editedDate.getMonth() + 1).padStart(2, '0');
     const day = String(editedDate.getDate()).padStart(2, '0');
@@ -743,8 +808,9 @@
   // ===== 行级淡化 =====
   // 淡化由主进程光标轮询（cursor-position，50ms）驱动：forward 穿透模式下
   // 转发的 mousemove 事件不可靠（有概率长时间收不到），不能依赖。
-  // 恢复统一走 300ms 粘性定时器：光标在窗口区域内时轮询心跳会持续重置它，
-  // 只有真正离开超过 300ms 才恢复，滑动穿过行间隙/事件流抖动不会闪断。
+  // 恢复走一次性粘性定时器：光标未命中组件即开始计时（窗口内 120ms、
+  // 离开窗口 300ms），期间重新命中组件则取消——移出组件即恢复，
+  // 滑动穿过行间隙/事件流抖动也不会闪断。
   const restoreRows = () => {
     componentRows.querySelectorAll('.componentRow.faded').forEach((el) => el.classList.remove('faded'))
   }
@@ -772,7 +838,14 @@
   // delay：离开窗口/失去光标时用 300ms 粘性（避免滑动穿过间隙闪断）；
   // 光标仍在窗口内但没落在组件上时用更短的延迟，快速恢复淡化
   function scheduleRestore(delay = 300) {
-    if (stickyTimer) clearTimeout(stickyTimer)
+    // 已挂起的恢复不重复重排：主进程每 50ms 持续上报光标位置，若每次都
+    // clearTimeout 再重排，光标只要还在窗口内（含空白处）定时器就永远
+    // 到不了点，结果变成“必须移出窗口才能取消淡化”。
+    // 首次未命中即开始计时；期间重新命中组件会由 fadeRow 清掉该定时器，
+    // 仍保留跨间隙滑动的防闪断粘性。
+    if (stickyTimer) return
+    // 没有处于淡化状态的行时不必空排定时器（轮询会持续打到空白处）
+    if (!componentRows.querySelector('.componentRow.faded')) return
     stickyTimer = setTimeout(() => {
       restoreRows()
       stickyTimer = null
@@ -1204,6 +1277,16 @@
     applyScheduleCss()
     applyTheme()
     tick(true)
+  })
+
+  // 外观页滑动条拖动期间的实时预览：不落盘、不 reload，直接热应用 CSS 变量，
+  // 平滑效果由 style.css 中各属性的 transition 承担
+  ipcRenderer.on('css-style-preview', (e, cssStyle) => {
+    if (!cssStyle || typeof cssStyle !== 'object') return
+    const prevKeys = Object.keys(settings.css_style || {})
+    settings.css_style = cssStyle
+    prevKeys.forEach((key) => { if (!(key in cssStyle)) root.style.removeProperty(key) })
+    applyScheduleCss()
   })
 
   ipcRenderer.on('setDayOffset', (e, arg) => {

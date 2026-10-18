@@ -66,6 +66,8 @@
     padding: var(--container-bg-padding);
     font-size: var(--center-font-size);
     font-weight: 600;
+    /* 外观页滑动条实时预览：圆角/背景透明度/内边距变化时平滑过渡 */
+    transition: border-radius .18s ease, background-color .18s ease, padding .18s ease;
 }
 
 .classContainer {
@@ -98,7 +100,7 @@
     min-height: var(--component-row-min-height, 0px);
     gap: var(--component-gap, 10px);
     /* 行级淡化：快速响应鼠标移入/移出（原 :root 整体淡化是 .5s+.2s 延迟） */
-    transition: opacity .18s ease-out;
+    transition: opacity .18s ease-out, gap .18s ease;
 }
 
 .componentRow.faded {
@@ -206,9 +208,50 @@ body.position-switching .miniCountdown {
     position: relative;
 }
 
+/* ===== 合并组件：统一大背景块，子组件并排展示 ===== */
+.mergeComponent {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--component-gap, 10px);
+}
+
+/* 合并容器内的子孙组件褪去自身背景/内边距/圆角，由最外层合并容器统一承载
+   （嵌套的内层 merge/carousel 因同样带有相应类而自动褪去） */
+.mergeComponent .background,
+.mergeComponent .mergeComponent {
+    background-color: transparent;
+    padding: 0;
+    border-radius: 0;
+}
+
+/* ===== 轮播组件：同一时刻只显示一个子组件，淡入淡出切换 ===== */
+.carouselComponent {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.carouselSlide {
+    display: none;
+}
+
+.carouselSlide.active {
+    display: block;
+    animation: carouselFadeIn .35s ease;
+}
+
+@keyframes carouselFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
 .class {
     color: var(--col-text);
     margin: 0 var(--main-horizontal-space);
+    /* 主水平间距滑动条拖动时平滑过渡 */
+    transition: margin .18s ease;
 }
 
 .current {
@@ -447,6 +490,8 @@ body.position-switching .miniCountdown {
     position: relative;
     left: 50%;
     transform: translateX(-50%);
+    /* 背景透明度滑动条拖动时平滑过渡 */
+    transition: border-color .18s ease;
 }
 
 .countdowner {
@@ -519,6 +564,8 @@ body.position-switching .miniCountdown {
     font-family: var(--font-mono);
     color: var(--col-text);
     display: none;
+    /* 外观滑动条实时预览过渡 */
+    transition: border-radius .18s ease, background-color .18s ease, padding .18s ease;
 }
 
 .divider {

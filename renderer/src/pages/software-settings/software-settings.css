@@ -363,6 +363,91 @@ input.native-color {
   font-size: 13px;
 }
 
+/* ===== 外观页：一列排版 ===== */
+.settings-grid.single {
+  grid-template-columns: 1fr;
+}
+
+/* ===== 外观页：滑动条字段（拖动时主界面实时预览） ===== */
+.slider-field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.slider-field-head .slider-value {
+  flex-shrink: 0;
+  color: var(--colorNeutralForeground3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 轨道更细、填充与滑块用主题强调色，贴近 Windows 11 样式 */
+.slider-field .fui-Slider {
+  width: 100%;
+  --fui-Slider--progress-color: var(--accent, #4cc2ff);
+  --fui-Slider--thumb-color: var(--accent, #4cc2ff);
+  --fui-Slider--rail-size: 4px;
+}
+
+/* ===== 外观页：内边距双框（上下 / 左右） ===== */
+.pair-inputs {
+  display: flex;
+  gap: 8px;
+}
+
+.pair-inputs .unit-field {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ===== 组件设置页：容器组件（合并/轮播）子组件管理 ===== */
+.container-editor .container-children {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 10px;
+}
+
+.container-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--control-border, var(--colorNeutralStroke2));
+  border-radius: 6px;
+  background: var(--panel, var(--colorNeutralBackground2));
+}
+
+.container-child .container-child-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.container-child-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+}
+
+.container-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.container-add .fui-Select {
+  flex: 1;
+  min-width: 0;
+}
+
+.container-editor > .field-help {
+  margin-top: 10px;
+}
+
 /* ===== 主题页：主题包开关列表 ===== */
 .theme-packs-toolbar {
   display: flex;
