@@ -1,0 +1,32 @@
+{
+    "name": "示例主题",
+    "css": [
+        "theme.css"
+    ],
+    "fonts": [
+        {
+            "file": "ark-pixel-12px-proportional-zh_cn.ttf",
+            "family": "Ark Pixel 12px Proportional zh_cn",
+            "weight": "normal",
+            "style": "normal"
+        },
+        {
+            "file": "fzcq.ttf",
+            "family": "FZCuQian-M17",
+            "weight": "normal",
+            "style": "normal"
+        },
+        {
+            "file": "fzjz.ttf",
+            "family": "FZJianZhi-M23",
+            "weight": "normal",
+            "style": "normal"
+        },
+        {
+            "file": "fzkt.ttf",
+            "family": "FZKaTong-M19",
+            "weight": "normal",
+            "style": "normal"
+        }
+    ]
+}

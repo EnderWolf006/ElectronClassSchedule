@@ -1,0 +1,1008 @@
+/* ===== 软件设置专属布局 ===== */
+/* 骨架（固定侧栏 + 独立滚动区）由 chrome.css 的 .app-shell 提供，
+   这里只保留页面内细节，不再限制整体宽度/重排工具栏。 */
+
+/* 旧版软件设置：选中导航项的文字与图标均为品牌色 */
+#root .ss-app .nav-item.active,
+#root .ss-app .nav-item.active svg {
+  color: var(--accent);
+}
+
+.ss-page {
+  display: none;
+}
+
+.ss-page.active {
+  display: block;
+}
+
+.ss-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.settings-grid .fui-Select {
+  width: 100%;
+}
+
+/* 基础设置 - 时间偏移 */
+.time-offset-field {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.time-offset-field .field {
+  flex: 1;
+  min-width: 0;
+}
+
+#root .time-offset-field .fui-Input {
+  width: 220px;
+  min-width: 0;
+}
+
+input.native-color {
+  width: 72px;
+  height: 34px;
+  padding: 2px 4px;
+  border: 1px solid var(--control-border);
+  border-radius: 4px;
+  background: var(--panel);
+  cursor: pointer;
+}
+
+.status {
+  min-height: 20px;
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+#root .ss-app .field-help {
+  margin: -8px 0 14px;
+}
+
+#root .field.style-field {
+  margin-top: 20px;
+}
+
+/* ----- 组件设置 ----- */
+.components-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.components-toolbar strong {
+  font-size: 14px;
+}
+
+.component-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.component-row {
+  display: grid;
+  grid-template-columns: 70px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-alt);
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.component-row.drag-over {
+  border-color: var(--accent);
+  background: var(--subnav-active);
+}
+
+.component-row-title {
+  color: var(--muted);
+  font-size: 13px;
+  cursor: grab;
+  user-select: none;
+  /* 触屏行重排依赖 pointer 事件，阻止浏览器把纵向滑动当作页面滚动 */
+  touch-action: none;
+}
+
+.component-row-title:active { cursor: grabbing; }
+
+.component-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.component-order {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 34px;
+  align-items: center;
+  padding: 4px;
+  border: 1px dashed transparent;
+  border-radius: 6px;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.component-order.drag-over {
+  border-color: var(--accent);
+  background: var(--subnav-active);
+}
+
+.component-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 7px;
+  border: 1px solid var(--button-border);
+  border-radius: 4px;
+  background: var(--panel-strong);
+  color: var(--text);
+  font-size: 13px;
+  cursor: grab;
+  /* 触屏上从卡片发起拖拽时阻止滚动，pointermove 才能持续送达 */
+  touch-action: none;
+}
+
+.component-chip:active { cursor: grabbing; }
+.component-chip.dragging { opacity: 0.45; }
+
+.component-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent);
+  user-select: none;
+  padding: 0 2px;
+}
+
+.component-drag-handle svg {
+  width: 7px;
+  height: 14px;
+}
+
+.component-type-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.component-type-icon svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.component-chip .component-type-icon {
+  color: var(--muted);
+}
+
+.component-chip .chip-remove {
+  min-height: 24px;
+  min-width: 24px;
+  width: 24px;
+  padding: 0;
+  color: var(--danger);
+}
+
+.component-chip .chip-remove:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.component-library {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.component-library-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 64px;
+  padding: 12px;
+  text-align: left;
+  border: 1px solid var(--button-border);
+  border-radius: 4px;
+  background: var(--panel-strong);
+  color: var(--text);
+  font-family: inherit;
+  cursor: grab;
+  touch-action: none;
+}
+
+.component-library-card:hover {
+  border-color: var(--control-border-hover);
+  background: var(--button-hover);
+}
+
+.component-library-card:active { cursor: grabbing; }
+.component-library-card.dragging { opacity: 0.45; }
+
+.component-library-card .component-type-icon {
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.component-library-text {
+  min-width: 0;
+}
+
+.component-library-text strong {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 13px;
+}
+
+.component-library-text span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.component-editor {
+  display: none;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--divider);
+}
+
+.component-editor.active {
+  display: block;
+}
+
+.component-editor-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.component-editor-title strong {
+  font-size: 15px;
+}
+
+.component-editor-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.component-editor-fields .fui-Input,
+.component-editor-fields .fui-Select {
+  width: 100%;
+}
+
+.component-editor-empty {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.color-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.checkbox-row span {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.component-editor .field label + input,
+.component-editor .field label + select {
+  margin-top: 2px;
+}
+
+@media (max-width: 640px) {
+  .ss-app .panel { padding: 18px; }
+  .settings-grid { grid-template-columns: 1fr; }
+}
+
+/* ===== 底部状态条（替代原工具栏的刷新/保存按钮位置） ===== */
+.shell-status {
+  flex-shrink: 0;
+  min-height: 30px;
+  padding: 5px 28px 7px;
+  border-top: 1px solid var(--colorNeutralStroke2);
+  color: var(--colorNeutralForeground3);
+  font-size: 12px;
+  line-height: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== 外观页：数字输入框 + px 后缀 ===== */
+.unit-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.unit-field .fui-Input {
+  flex: 1;
+  min-width: 0;
+}
+
+.unit-suffix {
+  flex-shrink: 0;
+  color: var(--colorNeutralForeground3);
+  font-size: 13px;
+}
+
+/* ===== 外观页：一列排版 ===== */
+.settings-grid.single {
+  grid-template-columns: 1fr;
+}
+
+/* ===== 外观页：滑动条字段（拖动时主界面实时预览） ===== */
+.slider-field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.slider-field-head .slider-value {
+  flex-shrink: 0;
+  color: var(--colorNeutralForeground3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 轨道更细、填充与滑块用主题强调色，贴近 Windows 11 样式 */
+.slider-field .fui-Slider {
+  width: 100%;
+  --fui-Slider--progress-color: var(--accent, #4cc2ff);
+  --fui-Slider--thumb-color: var(--accent, #4cc2ff);
+  --fui-Slider--rail-size: 4px;
+}
+
+/* ===== 外观页：内边距双框（上下 / 左右） ===== */
+.pair-inputs {
+  display: flex;
+  gap: 8px;
+}
+
+.pair-inputs .unit-field {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ===== 组件设置页：容器组件（合并/轮播）子组件管理 ===== */
+.container-editor .container-children {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 10px;
+}
+
+.container-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--control-border, var(--colorNeutralStroke2));
+  border-radius: 6px;
+  background: var(--panel, var(--colorNeutralBackground2));
+}
+
+.container-child .container-child-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.container-child-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+}
+
+.container-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.container-add .fui-Select {
+  flex: 1;
+  min-width: 0;
+}
+
+.container-editor > .field-help {
+  margin-top: 10px;
+}
+
+/* ===== 主题页：主题包开关列表 ===== */
+.theme-packs-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.theme-packs-toolbar h3 {
+  margin: 0;
+}
+
+.theme-packs-empty {
+  padding: 18px 16px;
+  line-height: 1.7;
+}
+
+.theme-pack-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.theme-pack-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 16px;
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: 8px;
+  background: var(--colorNeutralBackground2);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.theme-pack-card:hover {
+  border-color: var(--colorCompoundBrandStroke);
+  background: var(--colorNeutralBackground2Hover);
+}
+
+.theme-pack-card.active {
+  border-color: var(--colorCompoundBrandStroke);
+  box-shadow: 0 0 0 1px var(--colorCompoundBrandStroke) inset;
+}
+
+.theme-pack-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--colorNeutralForeground1);
+}
+
+.theme-pack-meta {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--colorNeutralForeground3);
+}
+
+/* ===== 插件页 ===== */
+.plugin-version {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--colorNeutralForeground3);
+}
+
+.plugin-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.plugin-enter {
+  color: var(--colorNeutralForeground3);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.plugin-detail-bar {
+  margin-bottom: 8px;
+}
+
+.plugin-settings-panel {
+  margin-top: 16px;
+}
+
+.plugin-settings-mount {
+  min-height: 24px;
+}
+
+.plugin-settings-mount .field {
+  margin-bottom: 12px;
+}
+
+.plugin-settings-mount input[type="range"] {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  margin: 4px 0 12px;
+  accent-color: var(--colorCompoundBrandStroke);
+}
+
+.plugin-settings-mount input[type="color"] {
+  width: 46px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--colorNeutralStroke1);
+  border-radius: 6px;
+  background: var(--colorNeutralBackground1);
+  cursor: pointer;
+}
+
+.plugin-settings-mount label b {
+  color: var(--colorNeutralForeground1);
+}
+
+.plugin-settings-mount textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--colorNeutralStroke1);
+  border-radius: 6px;
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+  font: 13px/1.5 Consolas, "Microsoft YaHei", monospace;
+}
+
+.plugin-settings-mount input[type="text"],
+.plugin-settings-mount input[type="number"] {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--colorNeutralStroke1);
+  border-radius: 6px;
+  background: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+}
+
+.plugin-settings-mount button {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--colorNeutralStroke1);
+  border-radius: 6px;
+  background: var(--colorNeutralBackground2);
+  color: var(--colorNeutralForeground1);
+  cursor: pointer;
+}
+
+.plugin-settings-mount button:hover {
+  background: var(--colorNeutralBackground2Hover);
+}
+
+.plugin-settings-mount button.primary {
+  border-color: var(--colorCompoundBrandStroke);
+  background: var(--colorBrandBackground);
+  color: var(--colorNeutralForegroundOnBrand);
+}
+
+.plugin-settings-mount .row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.plugin-settings-mount .hint {
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--colorNeutralForeground3);
+}
+
+.plugin-settings-mount .list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.plugin-settings-mount .list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: 6px;
+  background: var(--colorNeutralBackground2);
+  font-size: 13px;
+}
+
+/* ===== 安全设置页 ===== */
+.security-badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--colorNeutralStroke2);
+  color: var(--colorNeutralForeground3);
+}
+
+.security-badge.on {
+  border-color: var(--colorCompoundBrandStroke);
+  color: var(--colorNeutralForeground1);
+  background: var(--colorNeutralBackground3);
+}
+
+.security-warning {
+  color: var(--colorPaletteRedForeground1, #d13438);
+}
+
+.security-module-group {
+  margin-top: 10px;
+}
+
+.security-module-group-title {
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--colorNeutralForeground3);
+}
+
+.security-module-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--colorNeutralStroke3, rgba(0, 0, 0, 0.05));
+}
+
+.security-module-row:last-child {
+  border-bottom: none;
+}
+
+.security-module-label {
+  font-size: 13.5px;
+  color: var(--colorNeutralForeground1);
+}
+
+/* ===== 提醒页：提供方列表（参考 ClassIsland 的提供方列表） ===== */
+.reminder-provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.reminder-provider-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+/* 课程提醒（即将上课/上课/下课）单项卡片 */
+.reminder-item-card {
+  margin-top: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: 8px;
+  background: var(--colorNeutralBackground2);
+}
+
+.reminder-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.reminder-item-heading {
+  min-width: 0;
+}
+
+.reminder-item-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--colorNeutralForeground1);
+}
+
+.reminder-item-body {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--colorNeutralStroke2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reminder-provider-row:hover {
+  background: var(--colorNeutralBackground2Hover);
+}
+
+.reminder-provider-icon {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--colorNeutralBackground3);
+  font-size: 17px;
+}
+
+.reminder-provider-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.reminder-provider-text strong {
+  display: block;
+  font-size: 14px;
+  color: var(--colorNeutralForeground1);
+}
+
+.reminder-provider-text span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--colorNeutralForeground3);
+  line-height: 1.5;
+}
+
+.reminder-provider-meta {
+  flex: 0 0 auto;
+  font-size: 12.5px;
+  color: var(--colorNeutralForeground3);
+}
+
+/* ===== 天气页（参考 ClassIsland 的天气页） ===== */
+.weather-preview {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.weather-preview-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.weather-preview-line {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.weather-preview-emoji {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.weather-preview-text {
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--colorNeutralForeground1);
+}
+
+.weather-preview-temp {
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--colorNeutralForeground1);
+}
+
+.weather-preview-city {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--colorNeutralForeground3);
+}
+
+.weather-preview-meta {
+  display: flex;
+  gap: 26px;
+}
+
+.weather-preview-meta div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12.5px;
+  color: var(--colorNeutralForeground3);
+}
+
+.weather-preview-meta b {
+  font-size: 15px;
+  color: var(--colorNeutralForeground1);
+}
+
+.weather-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px 2px;
+}
+
+.weather-row + .weather-row {
+  border-top: 1px solid var(--colorNeutralStroke3, rgba(0, 0, 0, 0.05));
+}
+
+.weather-row-stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.weather-row-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.weather-row-text strong {
+  display: block;
+  font-size: 14px;
+  color: var(--colorNeutralForeground1);
+}
+
+.weather-row-text span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--colorNeutralForeground3);
+  line-height: 1.5;
+}
+
+.weather-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.weather-row-actions .fui-Input {
+  width: 220px;
+  min-width: 160px;
+}
+
+.weather-row-select {
+  flex: 0 0 auto;
+  min-width: 140px;
+}
+
+.weather-city-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 2px 10px;
+}
+
+.weather-city-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 10px;
+  background: var(--colorNeutralBackground3);
+  color: var(--colorNeutralForeground1);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weather-city-option:hover {
+  background: var(--colorNeutralBackground3Hover, var(--colorNeutralBackground2Hover));
+}
+
+.weather-city-option span {
+  font-size: 12px;
+  color: var(--colorNeutralForeground3);
+}
+
+.weather-exclude-input {
+  width: 100%;
+  min-height: 84px;
+  resize: vertical;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 10px;
+  background: var(--colorNeutralBackground3);
+  color: var(--colorNeutralForeground1);
+  font: 13px/1.5 Consolas, "Microsoft YaHei", monospace;
+  outline: none;
+}
+
+/* ===== 提醒页：总开关 / 二级菜单子页 / 禁用态 ===== */
+.reminder-master-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.reminder-master.is-off {
+  border-color: var(--colorCompoundBrandStroke);
+}
+
+.sub-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 16px;
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+  padding-bottom: 10px;
+}
+
+.sub-tab {
+  appearance: none;
+  border: 1px solid var(--colorNeutralStroke2);
+  background: var(--colorNeutralBackground2);
+  color: var(--colorNeutralForeground2);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.sub-tab:hover {
+  border-color: var(--colorCompoundBrandStroke);
+  background: var(--colorNeutralBackground2Hover);
+}
+
+.sub-tab.active {
+  border-color: var(--colorCompoundBrandStroke);
+  background: var(--colorCompoundBrandBackground);
+  color: var(--colorNeutralForegroundOnBrand);
+}
+
+.sub-page {
+  display: none;
+}
+
+.sub-page.active {
+  display: block;
+}
+
+/* 总开关关闭时，提供方与高级设置两个面板整体只读变灰 */
+.panel-disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* 左侧菜单分组分割线（常规设置 / 安全与扩展） */
+.ss-app .nav-list .nav-divider {
+  border: none;
+  border-top: 1px solid var(--divider);
+  margin: 6px 10px;
+}
+
+/* 折叠侧栏时分割线改为短横，与仅图标模式对齐 */
+.ss-app.nav-collapsed .nav-list .nav-divider {
+  margin: 6px 8px;
+}
+

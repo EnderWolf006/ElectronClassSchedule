@@ -1,0 +1,1002 @@
+/* ===== 课表配置编辑器专属布局 ===== */
+
+/* 主体内容区间距由 shell-scroll 承担，main-content 不再额外留左距 */
+.ce-app .main-content {
+  padding: 0;
+}
+
+.ce-page {
+  display: none;
+}
+
+.ce-page.active {
+  display: block;
+}
+
+/* ===== “导入”来源选择弹窗 ===== */
+.import-dialog {
+  width: 520px;
+}
+
+.import-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.import-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-alt);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.import-option:hover {
+  border-color: var(--accent);
+  background: var(--subnav-active);
+}
+
+.import-option strong {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.import-option span {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.ce-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.subject-actions,
+.row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+/* Fluent 控件在表单网格中占满列宽 */
+.field .fui-Input,
+.field .fui-Select,
+.property-panel .fui-Input,
+.property-panel .fui-Select,
+.weekly-input .fui-Select,
+.slot-rotation-control .fui-Select,
+.divider-field .fui-Input,
+.subject-cell .fui-Input {
+  width: 100%;
+  min-width: 0;
+}
+
+.card-grid {
+  display: grid;
+  gap: 12px;
+}
+
+/* ----- 课表页 ----- */
+.daily-layout {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  min-height: 520px;
+}
+
+.day-nav {
+  width: 190px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px var(--shadow);
+  padding: 8px;
+  flex-shrink: 0;
+}
+
+.day-nav .day-nav-add {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.day-nav-item {
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 5px;
+  margin-bottom: 2px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.day-nav-item:hover {
+  background: var(--nav-hover);
+}
+
+.day-nav-item.active {
+  background: var(--subnav-active);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.schedule-map-table .fui-Select {
+  width: 100%;
+}
+
+/* ----- 课表页 · 每天加载的课表（轮换模式逐天独立设置） ----- */
+
+/* 每行：轮换模式下拉 + （多课表轮换）该天的轮换设置 */
+.schedule-map-panel .day-load-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: flex-start;
+}
+
+.schedule-map-panel .day-load-row > .fui-Select {
+  width: 200px;
+  flex-shrink: 0;
+}
+
+.schedule-map-panel .day-rotation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: flex-end;
+  flex: 1;
+  min-width: 0;
+}
+
+.schedule-map-panel .day-rotation-cycle,
+.schedule-map-panel .day-rotation-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 150px;
+}
+
+.schedule-map-panel .day-rotation-cycle label,
+.schedule-map-panel .day-rotation-entry label {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.schedule-map-panel .day-rotation .fui-Select {
+  width: 100%;
+}
+
+.day-editor {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ----- 时间表页 ----- */
+.timetable-layout {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  min-height: 520px;
+}
+
+.timetable-nav {
+  width: 190px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px var(--shadow);
+  padding: 8px;
+  flex-shrink: 0;
+}
+
+.timetable-nav-item {
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 5px;
+  margin-bottom: 2px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timetable-nav-item:hover {
+  background: var(--nav-hover);
+}
+
+.timetable-nav-item.active {
+  background: var(--subnav-active);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.timetable-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.timetable-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+}
+
+.timetable-card:hover {
+  border-color: var(--control-border);
+}
+
+.timetable-card.dragging {
+  opacity: 0.45;
+}
+
+.timetable-card.invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 1px var(--danger);
+}
+
+.timetable-type-select.fui-Select {
+  flex: 0 0 92px;
+  width: 92px;
+  min-width: 92px;
+}
+
+.timetable-time.fui-Input {
+  flex: 0 0 118px;
+  width: 118px;
+  min-width: 118px;
+}
+
+.range-sep {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.break-name.fui-Input {
+  flex: 1 1 160px;
+  min-width: 120px;
+}
+
+.class-badge {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 分割线卡片：虚线灰边，与上课/课间卡片区分 */
+.timetable-card.divider-card {
+  background: color-mix(in srgb, var(--muted) 8%, var(--panel));
+  border: 1px dashed var(--control-border);
+}
+
+.timetable-card.divider-card:hover {
+  border-color: var(--accent);
+}
+
+.divider-mark {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.divider-mark::before {
+  content: '分割线';
+  flex: 0 0 auto;
+}
+
+.divider-mark i {
+  flex: 1 1 auto;
+  min-width: 24px;
+  border-top: 2px solid var(--muted);
+}
+
+/* ----- 课表编辑卡片 ----- */
+.day-editor-card {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: 100%;
+  min-width: 0;
+}
+
+.day-table-panel {
+  flex: 1 1 auto;
+  min-width: 320px;
+  max-width: 760px;
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px var(--shadow);
+  padding: 14px 18px;
+}
+
+.day-table-panel h3 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.slot-rotation-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+#root .slot-rotation-control .fui-Select {
+  width: auto;
+  min-width: 116px;
+  min-height: 30px;
+}
+
+#root .slot-rotation-control .fui-Select select.fui-Select__select {
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+.weekly-inputs {
+  display: grid;
+  grid-template-columns: repeat(var(--rotation-weeks, 1), minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.weekly-input {
+  min-width: 0;
+}
+
+.weekly-input .weekly-label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.vertical-table th:first-child,
+.vertical-table td:first-child {
+  width: 110px;
+  min-width: 110px;
+}
+
+.vertical-table td:first-child {
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.property-panel {
+  width: 280px;
+  min-width: 280px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px var(--shadow);
+  padding: 14px 18px;
+}
+
+.property-panel h3 {
+  margin: 0 0 14px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.property-panel .field + .field {
+  margin-top: 12px;
+}
+
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.timetable-help {
+  margin: 0 0 12px;
+}
+
+@media (max-width: 980px) {
+  .daily-layout {
+    flex-direction: column;
+  }
+
+  .timetable-layout {
+    flex-direction: column;
+  }
+
+  .day-nav,
+  .timetable-nav {
+    width: 100%;
+  }
+
+  .day-editor-card {
+    flex-direction: column;
+  }
+
+  .timetable-card {
+    flex-wrap: wrap;
+  }
+
+  .property-panel {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .day-table-panel {
+    min-width: 0;
+    max-width: none;
+  }
+}
+
+/* ===== 时间表“新增/重命名”页内弹窗 ===== */
+.ce-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.ce-modal-dialog {
+  width: 420px;
+  max-width: 100%;
+  padding: 22px 24px 20px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+}
+
+.ce-modal-title {
+  margin: 0 0 16px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+#root .ce-modal-dialog .fui-Input {
+  width: 100%;
+  min-width: 0;
+}
+
+.ce-modal-error {
+  min-height: 20px;
+  margin-top: 8px;
+  color: var(--danger);
+  font-size: 12.5px;
+  line-height: 20px;
+}
+
+.ce-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ce-modal-overlay {
+    background: rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* ===== 时间表页：默认时长（左栏下方） ===== */
+.timetable-defaults {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.defaults-heading {
+  margin-bottom: 8px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.defaults-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.defaults-row label {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+#root .defaults-row .fui-Input {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
+.defaults-unit {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ===== 时间表子页切换（时间段列表 / 时间线） ===== */
+.tt-view-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  margin-bottom: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px var(--shadow);
+}
+
+.tt-view-tab {
+  padding: 6px 18px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: none;
+  white-space: nowrap;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.tt-view-tab:hover {
+  color: var(--text);
+  background: var(--nav-hover);
+}
+
+.tt-view-tab.active {
+  background: var(--subnav-active);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ===== 图形化时间线（独立第二页） ===== */
+.timeline-panel {
+  max-width: 900px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px var(--shadow);
+  padding: 14px 18px;
+}
+
+/* 工具栏吸顶：页面滚动时“上课/课间”按钮保持可见，不随内容滑走 */
+.timeline-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0 10px;
+  background: var(--panel);
+}
+
+.timeline-title {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.timeline-hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.timeline-group {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin-right: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-tip {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* 放缩控件 */
+.timeline-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+}
+
+.timeline-zoom-btn,
+.timeline-zoom-value {
+  min-width: 30px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel-alt);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.timeline-zoom-btn:hover,
+.timeline-zoom-value:hover {
+  border-color: var(--control-border);
+  color: var(--accent);
+}
+
+.timeline-zoom-value {
+  min-width: 52px;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-scroll {
+  max-height: calc(100vh - 280px);
+  min-height: 320px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-alt);
+  overscroll-behavior: contain;
+}
+
+.timeline-scroll.dragging {
+  cursor: ns-resize;
+  user-select: none;
+}
+
+.timeline-canvas {
+  position: relative;
+  margin: 12px 14px;
+}
+
+.timeline-tick {
+  position: absolute;
+  left: 56px;
+  right: 0;
+  border-top: 1px dashed var(--border);
+  height: 0;
+}
+
+.timeline-tick.hour {
+  border-top-style: solid;
+}
+
+.timeline-tick-label {
+  position: absolute;
+  left: -52px;
+  top: -8px;
+  width: 44px;
+  text-align: right;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-block {
+  position: absolute;
+  left: 56px;
+  right: 2px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: filter 0.12s ease, box-shadow 0.12s ease;
+  /* 始终建立层叠上下文（z-index 为整数）：
+     否则未悬停块不产生层叠上下文，其外扩手柄的 z-index:1 会直接参与
+     画布层级排序，越过悬停块（filter 产生的 z:auto 上下文），
+     在相邻两块的边界处互抢命中，造成两块交替闪烁。 */
+  z-index: 1;
+  /* 触屏拖拽（整块移动 / 边缘改时长）时阻止浏览器纵向滚动 */
+  touch-action: none;
+}
+
+/* 内层负责裁剪文字；块本身不裁剪，好让上下手柄伸出边缘 */
+.timeline-block-inner {
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  padding: 4px 10px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.timeline-block:hover {
+  filter: brightness(0.97);
+  box-shadow: 0 0 0 1px var(--accent);
+  /* 悬停块整体抬到相邻块之上，其外扩手柄稳定获得边界处命中，
+     不再与相邻块互相翻转 hover 状态 */
+  z-index: 3;
+}
+
+.timeline-block.selected {
+  box-shadow: 0 0 0 2px var(--accent);
+  z-index: 3;
+}
+
+.timeline-block.dragging {
+  filter: brightness(1.02);
+  box-shadow: 0 2px 8px var(--shadow);
+  z-index: 4;
+  cursor: grabbing;
+}
+
+/* 上下边缘拖拽手柄（加大命中区域，视觉上仅显示一条细线）。
+   手柄始终存在于块内部（块已统一建立层叠上下文）。
+   默认不参与命中：相邻两块外扩 5px 的手柄会重叠，若一直可命中，
+   后渲染块的手柄会越过边界抢走悬停；改为仅悬停/拖拽中的块启用，
+   使悬停归属与指针几何位置一致。 */
+.timeline-resize-handle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 10px;
+  cursor: ns-resize;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.timeline-block:hover .timeline-resize-handle,
+.timeline-block.dragging .timeline-resize-handle {
+  pointer-events: auto;
+}
+
+.timeline-resize-handle.top { top: -5px; }
+.timeline-resize-handle.bottom { bottom: -5px; }
+
+.timeline-resize-handle::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  height: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transform: translateY(-50%);
+}
+
+.timeline-block:hover .timeline-resize-handle::after,
+.timeline-block.dragging .timeline-resize-handle::after {
+  background: var(--accent);
+}
+
+/* ===== 时间线上的分割线：灰色横线，始终置于方块之上 ===== */
+.timeline-divider {
+  position: absolute;
+  left: 56px;
+  right: 2px;
+  height: 0;
+  z-index: 5;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+/* 加厚透明热区：线条上下各约 9px，便于在方块边缘重叠处优先命中分割线 */
+.timeline-divider::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -9px;
+  height: 18px;
+}
+
+.timeline-divider-rule {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -2px;
+  border-top: 3px solid var(--muted);
+}
+
+.timeline-divider-label {
+  position: absolute;
+  left: 8px;
+  top: -10px;
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.timeline-divider:hover .timeline-divider-label,
+.timeline-divider.selected .timeline-divider-label,
+.timeline-divider.dragging .timeline-divider-label {
+  opacity: 1;
+}
+
+.timeline-divider:hover,
+.timeline-divider.selected {
+  z-index: 6;
+}
+
+.timeline-divider:hover .timeline-divider-rule,
+.timeline-divider.selected .timeline-divider-rule {
+  border-top-color: var(--accent);
+}
+
+.timeline-divider.dragging {
+  z-index: 6;
+}
+
+.timeline-divider.dragging .timeline-divider-rule {
+  border-top-color: var(--accent);
+  border-top-width: 4px;
+}
+
+/* 点击方块后的内联编辑浮层 */
+.timeline-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+
+.timeline-editor {
+  position: fixed;
+  z-index: 101;
+  width: 236px;
+  padding: 14px 16px 12px;
+  background: var(--panel);
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+}
+
+.timeline-editor-title {
+  margin-bottom: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.timeline-editor-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.timeline-editor-row label {
+  flex: 0 0 34px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.timeline-editor-row .fui-Input,
+.timeline-editor-row .fui-Select {
+  flex: 1;
+  min-width: 0;
+}
+
+.timeline-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.timeline-editor-error {
+  margin: 8px 0 0;
+  padding-left: 40px;
+  color: var(--danger, #e05656);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.timeline-editor-spacer {
+  flex: 1;
+}
+
+.timeline-block.class {
+  background: var(--subnav-active);
+  border-color: var(--accent);
+}
+
+.timeline-block.break {
+  background: var(--panel);
+  border-color: var(--border);
+}
+
+.timeline-block-time {
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+
+.timeline-block.class .timeline-block-time {
+  color: var(--accent);
+}
+
+.timeline-block-meta {
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 列表卡片定位闪烁反馈（时间线块点击时触发） */
+.timetable-card.flash {
+  animation: timetableCardFlash 1.2s ease-out;
+}
+
+@keyframes timetableCardFlash {
+  0% {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--subnav-active);
+  }
+  100% {
+    border-color: var(--border);
+    box-shadow: none;
+  }
+}

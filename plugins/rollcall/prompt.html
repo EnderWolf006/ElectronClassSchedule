@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="utf-8">
+  <title>点名</title>
+  <script>
+    // 首帧前确定主题，避免深色→浅色闪烁
+    (function () {
+      var mode = new URLSearchParams(location.search).get('themeMode');
+      if (mode === 'light' || (mode === 'auto' && !window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('theme-light');
+      }
+    })();
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+    body {
+      font-family: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+      color: #f5f5f5;
+      display: flex;
+      align-items: stretch;
+      justify-content: stretch;
+      padding: 6px;
+    }
+    .panel {
+      flex: 1;
+      padding: 14px 16px;
+      border-radius: 10px;
+      background: rgba(32, 32, 36, 0.96);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .title {
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      -webkit-app-region: drag;
+    }
+    .title .close {
+      -webkit-app-region: no-drag;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: #bbb;
+      font-size: 15px;
+      line-height: 1;
+      padding: 2px 4px;
+    }
+    .title .close:hover { color: #fff; }
+    .row { display: flex; align-items: center; gap: 10px; }
+    label { font-size: 13px; color: #ccc; }
+    input[type="number"] {
+      flex: 1;
+      height: 34px;
+      padding: 0 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      font-size: 15px;
+      outline: none;
+    }
+    input[type="number"]:focus { border-color: #4cc2ff; }
+    .hint { font-size: 12px; color: #9a9a9a; }
+    .repeat-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #d8d8d8;
+      cursor: pointer;
+      user-select: none;
+    }
+    .repeat-row input[type="checkbox"] {
+      width: 15px;
+      height: 15px;
+      accent-color: #0f6cbd;
+      cursor: pointer;
+    }
+    .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: auto; }
+    button.action {
+      height: 32px;
+      padding: 0 16px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.1);
+      color: #f0f0f0;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    button.action:hover { background: rgba(255, 255, 255, 0.18); }
+    button.action.primary { background: #0f6cbd; border-color: #0f6cbd; }
+    button.action.primary:hover { background: #1a7fd4; }
+
+    /* ===== 浅色主题 ===== */
+    .theme-light body { color: #1f1f1f; }
+    .theme-light .panel {
+      background: rgba(245, 245, 247, 0.97);
+      border-color: rgba(0, 0, 0, 0.10);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    }
+    .theme-light .title .close { color: #666; }
+    .theme-light .title .close:hover { color: #1f1f1f; }
+    .theme-light label { color: #444; }
+    .theme-light input[type="number"] {
+      border-color: rgba(0, 0, 0, 0.18);
+      background: rgba(255, 255, 255, 0.9);
+      color: #1f1f1f;
+    }
+    .theme-light input[type="number"]:focus { border-color: #0f6cbd; }
+    .theme-light .hint { color: #777; }
+    .theme-light .repeat-row { color: #333; }
+    .theme-light button.action {
+      border-color: rgba(0, 0, 0, 0.16);
+      background: rgba(0, 0, 0, 0.05);
+      color: #1f1f1f;
+    }
+    .theme-light button.action:hover { background: rgba(0, 0, 0, 0.10); }
+    .theme-light button.action.primary { background: #0f6cbd; border-color: #0f6cbd; color: #fff; }
+    .theme-light button.action.primary:hover { background: #1a7fd4; }
+  </style>
+</head>
+
+<body>
+  <div class="panel">
+    <div class="title">
+      <span>点名 · 选择抽取人数</span>
+      <button class="close" id="close" title="关闭">✕</button>
+    </div>
+    <div class="row">
+      <label for="count">抽取人数</label>
+      <input type="number" id="count" min="1" step="1">
+    </div>
+    <label class="repeat-row">
+      <input type="checkbox" id="repeat">
+      <span>允许重复（不受“本节内每人最多一次”限制）</span>
+    </label>
+    <div class="hint" id="hint"></div>
+    <div class="actions">
+      <button class="action" id="cancel">取消</button>
+      <button class="action primary" id="ok">抽取</button>
+    </div>
+  </div>
+  <script>
+    const { ipcRenderer } = require('electron');
+    const params = new URLSearchParams(location.search);
+    const max = Math.max(1, Number(params.get('max')) || 1);
+    const REPEAT_MAX = 999;
+    const last = Math.max(1, Number(params.get('last')) || 1);
+    const input = document.getElementById('count');
+    const repeat = document.getElementById('repeat');
+    const hint = document.getElementById('hint');
+    repeat.checked = params.get('repeat') === '1';
+
+    // 允许重复时，人数上限从候选人数提升到 999，可超出候选总数
+    function applyMax() {
+      const ceiling = repeat.checked ? REPEAT_MAX : max;
+      input.max = String(ceiling);
+      const current = Number(input.value) || 1;
+      if (current > ceiling) input.value = String(ceiling);
+      hint.textContent = repeat.checked
+        ? `候选人数：${max}（允许重复，最多 ${REPEAT_MAX} 人）`
+        : `候选人数：${max}`;
+    }
+    input.value = String(Math.min(last, repeat.checked ? REPEAT_MAX : max));
+    applyMax();
+    repeat.addEventListener('change', applyMax);
+    input.focus();
+    input.select();
+
+    function submit() {
+      const ceiling = repeat.checked ? REPEAT_MAX : max;
+      const value = Math.max(1, Math.min(ceiling, Math.floor(Number(input.value) || 1)));
+      ipcRenderer.send('plugin:rollcall:prompt-result', { count: value, allowRepeat: repeat.checked });
+    }
+    function cancel() {
+      ipcRenderer.send('plugin:rollcall:prompt-result', null);
+    }
+    document.getElementById('ok').addEventListener('click', submit);
+    document.getElementById('cancel').addEventListener('click', cancel);
+    document.getElementById('close').addEventListener('click', cancel);
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') submit();
+      else if (event.key === 'Escape') cancel();
+    });
+  </script>
+</body>
+
+</html>

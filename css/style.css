@@ -30,19 +30,48 @@
 }
 
 :root {
-    transition: opacity .5s .2s;
+    --col-text: rgba(255, 255, 255, 1);
+    --col-current: rgba(0, 255, 10, 1);
+    --col-break: rgba(255, 255, 5, 1);
+    --col-ended: rgba(188, 188, 188, 1);
+    --col-right: #FF3a3a;
+    --col-left: rgb(0, 238, 255);
+    --col-divider: #aaa;
+    --bg-base: rgba(0, 0, 0, var(--global-bg-opacity));
+    /* 语义字体槽位：主题包可在 :root 覆盖这些变量来替换各区域字体。
+       --font-mono  倒计时数字 / 自定义文本 / 提醒文字
+       --font-base  课表条默认文字
+       --font-bold  当前课程名 / 展开课程名 / 角落星期
+       --font-serif 左右侧栏的节次与时间 */
+    --font-mono: JETB;
+    --font-base: YouYuan;
+    --font-bold: Sou;
+    --font-serif: Ali;
+}
+
+[data-theme="light"] {
+    --col-text: #1a1a1a;
+    --col-current: #0a7d0a;
+    --col-break: #b8860b;
+    --col-ended: #555555;
+    --col-right: #c0392b;
+    --col-left: #0277bd;
+    --col-divider: #ccc;
+    --bg-base: rgba(255, 255, 255, var(--global-bg-opacity));
 }
 
 .background {
     border-radius: var(--global-border-radius);
-    background-color: rgba(0, 0, 0, var(--global-bg-opacity));
+    background-color: var(--bg-base);
     padding: var(--container-bg-padding);
     font-size: var(--center-font-size);
     font-weight: 600;
+    /* 外观页滑动条实时预览：圆角/背景透明度/内边距变化时平滑过渡 */
+    transition: border-radius .18s ease, background-color .18s ease, padding .18s ease;
 }
 
 .classContainer {
-    font-family: YouYuan;
+    font-family: var(--font-base);
     position: relative;
     display: flex;
     flex-direction: row;
@@ -70,23 +99,163 @@
     justify-content: center;
     min-height: var(--component-row-min-height, 0px);
     gap: var(--component-gap, 10px);
+    /* 行级淡化：快速响应鼠标移入/移出（原 :root 整体淡化是 .5s+.2s 延迟） */
+    transition: opacity .18s ease-out, gap .18s ease;
+}
+
+.componentRow.faded {
+    opacity: 0.2;
+}
+
+/* 位置模式切换中间态：布局已切到新模式、窗口矩形尚未到位的一两帧里，
+   竖排内容会在旧窄视口中大面积出界，整体遮住直到 FLIP 动画首帧就位 */
+body.position-switching #globalContainer,
+body.position-switching .miniCountdown {
+    visibility: hidden;
 }
 
 .componentRow[data-component-row="1"] {
     margin-top: var(--second-component-row-offset, 20px);
 }
 
+/* ===== 位置模式：顶部靠右（窗口仍全宽，容器锚定屏幕右缘 + 内容右对齐） ===== */
+[data-position="top-right"] .globalContainer {
+    /* 基础规则是 left:50%+translateX(-50%) 居中锚定，内容超宽时会左右对称溢出，
+       右缘超出屏幕导致右侧组件被裁；改为锚定右缘，保证任何宽度下都真正靠右 */
+    left: auto;
+    right: var(--top-space);
+    transform: none;
+}
+
+[data-position="top-right"] .componentRows {
+    align-items: flex-end;
+}
+
+[data-position="top-right"] .componentRow {
+    justify-content: flex-end;
+}
+
+/* ===== 位置模式：右侧竖排（窗口收窄贴右，行变列、第 1 行最右，行内组件自上而下） ===== */
+[data-position="right"] .globalContainer {
+    left: auto;
+    right: var(--top-space);
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+[data-position="right"] .componentRows {
+    flex-direction: row-reverse;
+    align-items: stretch;
+}
+
+[data-position="right"] .componentRow {
+    flex-direction: column;
+    /* 各列统一宽度：由渲染层测量最宽列后写入 --right-column-width，未设置时保持自然宽度 */
+    width: var(--right-column-width, auto);
+}
+
+[data-position="right"] .componentRow[data-component-row="1"] {
+    /* 第二行（列）的水平间距由 --component-row-gap 承担，垂直 margin 在竖排下无意义 */
+    margin-top: 0;
+}
+
+/* right 模式下课表组件内部：每节课从上到下排列；divider 由垂直线变为水平线 */
+[data-position="right"] .classContainer {
+    flex-direction: column;
+    align-items: center;
+}
+
+/* 组件块占满统一列宽（--right-column-width），各列视觉对齐 */
+[data-position="right"] .componentRow > * {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+[data-position="right"] .componentRow .classContainer {
+    width: 100%;
+}
+
+[data-position="right"] .componentRow .sidebar,
+[data-position="right"] .componentRow .customText {
+    text-align: center;
+}
+
+[data-position="right"] .classContainer .class {
+    margin: 1px 0;
+}
+
+[data-position="right"] .classContainer .divider {
+    width: 1.6em;
+    height: var(--divider-width);
+    margin: 4px 0;
+}
+
+/* right 模式下展开的课程/课间格子改为纵向排列（全称在上，倒计时在下）；
+   display:flex + align-self:stretch 使格子占满 classContainer 内容区，
+   让进度条负边距能跨越 padding 达到课表组件全宽 */
+[data-position="right"] .classContainer .currentClassExpanded,
+[data-position="right"] .classContainer .breakClassExpanded {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    align-self: stretch;
+    gap: 2px;
+    margin: 0;
+    padding-bottom: 0;
+}
+
 .scheduleComponent {
     position: relative;
 }
 
+/* ===== 合并组件：统一大背景块，子组件并排展示 ===== */
+.mergeComponent {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--component-gap, 10px);
+}
+
+/* 合并容器内的子孙组件褪去自身背景/内边距/圆角，由最外层合并容器统一承载
+   （嵌套的内层 merge/carousel 因同样带有相应类而自动褪去） */
+.mergeComponent .background,
+.mergeComponent .mergeComponent {
+    background-color: transparent;
+    padding: 0;
+    border-radius: 0;
+}
+
+/* ===== 轮播组件：同一时刻只显示一个子组件，淡入淡出切换 ===== */
+.carouselComponent {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.carouselSlide {
+    display: none;
+}
+
+.carouselSlide.active {
+    display: block;
+    animation: carouselFadeIn .35s ease;
+}
+
+@keyframes carouselFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
 .class {
-    color: rgba(255, 255, 255, 1);
+    color: var(--col-text);
     margin: 0 var(--main-horizontal-space);
+    /* 主水平间距滑动条拖动时平滑过渡 */
+    transition: margin .18s ease;
 }
 
 .current {
-    color: rgba(0, 255, 10, 1);
+    color: var(--col-current);
 }
 
 .currentClassExpanded {
@@ -94,6 +263,10 @@
     align-items: baseline;
     gap: 8px;
     white-space: nowrap;
+    position: relative;
+    /* 进度条改为绝对定位，不参与 flex 流，避免在窄容器中
+       倒计时被挤到课程名称下方换行 */
+    padding-bottom: 4px;
 }
 
 .breakClassExpanded {
@@ -101,7 +274,9 @@
     align-items: baseline;
     gap: 8px;
     white-space: nowrap;
-    color: rgba(255, 255, 5, 1);
+    position: relative;
+    padding-bottom: 4px;
+    color: var(--col-break);
 }
 
 .stateTransition {
@@ -125,7 +300,7 @@
         transform: translateY(-3px) scale(.98);
     }
     to {
-        color: rgba(0, 255, 10, 1);
+        color: var(--col-current);
         opacity: 1;
         transform: translateY(0) scale(1);
     }
@@ -138,44 +313,81 @@
         transform: translateY(3px) scale(.98);
     }
     to {
-        color: rgba(255, 255, 5, 1);
+        color: var(--col-break);
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
         opacity: 1;
         transform: translateY(0) scale(1);
     }
 }
 
 .expandedClassName {
-    font-family: Sou;
+    font-family: var(--font-bold);
     font-weight: bold;
 }
 
 .inlineCountdown {
-    color: rgba(255, 255, 255, 1);
-    font-family: JETB;
+    color: var(--col-text);
+    font-family: var(--font-mono);
     font-size: var(--countdown-font-size);
 }
 
+/* 课表格子内联倒计时进度条：横排模式下绝对定位在展开格子底部，
+   宽度=展开格子宽度（=课程名称+倒计时宽度之和） */
+.inlineProgress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(128, 128, 128, 0.25);
+    overflow: hidden;
+}
+
+.inlineProgress i {
+    display: block;
+    height: 100%;
+    width: 0;
+    border-radius: 2px;
+    background: var(--col-current);
+    transition: width 0.3s linear;
+}
+
+/* right 竖排模式：进度条用负边距跨越 classContainer 的 padding，
+   宽度=课表组件宽度而非仅对齐课程名。padding 值由 JS 动态写入 --cc-padding-x */
+[data-position="right"] .inlineProgress {
+    position: static;
+    flex: 0 0 auto;
+    width: calc(100% + 2 * var(--cc-padding-x, 14px));
+    margin-left: calc(-1 * var(--cc-padding-x, 14px));
+    margin-right: calc(-1 * var(--cc-padding-x, 14px));
+    margin-top: 2px;
+}
+
 .ended {
-    color: rgba(188, 188, 188, 1);
+    color: var(--col-ended);
 }
 
 .upcoming {
-    color: rgba(0, 255, 10, 1);
+    color: var(--col-current);
     animation: highlightUpcoming 1.5s;
     animation-iteration-count: infinite;
 }
 
 @keyframes highlightUpcoming {
     0% {
-        color: rgba(255, 255, 255, 1)
+        color: var(--col-text)
     }
 
     50% {
-        color: rgba(0, 255, 10, 1);
+        color: var(--col-current);
     }
 
     100% {
-        color: rgba(255, 255, 255, 1)
+        color: var(--col-text)
     }
 
 }
@@ -184,36 +396,84 @@
     /* height: 100%; */
     position: absolute;
     top: 0;
-    font-family: Ali;
+    font-family: var(--font-serif);
     position: relative;
     transform: none;
 }
 
 .rightSidebar {
     right: auto;
-    color: #FF3a3a;
+    color: var(--col-right);
+}
+
+/* 倒计日期组件的可选进度条（起始日 → 终止日） */
+.dateProgress {
+    display: block;
+    width: 100%;
+    height: 3px;
+    margin-top: 3px;
+    border-radius: 2px;
+    background: rgba(128, 128, 128, 0.25);
+    overflow: hidden;
+}
+
+.dateProgress i {
+    display: block;
+    height: 100%;
+    width: 0;
+    border-radius: 2px;
+    background: var(--col-right);
+    transition: width 0.4s ease;
 }
 
 .timeSidebar {
-    color: #FFF;
+    color: var(--col-text);
+}
+
+.weatherSidebar {
+    color: var(--col-text);
+}
+
+.weatherLine {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.weatherEmoji {
+    font-family: "Segoe UI Emoji", "Apple Color Emoji", sans-serif;
+    line-height: 1;
 }
 
 .customText {
-    color: #FFF;
-    font-family: JETB;
+    color: var(--col-text);
+    font-family: var(--font-mono);
     font-size: var(--center-font-size);
+}
+
+/* 插件组件容器：基础外观与自定义文本一致，具体内容由插件自行渲染 */
+.pluginComponent {
+    color: var(--col-text);
+    font-family: var(--font-base);
+    font-size: var(--sub-font-size);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .leftSidebar {
     left: auto;
-    color: rgb(0, 238, 255);
+    color: var(--col-left);
 }
 
 .corner {
     display: inline;
     font-size: var(--corner-font-size);
-    color: rgba(255, 255, 255, 1);
-    font-family: Sou;
+    color: var(--col-text);
+    font-family: var(--font-bold);
 }
 
 .countdownContainer {
@@ -226,14 +486,16 @@
     height: 0;
     border-style: solid;
     border-width: 0 var(--triangle-size) var(--triangle-size);
-    border-color: transparent transparent rgba(0, 0, 0, var(--global-bg-opacity));
+    border-color: transparent transparent var(--bg-base);
     position: relative;
     left: 50%;
     transform: translateX(-50%);
+    /* 背景透明度滑动条拖动时平滑过渡 */
+    transition: border-color .18s ease;
 }
 
 .countdowner {
-    background-color: rgba(0, 0, 0, var(--global-bg-opacity));
+    background-color: var(--bg-base);
     border-radius: var(--global-border-radius);
     padding: var(--countdown-bg-padding);
     font-size: var(--countdown-font-size);
@@ -241,17 +503,53 @@
 }
 
 .currentClass {
-    color: rgba(0, 255, 10, 1);
+    color: var(--col-current);
     display: inline;
-    font-family: Sou;
+    font-family: var(--font-bold);
     transition: all 2s;
     font-weight: bold;
 }
 
 .countdown {
-    color: rgba(255, 255, 255, 1);
+    color: var(--col-text);
     display: inline;
-    font-family: JETB;
+    font-family: var(--font-mono);
+}
+
+/* 悬浮倒计时框内的时间段进度条 */
+.countdownProgress {
+    margin-top: 4px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(128, 128, 128, 0.25);
+    overflow: hidden;
+}
+
+.countdownProgress i {
+    display: block;
+    height: 100%;
+    width: 0;
+    border-radius: 2px;
+    background: var(--col-current);
+    transition: width 0.3s linear;
+}
+
+/* “上课隐藏”时顶部小窗内的进度条 */
+.miniProgress {
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(128, 128, 128, 0.25);
+    overflow: hidden;
+    margin-top: 3px;
+}
+
+.miniProgress i {
+    display: block;
+    height: 100%;
+    width: 0;
+    border-radius: 2px;
+    background: var(--col-current);
+    transition: width 0.3s linear;
 }
 
 .miniCountdown {
@@ -260,17 +558,19 @@
     transform: translateX(-50%);
     top: var(--top-space);
     border-radius: var(--global-border-radius);
-    background-color: rgba(0, 0, 0, var(--global-bg-opacity));
+    background-color: var(--bg-base);
     padding: var(--countdown-bg-padding);
     font-size: var(--countdown-font-size);
-    font-family: JETB;
-    color: #FFF;
+    font-family: var(--font-mono);
+    color: var(--col-text);
     display: none;
+    /* 外观滑动条实时预览过渡 */
+    transition: border-radius .18s ease, background-color .18s ease, padding .18s ease;
 }
 
 .divider {
     width: var(--divider-width);
-    background-color: #aaa;
+    background-color: var(--col-divider);
     border-radius: calc(var(--divider-width) / 2);
     margin: var(--divider-margin);
 }
@@ -307,10 +607,10 @@
 }
 
 .reminderText {
-    font-family: JETB, "Microsoft YaHei", sans-serif;
+    font-family: var(--font-mono), "Microsoft YaHei", sans-serif;
     font-size: var(--countdown-font-size, 25px);
     font-weight: 700;
-    color: #ffffff;
+    color: var(--col-text);
     text-align: center;
     text-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
     max-width: 100%;
@@ -318,4 +618,105 @@
     word-break: break-word;
     line-height: 1.5;
     padding: 0 12px;
+}
+
+/* 右侧竖排模式：提醒文字改为竖版（从右至左阅读） */
+html[data-position="right"] .reminderText {
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    max-width: none;
+    max-height: 100%;
+    white-space: nowrap;
+    padding: 12px 0;
+    line-height: 1.4;
+}
+
+/* 文字过长时滚动：横向模式从右至左，竖排模式从下至上 */
+.reminderText.scroll-h {
+    white-space: nowrap;
+    display: inline-block;
+    padding-left: 100%;
+    animation: reminder-scroll-h linear forwards;
+}
+.reminderText.scroll-v {
+    white-space: nowrap;
+    display: inline-block;
+    padding-top: 100%;
+    animation: reminder-scroll-v linear forwards;
+}
+@keyframes reminder-scroll-h {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
+}
+@keyframes reminder-scroll-v {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(-100%); }
+}
+
+/* ===== 次级提醒：强提醒结束后贯穿课表组件的倒计时遮罩 ===== */
+.secondaryReminder {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    /* 与课表条（.background）圆角一致，并裁剪内部倒计时层，避免边角超出组件 */
+    border-radius: var(--global-border-radius);
+    overflow: hidden;
+    pointer-events: none;
+}
+.secondaryReminder.active {
+    display: flex;
+}
+/* 激活时隐藏课程文字，但保留课表条底色窗口：
+   .classContainer 自身带 .background 的背景色，visibility:hidden 会连背景一起隐藏，
+   因此容器保持可见（压过 setBackgroundDisplay 的内联样式），只隐藏其子元素 */
+.scheduleComponent:has(.secondaryReminder.active) .classContainer {
+    visibility: visible !important;
+}
+.scheduleComponent:has(.secondaryReminder.active) .classContainer > * {
+    visibility: hidden;
+}
+.secondaryReminderText {
+    font-family: var(--font-mono), "Microsoft YaHei", sans-serif;
+    font-size: calc(var(--countdown-font-size, 25px) * 0.82);
+    font-weight: 700;
+    color: var(--col-text);
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    text-align: center;
+    padding: 0 16px;
+    z-index: 2;
+}
+/* 右侧竖排模式下次级提醒文字也竖排 */
+html[data-position="right"] .secondaryReminderText {
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+}
+/* 倒计时层：铺满整个课表组件的遮罩，左边缘固定、右边界从右至左收缩（scaleX 1→0）；
+   移动边界（右侧）用同色渐变淡化到透明，避免生硬的竖直线 */
+.secondaryReminderBar {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    overflow: hidden;
+}
+.secondaryReminderBar i {
+    display: block;
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(to right,
+        var(--secondary-reminder-bar-color, rgba(0, 0, 0, 0.55)) calc(100% - 64px),
+        color-mix(in srgb, var(--secondary-reminder-bar-color, rgba(0, 0, 0, 0.55)) 0%, transparent) 100%);
+    transform-origin: left center;
+    transform: scaleX(1);
+}
+/* 右侧竖排模式：下边缘固定、上边界从下至上收缩，移动边界（上侧）淡化 */
+html[data-position="right"] .secondaryReminderBar i {
+    transform-origin: bottom center;
+    transform: scaleY(1);
+    background: linear-gradient(to top,
+        var(--secondary-reminder-bar-color, rgba(0, 0, 0, 0.55)) calc(100% - 64px),
+        color-mix(in srgb, var(--secondary-reminder-bar-color, rgba(0, 0, 0, 0.55)) 0%, transparent) 100%);
 }

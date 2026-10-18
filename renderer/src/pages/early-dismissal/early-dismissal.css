@@ -1,0 +1,76 @@
+.dismissal-app {
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 18px 24px 32px;
+}
+
+.dismissal-intro {
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0 0 16px;
+  font-size: 14px;
+}
+
+.dismissal-panel {
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 1px 2px var(--shadow);
+}
+
+.dismissal-field-label {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.dismissal-current {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.dismissal-current strong {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.dismissal-current strong.active {
+  color: var(--accent);
+}
+
+.dismissal-form {
+  margin-top: 16px;
+}
+
+.dismissal-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dismissal-input-row .fui-Input {
+  min-width: 140px;
+}
+
+.dismissal-help {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.dismissal-status {
+  min-height: 20px;
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}

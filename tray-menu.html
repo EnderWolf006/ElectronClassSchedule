@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data: file:; font-src 'self' data: file:; style-src 'self' 'unsafe-inline'; script-src 'self';" />
+    <title>托盘菜单</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        html,
+        body {
+            background: transparent;
+            overflow: hidden;
+            /* 跟随主题字体槽位（无主题时回退系统字体） */
+            font-family: var(--font-app, var(--font-base, "Microsoft YaHei UI"), "Microsoft YaHei", sans-serif);
+        }
+
+        /* 四周透明边距容纳菜单投影（须与 tray-menu.js 上报尺寸、main.js 定位边距一致） */
+        body {
+            padding: 18px;
+        }
+
+        .menu {
+            width: 248px;
+            padding: 7px;
+            border-radius: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.14);
+            background: rgba(249, 249, 249, 0.97);
+            color: #1c1c1c;
+            box-shadow: 0 10px 32px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.18);
+            transform-origin: bottom right;
+            animation: menu-pop 0.12s ease-out;
+        }
+
+        body.dark .menu {
+            background: rgba(43, 43, 43, 0.97);
+            border-color: rgba(255, 255, 255, 0.12);
+            color: #f2f2f2;
+        }
+
+        @keyframes menu-pop {
+            from {
+                opacity: 0;
+                transform: scale(0.96);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .item {
+            display: flex;
+            align-items: center;
+            gap: 13px;
+            height: 42px;
+            padding: 0 13px;
+            border-radius: 8px;
+            font-size: 15px;
+            line-height: 1;
+            white-space: nowrap;
+            cursor: default;
+        }
+
+        .item:hover,
+        .item.active {
+            background: rgba(0, 0, 0, 0.07);
+        }
+
+        body.dark .item:hover,
+        body.dark .item.active {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .icon {
+            flex: 0 0 22px;
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .icon img {
+            width: 20px;
+            height: 20px;
+            /* 菜单图标是黑色字形，深色菜单下反色显示 */
+        }
+
+        body.dark .icon img {
+            filter: invert(1);
+        }
+
+        .icon svg {
+            width: 20px;
+            height: 20px;
+            stroke: #1c1c1c;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        body.dark .icon svg {
+            stroke: #f2f2f2;
+        }
+
+        .label {
+            flex: 1 1 auto;
+        }
+
+        .check {
+            flex: 0 0 22px;
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #1469d4;
+            font-size: 19px;
+            font-weight: bold;
+        }
+
+        body.dark .check {
+            color: #4f9bff;
+        }
+
+        .separator {
+            height: 1px;
+            margin: 6px 11px;
+            background: rgba(0, 0, 0, 0.12);
+        }
+
+        body.dark .separator {
+            background: rgba(255, 255, 255, 0.14);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="menu" class="menu"></div>
+    <script src="js/themePack.js"></script>
+    <script src="tray-menu.js"></script>
+    <script>
+        // 注意：tray-menu.js 已经 require('electron') 并获取了 ipcRenderer
+        // 点击菜单窗口内空白区域关闭菜单（如点击 item 之间的间隙）
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.item')) {
+                ipcRenderer.send('tray-menu-close');
+            }
+        });
+        // Escape 键关闭菜单
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                ipcRenderer.send('tray-menu-close');
+            }
+        });
+        // 窗口失去焦点时关闭菜单
+        window.addEventListener('blur', () => {
+            ipcRenderer.send('tray-menu-close');
+        });
+    </script>
+</body>
+
+</html>

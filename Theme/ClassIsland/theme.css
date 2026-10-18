@@ -1,0 +1,62 @@
+/* ============================================================
+   ClassIsland 主题
+   全部区域统一使用 Harmony Sans SC（鸿蒙黑体简体中文）。
+   字体文件（Regular / Medium / Bold）在同目录 index.json 的
+   fonts 中声明，加载主题时由程序通过 FontFace 注册后再应用。
+   字体槽位说明：
+     --font-mono   主悬浮窗：倒计时数字 / 自定义文本 / 提醒遮罩文字
+     --font-base   主悬浮窗：课表条默认文字
+     --font-bold   主悬浮窗：当前课程名 / 展开课程名 / 角落星期
+     --font-serif  主悬浮窗：左右侧栏的节次与时间
+     --font-app       设置/编辑器窗口：正文
+     --font-app-title 设置/编辑器窗口：页面大标题
+   ============================================================ */
+:root {
+    --font-mono: "Harmony Sans SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+    --font-base: "Harmony Sans SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+    --font-bold: "Harmony Sans SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+    --font-serif: "Harmony Sans SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+
+    /* 软件设置 / 课表配置编辑器等窗口 */
+    --font-app: "Harmony Sans SC", "HarmonyOS Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+    --font-app-title: "Harmony Sans SC", "HarmonyOS Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+}
+
+/* ============================================================
+   Harmony Sans SC 字重收敛：基础样式中以下元素默认使用
+   600 / 700 / bold，在该字体下会显得偏粗。统一改为常规字重
+   （Regular），使倒计时数字、课程名等与上方课表条文字的
+   细笔画观感一致。
+   ============================================================ */
+.background,
+.expandedClassName,
+.currentClass,
+.inlineCountdown,
+.countdown,
+.reminderText {
+    font-weight: 400;
+}
+
+/* ============================================================
+   单色化：所有课表颜色统一为黑色（浅色主题）或白色（深色主题）。
+   覆盖默认配色变量，当前/课间/侧栏/已过课程不再使用彩色区分。
+   ============================================================ */
+[data-theme="light"] {
+    --col-text: #000000;
+    --col-current: #000000;
+    --col-break: #000000;
+    --col-ended: #000000;
+    --col-right: #000000;
+    --col-left: #000000;
+    --col-divider: #000000;
+}
+
+[data-theme="dark"] {
+    --col-text: #ffffff;
+    --col-current: #ffffff;
+    --col-break: #ffffff;
+    --col-ended: #ffffff;
+    --col-right: #ffffff;
+    --col-left: #ffffff;
+    --col-divider: #ffffff;
+}

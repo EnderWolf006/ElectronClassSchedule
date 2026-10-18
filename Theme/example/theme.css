@@ -1,0 +1,31 @@
+/* ============================================================
+   示例主题（example）
+   本文件决定“哪些区域使用哪个字体”。
+   可用字体在同目录 index.json 的 fonts 中声明，加载主题时
+   由程序通过 FontFace 注册后再应用本样式表。
+   字体槽位说明：
+     --font-mono   主悬浮窗：倒计时数字 / 自定义文本 / 提醒遮罩文字
+     --font-base   主悬浮窗：课表条默认文字
+     --font-bold   主悬浮窗：当前课程名 / 展开课程名 / 角落星期
+     --font-serif  主悬浮窗：左右侧栏的节次与时间
+     --font-app       设置/编辑器窗口：正文
+     --font-app-title 设置/编辑器窗口：页面大标题
+   ============================================================ */
+:root {
+    --global-border-radius: 16px;
+    --container-space: 14px;
+    --global-bg-opacity: 0.6;
+
+    /* 方正卡通：圆润活泼，用于倒计时数字 */
+    --font-mono: "FZKaTong-M19", "Microsoft YaHei", sans-serif;
+    /* 方正粗倩：端庄醒目，用于课表条默认文字 */
+    --font-base: "FZCuQian-M17", "Microsoft YaHei", sans-serif;
+    /* 方正剪纸：装饰感强，用于课程名与星期 */
+    --font-bold: "FZJianZhi-M23", "Microsoft YaHei", sans-serif;
+    /* Ark Pixel 像素字体：用于侧栏节次与时间 */
+    --font-serif: "Ark Pixel 12px Proportional zh_cn", "Microsoft YaHei", sans-serif;
+
+    /* 软件设置 / 课表配置编辑器等窗口 */
+    --font-app: "FZCuQian-M17", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+    --font-app-title: "FZJianZhi-M23", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+}

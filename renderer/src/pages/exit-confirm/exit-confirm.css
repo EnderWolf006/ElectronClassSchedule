@@ -1,0 +1,34 @@
+html, body, #root {
+  height: 100%;
+}
+
+.dialog {
+  height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 24px 18px;
+}
+
+.dialog-title {
+  margin: 0 0 6px;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: var(--text);
+}
+
+.dialog-subtitle {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.dialog-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: auto;
+}

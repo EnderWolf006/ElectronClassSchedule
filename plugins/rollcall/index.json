@@ -1,0 +1,19 @@
+{
+    "name": "点名",
+    "version": "1.0.0",
+    "description": "从 txt 导入名单，右键菜单“点名”可随机抽取（本节内不重复，机会均等），抽取结果通过提醒显示。",
+    "main": "main.js",
+    "renderer": "renderer.js",
+    "settings": "settings.js",
+    "components": [
+        {
+            "type": "rollcall",
+            "name": "点名",
+            "description": "显示本节已点到的名单",
+            "options": [
+                { "key": "prefix", "label": "前缀文字", "type": "text", "default": "已点：" },
+                { "key": "emptyText", "label": "未点人时显示", "type": "text", "default": "本节未被点名" }
+            ]
+        }
+    ]
+}

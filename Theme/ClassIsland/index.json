@@ -1,0 +1,26 @@
+{
+    "name": "ClassIsland",
+    "css": [
+        "theme.css"
+    ],
+    "fonts": [
+        {
+            "file": "HarmonySansSC-Regular.ttf",
+            "family": "Harmony Sans SC",
+            "weight": "normal",
+            "style": "normal"
+        },
+        {
+            "file": "HarmonySansSC-Medium.ttf",
+            "family": "Harmony Sans SC",
+            "weight": "500",
+            "style": "normal"
+        },
+        {
+            "file": "HarmonySansSC-Bold.ttf",
+            "family": "Harmony Sans SC",
+            "weight": "bold",
+            "style": "normal"
+        }
+    ]
+}
