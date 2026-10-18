@@ -1,13 +1,17 @@
 ﻿param(
     [Parameter(Mandatory = $true)][int]$ProcessId,
-    [ValidateSet('protect', 'restore')][string]$Mode = 'protect'
+    [ValidateSet('protect', 'restore')][string]$Mode = 'protect',
+    [switch]$IncludeChildren
 )
 
 # 进程保护开关：修改目标进程对象的 DACL（自主访问控制列表），
-# - protect：拒绝“当前用户”结束/挂起该进程的权利。非管理员的任务管理器
-#   结束该进程时会显示“拒绝访问”；SYSTEM 与管理员（SeDebugPrivilege）仍可管理，
-#   因此不影响注销/关机/系统维护。
+# - protect：拒绝“当前用户”结束/挂起该进程的权利。任务管理器可以正常启动、
+#   正常查看进程，但“结束任务”时会显示“拒绝访问”；SYSTEM 与管理员
+#  （SeDebugPrivilege）仍可管理，因此不影响注销/关机/系统维护。
 # - restore：恢复为允许（关闭密码保护时调用）。
+# -IncludeChildren：同时处理目标进程的全部子孙进程。Electron 由主进程与
+#   渲染/GPU/工具等多个子进程组成，只保护主进程时杀掉子进程仍会使窗口崩溃，
+#   因此主进程调用时需要带上此开关。
 # 该权限只存在于运行中的进程对象上，进程结束后自动消失，不会留下持久化设置。
 $ErrorActionPreference = 'Stop'
 
@@ -148,7 +152,57 @@ public static class ProcGuard
 
 Add-Type -TypeDefinition $source -Language CSharp
 
-$result = [ProcGuard]::Apply($ProcessId, $Mode)
-Write-Output $result
-if ($result -ne 'OK') { exit 1 }
+# 收集目标进程及其全部子孙进程的 PID（按 ParentProcessId 关系做广度遍历）
+$targetPids = New-Object System.Collections.Generic.List[int]
+$targetPids.Add($ProcessId)
+if ($IncludeChildren) {
+    try {
+        $allProcs = Get-CimInstance -ClassName Win32_Process -Property ProcessId, ParentProcessId
+        $byParent = @{}
+        foreach ($p in $allProcs) {
+            $parent = [int]$p.ParentProcessId
+            if (-not $byParent.ContainsKey($parent)) {
+                $byParent[$parent] = New-Object System.Collections.Generic.List[int]
+            }
+            $byParent[$parent].Add([int]$p.ProcessId)
+        }
+        $queue = New-Object System.Collections.Generic.Queue[int]
+        $queue.Enqueue($ProcessId)
+        while ($queue.Count -gt 0) {
+            $current = $queue.Dequeue()
+            if ($byParent.ContainsKey($current)) {
+                foreach ($childPid in $byParent[$current]) {
+                    if (-not $targetPids.Contains($childPid)) {
+                        $targetPids.Add($childPid)
+                        $queue.Enqueue($childPid)
+                    }
+                }
+            }
+        }
+    } catch {
+        Write-Output ('WARN: enumerate child processes failed: ' + $_.Exception.Message)
+    }
+}
+
+# 主进程必须成功；子进程可能在遍历后已退出，失败不阻断整体结果
+$rootFailed = $false
+$childFailures = 0
+foreach ($targetPid in $targetPids) {
+    $result = [ProcGuard]::Apply($targetPid, $Mode)
+    if ($result -ne 'OK') {
+        if ($targetPid -eq $ProcessId) {
+            $rootFailed = $true
+            Write-Output ('FAIL(root pid ' + $targetPid + '): ' + $result)
+        } else {
+            $childFailures++
+        }
+    }
+}
+
+if ($rootFailed) { exit 1 }
+if ($childFailures -gt 0) {
+    Write-Output ('OK (child skip: ' + $childFailures + ')')
+} else {
+    Write-Output 'OK'
+}
 exit 0

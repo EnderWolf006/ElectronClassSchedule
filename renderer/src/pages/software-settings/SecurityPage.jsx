@@ -4,8 +4,9 @@ import { ipcRenderer } from '../../common/electron.js';
 
 // “安全设置”页：独立密码保护 + 逐模块保护开关。
 // 密码不写入 settings.js：主进程用「加盐 scrypt 哈希 + safeStorage（Windows 下为
-// DPAPI，绑定当前系统用户）整体加密」保存到用户数据目录下的密钥文件，
-// 页面上会展示该文件路径——删除它即可重置为无密码状态。
+// DPAPI，绑定当前系统用户）整体加密」保存到用户数据目录下的密钥文件。
+// 启用密码保护期间，密钥文件与全部程序文件（含 scheduleConfig.js）均无法被删除或改名；
+// 在本页关闭密码保护后，才可用普通方式删除密钥文件完成重置。
 export default function SecurityPage({ onStatus, settingsRef }) {
   const [status, setStatus] = useState(null);
   const [modules, setModules] = useState([]);
@@ -72,7 +73,11 @@ export default function SecurityPage({ onStatus, settingsRef }) {
       setNewPassword('');
       setConfirmPassword('');
       refresh();
-      onStatus?.(action === 'set' ? '密码保护已启用（打开设置/编辑器与部分托盘开关需验证）' : '已关闭密码保护');
+      if (action === 'set') {
+        onStatus?.('密码保护已启用（任务管理器无法结束本程序；程序文件、课表配置与密钥文件均无法被删除或改名）');
+      } else {
+        onStatus?.('已关闭密码保护，进程与文件删除保护均已解除，恢复正常状态');
+      }
     }).catch((err) => {
       setBusy(false);
       setError(String((err && err.message) || err));
@@ -87,7 +92,12 @@ export default function SecurityPage({ onStatus, settingsRef }) {
         <p className="page-intro">
           为课表加一把锁：启用后可以逐项选择需要密码的操作——打开“软件设置 / 课表配置编辑器 / 安全设置”，
           以及托盘菜单中的退出、重启、上课隐藏、窗口置顶、课上计时、显示次日课程；
-          启用后还会拒绝被非管理员的“任务管理器 - 结束任务”直接关闭。
+          启用后任务管理器仍可正常打开和查看，但无法通过“结束任务”关闭本程序：
+          进程会拒绝结束，即使被管理员任务管理器结束，后台守护进程也会立即重新拉起课表
+          （托盘正常退出、关闭密码保护、关机注销时不会重启；不修改系统注册表）。
+          同时，程序安装目录与用户数据目录下的所有文件——包括课表配置 scheduleConfig.js
+          与本页使用的密钥文件——都将无法被删除、改名或整目录移除；
+          程序自身的配置保存、临时调课写入等正常功能不受影响，关闭密码保护后一切恢复原状。
         </p>
       </div>
 
@@ -99,10 +109,20 @@ export default function SecurityPage({ onStatus, settingsRef }) {
         <p className="field-help">
           密码不会写入 scheduleConfig.js / settings.js，也不会以明文保存：
           主进程先做加盐哈希，再用系统级加密（Windows 的 DPAPI，绑定当前系统账户）
-          写入用户数据目录下的密钥文件。删除该文件即可重置为无密码状态（忘记密码时的兜底）。
+          写入用户数据目录下的密钥文件。启用密码保护期间该文件无法被删除或改名，
+          请先在本页关闭密码保护，再删除该文件完成重置；
+          忘记密码时，可用管理员权限取得文件所有权后删除它。
         </p>
         {status && status.encryptionAvailable === false && (
           <p className="field-help security-warning">当前系统不支持安全存储（safeStorage 不可用），无法启用密码保护。</p>
+        )}
+        {status && status.enabled && (
+          <p className="field-help">
+            进程保护：任务管理器无法“结束任务”关闭本程序，即使强行结束也会被后台守护进程自动重启；
+            文件保护：程序文件、课表配置 scheduleConfig.js 与密钥文件均无法被删除、改名或整目录移除，
+            但程序内保存配置、写入临时调课等操作不受影响；
+            任务管理器本身的启动与查看功能不受影响，关闭密码保护后全部恢复正常。
+          </p>
         )}
       </div>
 
